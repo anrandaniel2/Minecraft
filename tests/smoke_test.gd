@@ -66,11 +66,11 @@ func _test_registries() -> void:
 	check(Items.defs.size() > 200, "more than 200 items (%d)" % Items.defs.size())
 	for block_name in ["stone", "grass_block", "dirt", "sand", "oak_log", "oak_planks", "chest",
 			"furnace", "torch", "water", "lava", "bedrock", "diamond_ore", "piston", "piston_arm",
-			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "wool_red"]:
+			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool"]:
 		check(Blocks.id(block_name) > 0, "block '%s' registered" % block_name)
 	for item_name in ["stick", "coal", "charcoal", "iron_ingot", "raw_iron", "diamond", "emerald",
 			"stone_pickaxe", "diamond_sword", "iron_chestplate", "bread", "apple", "wheat_seeds",
-			"gunpowder", "flint_and_steel", "bucket", "bow", "arrow", "emerald_block", "paper"]:
+			"gunpowder", "flint_and_steel", "bucket", "bow", "arrow", "bookshelf", "paper"]:
 		check(Items.def_by_name(item_name) != null, "item '%s' registered" % item_name)
 
 	var stone_pickaxe: int = Items.id("stone_pickaxe")
@@ -114,9 +114,16 @@ func _test_assets() -> void:
 	check(tiles.size() > 100, "the atlas packs %d tiles" % tiles.size())
 	var missing_tiles: Array = []
 	for definition in Blocks.defs:
-		for tile_name in definition.tile_names:
+		for spec_value in definition.tile_names.values():
+			var tile_name: String = str(spec_value)
 			if not tiles.has(tile_name):
 				missing_tiles.append("%s -> %s" % [definition.name, tile_name])
+	var used_cells: Dictionary = {}
+	for block_id in Blocks.defs.size():
+		for face in 6:
+			var cell: Vector2i = Blocks.face_tile(block_id, face, 0)
+			used_cells[cell] = true
+	check(used_cells.size() > 40, "the blocks use %d distinct atlas cells" % used_cells.size())
 	check(missing_tiles.is_empty(), "every block tile exists in the atlas %s"
 		% ("" if missing_tiles.is_empty() else str(missing_tiles.slice(0, 4))))
 
@@ -328,11 +335,11 @@ func _test_containers() -> void:
 	check(chest.size() == 27, "chests have 27 slots")
 	check(BlockContainer.new(BlockContainer.KIND_DISPENSER).size() == 9, "dispensers have 9 slots")
 	var iron: int = Items.id("iron_ingot")
-	check(chest.add(iron, 40) == 40, "40 ingots fit in a fresh chest")
+	check(chest.add(iron, 40) == 0, "40 ingots fit in a fresh chest")
 	check(chest.count_of(iron) == 40, "the chest counts its ingots")
-	check(chest.add(iron, 100) == 100, "100 more ingots fit")
+	check(chest.add(iron, 100) == 0, "100 more ingots fit")
 	check(chest.count_of(iron) == 140, "the chest holds 140 ingots")
-	check(chest.add(iron, 2000) < 2000, "the chest refuses to overflow")
+	check(chest.add(iron, 2000) > 0, "the chest refuses to overflow and reports the leftover")
 	var emptied: int = chest.remove(iron, chest.count_of(iron))
 	check(emptied == 140 and chest.is_empty(), "the chest empties again")
 

@@ -25,7 +25,7 @@ const PROFESSIONS: Dictionary = {
 			{"give": "book", "give_count": 2, "get": "emerald", "get_count": 1},
 			{"give": "emerald", "give_count": 4, "get": "book", "get_count": 3},
 			{"give": "emerald", "give_count": 8, "get": "lapis_lazuli", "get_count": 4},
-			{"give": "emerald", "give_count": 12, "get": "compass", "get_count": 1},
+			{"give": "emerald", "give_count": 12, "get": "bookshelf", "get_count": 1},
 		],
 	},
 	"blacksmith": {
