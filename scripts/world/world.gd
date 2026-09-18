@@ -903,7 +903,7 @@ signal container_changed(pos: Vector3i)
 ## One hopper tick: push an item into the container it points at, or otherwise
 ## pull one out of the container sitting on top of it.
 func _tick_hopper(position: Vector3i, container: BlockContainer) -> bool:
-	var direction: Vector3i = facing_offset(get_block_meta(position))
+	var direction: Vector3i = Blocks.facing_offset(get_block_meta(position))
 	var target: BlockContainer = get_container(position + direction)
 	if target != null and BlockContainer.transfer_one(container, target):
 		return true
@@ -915,22 +915,6 @@ func _tick_hopper(position: Vector3i, container: BlockContainer) -> bool:
 	if source != null and BlockContainer.transfer_one(source, container):
 		return true
 	return false
-
-
-## The facing meta written by placement, as a world offset.
-static func facing_offset(meta: int) -> Vector3i:
-	match meta & 0x7:
-		0:
-			return Vector3i(1, 0, 0)
-		1:
-			return Vector3i(-1, 0, 0)
-		2:
-			return Vector3i(0, 0, 1)
-		3:
-			return Vector3i(0, 0, -1)
-		4:
-			return Vector3i(0, 1, 0)
-	return Vector3i(0, -1, 0)
 
 
 func get_container(pos: Vector3i) -> BlockContainer:

@@ -228,7 +228,8 @@ func _test_recipes() -> void:
 		full_box.add(Items.id("stone"), Items.max_stack(Items.id("stone")))
 	check(not BlockContainer.transfer_one(chest_box, full_box),
 		"a full container refuses hopper transfers")
-	check(World.facing_offset(2) == Vector3i(0, 0, 1), "hopper facing maps to an offset")
+	check(Blocks.facing_offset(2) == Vector3i(0, 0, 1), "hopper facing maps to an offset")
+	check(Blocks.facing_offset(4) == Vector3i(0, 1, 0), "a downward-facing hopper points down")
 
 	var smelt: Dictionary = Recipes.smelting_for(Items.id("iron_ore"))
 	check(not smelt.is_empty(), "iron ore can be smelted")

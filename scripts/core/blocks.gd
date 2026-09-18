@@ -730,6 +730,25 @@ static func is_plantable(block_id: int) -> bool:
 	return def(block_id).plantable
 
 
+## The facing meta written by placement, as the offset it points at. Shared by
+## hoppers, pistons and dispensers.
+static func facing_offset(meta: int) -> Vector3i:
+	match meta & 0x7:
+		0:
+			return Vector3i(1, 0, 0)
+		1:
+			return Vector3i(-1, 0, 0)
+		2:
+			return Vector3i(0, 0, 1)
+		3:
+			return Vector3i(0, 0, -1)
+		4:
+			return Vector3i(0, 1, 0)
+		5:
+			return Vector3i(0, -1, 0)
+	return Vector3i.ZERO
+
+
 static func has_facing(block_id: int) -> bool:
 	return def(block_id).container != "" or def(block_id).climbable or def(block_id).name in _FACING_BLOCKS
 

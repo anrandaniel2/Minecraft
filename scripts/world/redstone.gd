@@ -318,7 +318,7 @@ func _update_piston(pos: Vector3i, is_on: bool, was_on: bool) -> void:
 	if is_on == was_on:
 		return
 	var facing: int = world.get_block_meta(pos) & 0x7
-	var direction: Vector3i = _facing_direction(facing)
+	var direction: Vector3i = Blocks.facing_offset(facing)
 	if direction == Vector3i.ZERO:
 		return
 	var sticky: bool = Blocks.name_of(block_id) == "sticky_piston"
@@ -356,23 +356,6 @@ func _update_piston(pos: Vector3i, is_on: bool, was_on: bool) -> void:
 					world.set_block(arm, pull_id, pull_meta)
 
 
-static func _facing_direction(facing: int) -> Vector3i:
-	match facing & 0x7:
-		0:
-			return Vector3i(1, 0, 0)
-		1:
-			return Vector3i(-1, 0, 0)
-		2:
-			return Vector3i(0, 0, 1)
-		3:
-			return Vector3i(0, 0, -1)
-		4:
-			return Vector3i(0, 1, 0)
-		5:
-			return Vector3i(0, -1, 0)
-	return Vector3i.ZERO
-
-
 ## Dispensers shoot the item in slot 0 of their container.
 func fire_dispenser(pos: Vector3i) -> void:
 	var container: BlockContainer = world.get_container(pos)
@@ -382,7 +365,7 @@ func fire_dispenser(pos: Vector3i) -> void:
 	if stack == null:
 		return
 	var facing: int = world.get_block_meta(pos) & 0x7
-	var direction: Vector3i = _facing_direction(facing)
+	var direction: Vector3i = Blocks.facing_offset(facing)
 	if direction == Vector3i.ZERO:
 		direction = Vector3i(0, 0, 1)
 	var spawn_position := Vector3(pos) + Vector3(0.5, 0.5, 0.5) \
