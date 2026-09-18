@@ -268,6 +268,11 @@ def build_ui() -> dict[str, Canvas]:
     }
     for stage in range(10):
         ui[f"break_{stage}"] = gen_items.break_stage(stage)
+    # Launcher icons for the Android export (icon_192 + adaptive 432 pair).
+    ui["icon_64"] = gen_items.launcher_logo(64)
+    ui["icon_192"] = gen_items.launcher_logo(192)
+    ui["icon_432_foreground"] = gen_items.launcher_logo(432, inset=64)
+    ui["icon_432_background"] = gen_items.launcher_background(432)
     return ui
 
 

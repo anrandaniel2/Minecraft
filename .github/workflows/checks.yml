@@ -122,6 +122,43 @@ jobs:
             echo "::error::Runtime script errors on startup"
             exit 1
           fi
+      - name: Boot the game scene headless
+        run: |
+          set +e
+          timeout 200 godot --headless --path . --quit-after 240 res://scenes/game.tscn \
+            2>&1 | tee /tmp/game.log
+          status=${PIPESTATUS[0]}
+          set -e
+          python3 - <<'PY' || true
+          lines = open("/tmp/game.log", errors="replace").read().splitlines()
+          shown = 0
+          index = 0
+          while index < len(lines) and shown < 20:
+              line = lines[index]
+              if "SCRIPT ERROR" in line or "Parse Error" in line or "Can't load" in line:
+                  joined = " | ".join(part.strip() for part in lines[index:index + 3])
+                  print("::error::%s" % joined)
+                  shown += 1
+                  index += 3
+                  continue
+              index += 1
+          print("game-scene errors reported: %d" % shown)
+          PY
+          if grep -qE "SCRIPT ERROR|Failed to load script" /tmp/game.log; then
+            echo "::error::The game scene reported script errors while running"
+            exit 1
+          fi
+          echo "game scene ran headless (exit status $status)"
+
+      - name: Upload the game-scene log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-scene-log
+          path: /tmp/game.log
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Smoke test
         run: |
           set +e

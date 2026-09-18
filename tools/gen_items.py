@@ -563,6 +563,48 @@ def logo_texture() -> Canvas:
     return canvas
 
 
+def launcher_logo(size: int = 128, inset: int = 0) -> Canvas:
+    """The isometric grass block used for the app icons, at any resolution.
+
+    `inset` shrinks the block inside the canvas so adaptive icons keep their
+    content inside the launcher's safe zone.
+    """
+    canvas = Canvas(size)
+    canvas.rect(0, 0, size, size, (0, 0, 0, 0))
+    span = (size - inset * 2) / 128.0
+    def project(x: float, y: float) -> tuple[float, float]:
+        return (inset + x * span, inset + y * span)
+
+    top = [project(64, 6), project(122, 38), project(64, 70), project(6, 38)]
+    left = [project(6, 38), project(64, 70), project(64, 122), project(6, 90)]
+    right = [project(122, 38), project(64, 70), project(64, 122), project(122, 90)]
+    canvas.poly(top, "#5d9c3a")
+    canvas.poly(left, "#79553a")
+    canvas.poly(right, "#5f4128")
+    rng = random.Random(2)
+    for y in range(size):
+        for x in range(size):
+            if canvas.get(x, y)[3] == 0:
+                continue
+            canvas.set(x, y, shade(canvas.get(x, y), rng.uniform(0.9, 1.15)))
+    canvas.poly(top, rgba("#5d9c3a", 60))
+    step = max(2, size // 21)
+    for i in range(0, int(size * 0.47), step):
+        px, py = project(6 + i * (128.0 / size * (size / 128.0)), 38 + i)
+        canvas.set(int(px), int(py), rgba("#000000", 40))
+    return canvas
+
+
+def launcher_background(size: int = 432) -> Canvas:
+    """Flat backdrop for the adaptive icon (dark slate with a soft glow)."""
+    canvas = Canvas(size)
+    for y in range(size):
+        t = y / max(1.0, size - 1.0)
+        canvas.rect(0, y, size, 1, shade("#20242c", 0.85 + t * 0.45))
+    canvas.disc(size // 2, int(size * 0.55), int(size * 0.42), shade("#2c313b", 1.15))
+    return canvas
+
+
 def sun_texture() -> Canvas:
     canvas = Canvas(32)
     canvas.disc(16, 16, 9, "#fff3b0")
