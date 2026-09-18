@@ -230,13 +230,13 @@ func _tick_containers(delta: float) -> void:
 		if center.distance_to(origin) > CONTAINER_TICK_DISTANCE:
 			continue
 		if container.kind == BlockContainer.KIND_HOPPER:
-		# Hoppers move one item every other container tick, which works out at
-		# roughly two items a second - fast enough to feel busy, slow enough to
-		# see and to keep a long line of them from eating the frame budget.
-		_hopper_phase = not _hopper_phase
-		if _hopper_phase and _tick_hopper(position, container):
-			container_changed.emit(position)
-		continue
+			# Hoppers move one item every other container tick, which works out
+			# at roughly two items a second: busy enough to see, and cheap enough
+			# that a long line of them keeps the frame budget.
+			_hopper_phase = not _hopper_phase
+			if _hopper_phase and _tick_hopper(position, container):
+				container_changed.emit(position)
+			continue
 		if container.kind != BlockContainer.KIND_FURNACE:
 			continue
 		var was_lit: bool = container.lit

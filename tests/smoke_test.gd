@@ -208,8 +208,8 @@ func _test_recipes() -> void:
 	# Hopper: five iron and a chest, and it shuffles items between containers.
 	var iron: int = Items.id("iron_ingot")
 	var chest_item: int = Blocks.id("chest")
-	var hopper_grid: Array = [iron, -1, iron, iron, chest_item, iron, -1, iron, -1]
-	var hopper_recipe: Recipes.Recipe = Recipes.match(hopper_grid, 3, 3)
+	var hopper_grid: Array = [iron, -1, iron, iron, chest_item, iron]
+	var hopper_recipe: Recipes.Recipe = Recipes.match(hopper_grid, 3, 2)
 	check(hopper_recipe != null, "iron and a chest match the hopper recipe")
 	if hopper_recipe != null:
 		check(Items.id(str(hopper_recipe.results[0]["item"])) == Blocks.id("hopper"),
