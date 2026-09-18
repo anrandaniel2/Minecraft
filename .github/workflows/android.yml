@@ -174,13 +174,12 @@ jobs:
           unzip -l "$APK" | head -20
           "$ANDROID_SDK_ROOT/build-tools/${BUILD_TOOLS}/aapt2" dump badging "$APK" \
             | grep -E "package:|launchable-activity:|native-code:" || true
-          # The packed settings decide which backend the app asks for. A
-          # Vulkan-only method (mobile/forward_plus) force-closes on a device
-          # whose Vulkan driver cannot start, so the shipped preset must name the
-          # OpenGL path.
+          # The packed settings decide which backend the app asks for. The game
+          # ships on the Vulkan "mobile" renderer, so the packed settings must
+          # not carry an OpenGL override from an experiment.
           unzip -p "$APK" assets/project.binary > /tmp/apk-project.binary
-          if ! grep -a -q "gl_compatibility" /tmp/apk-project.binary; then
-            echo "::error::The APK does not request the gl_compatibility renderer"
+          if grep -a -q "gl_compatibility" /tmp/apk-project.binary; then
+            echo "::error::The APK asks for gl_compatibility, but the project uses the mobile renderer"
             exit 1
           fi
           # JSON manifests are not resources, so "export all resources" drops
@@ -216,6 +215,14 @@ jobs:
           grep -E "Blockcraft: renderer" /tmp/boot.log | head -2 | while IFS= read -r line; do
             echo "::notice::$line"
           done
+          # The boot line is the whole launch contract: the mobile renderer, and
+          # a worker pool that actually has threads. A pool with 0 threads runs
+          # every task on the main thread, which is what froze the game on a
+          # phone until Android killed it.
+          if ! grep -Eq "Blockcraft: renderer=mobile workers=[1-9][0-9]* - menu ready" /tmp/boot.log; then
+            echo "::error::the exported build did not boot with the mobile renderer and worker threads"
+            exit 1
+          fi
           if grep -q "atlas.json is missing" /tmp/boot.log; then
             echo "::error::the exported build has no atlas manifest"
             exit 1
@@ -230,6 +237,26 @@ jobs:
             exit 1
           fi
           echo "::notice::the packaged build booted to the main menu"
+          # Then do what a player does: open a world. That path builds the
+          # terrain, the sky, the mobs and the interface, so a crash there is
+          # caught here instead of on a phone.
+          set +e
+          timeout 300 "$BIN" --headless --quit-after 900 res://scenes/game.tscn 2>&1 | tee /tmp/world.log
+          world_status=${PIPESTATUS[0]}
+          set -e
+          grep -E "Blockcraft: step: " /tmp/world.log | head -12 | while IFS= read -r line; do
+            echo "::notice::$line"
+          done
+          if grep -qE "SCRIPT ERROR" /tmp/world.log; then
+            echo "::error::opening a world in the exported build reported script errors"
+            exit 1
+          fi
+          if ! grep -q "step: world ready" /tmp/world.log; then
+            echo "::error::the exported build never finished loading a world (exit status $world_status)"
+            tail -n 40 /tmp/world.log
+            exit 1
+          fi
+          echo "::notice::the packaged build opened a world and finished loading it"
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4

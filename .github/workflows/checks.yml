@@ -224,6 +224,12 @@ jobs:
               index += 1
           print("game-scene errors reported: %d" % shown)
           PY
+          if grep -q "step: world ready" /tmp/game.log; then
+            echo "::notice::the world finished loading from the editor build"
+          else
+            echo "::error::The game scene never reported a loaded world"
+            exit 1
+          fi
           if grep -qE "SCRIPT ERROR|Failed to load script" /tmp/game.log; then
             echo "::error::The game scene reported script errors while running"
             exit 1

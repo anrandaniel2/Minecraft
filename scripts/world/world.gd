@@ -42,6 +42,7 @@ var _pending_mesh: Dictionary = {}        # Vector2i → task id
 var _mesh_queue: Array = []               # coords waiting for a mesh slot
 var _gen_queue: Array = []                # coords waiting for a generator slot
 var _dirty: Dictionary = {}               # Vector2i → true (needs a remesh)
+var _streamed: bool = false               # set once the queues first drain
 var _edits: Dictionary = {}               # Vector2i → {local index: [id, meta]}
 var _containers: Dictionary = {}          # Vector3i → BlockContainer
 var _signs: Dictionary = {}               # Vector3i → sign text
@@ -108,6 +109,7 @@ func _ready() -> void:
 	for dx in range(-1, 2):
 		for dz in range(-1, 2):
 			_generate_now(Vector2i(dx, dz))
+	GameLog.step("world: spawn chunks generated, streaming starts")
 	world_ready.emit()
 
 
@@ -346,6 +348,12 @@ func _pump_streaming() -> void:
 	stats["loaded"] = chunks.size()
 	stats["queued"] = _gen_queue.size()
 	stats["pending"] = _pending_gen.size() + _pending_mesh.size()
+	if not _streamed and _gen_queue.is_empty() and _mesh_queue.is_empty() \
+			and _pending_gen.is_empty() and _pending_mesh.is_empty():
+		# The moment the streaming queue drains: if a phone dies while playing,
+		# this line tells us whether it happened during the initial load.
+		_streamed = true
+		GameLog.step("world: streaming caught up (%d chunks)" % chunks.size())
 
 
 func _adopt_chunk(coord: Vector2i, chunk: Chunk) -> void:

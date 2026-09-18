@@ -20,6 +20,7 @@ boot_splash/show_image=false
 
 [autoload]
 
+GameLog="*res://scripts/core/game_log.gd"
 Settings="*res://scripts/core/settings.gd"
 Registry="*res://scripts/core/registry.gd"
 AudioManager="*res://scripts/audio/audio_manager.gd"
@@ -45,18 +46,14 @@ locale/fallback="en"
 
 [rendering]
 
-; OpenGL ES 3 / OpenGL 3.3 everywhere, on purpose.
+; The "mobile" renderer (Vulkan) everywhere, which is what a phone wants.
 ;
-; The "mobile" and "forward_plus" methods both require Vulkan, and a phone with
-; no working Vulkan driver force-closes the moment the engine tries to bring up
-; its rendering device: the engine only falls back to OpenGL when a Vulkan
-; *context* fails to initialise, never when a project asked for a Vulkan-only
-; method. gl_compatibility is the one backend that comes up on every device this
-; game targets, and nothing here needs a Forward+/Mobile-only feature (SSAO,
-; volumetric fog, SDFGI and compute are all unused; the custom shaders are plain
-; spatial shaders).
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+; Android only: if the Vulkan device cannot be created, this lets the
+; DisplayServer fall back to OpenGL 3 instead of aborting the process. It is the
+; engine default; it is written out here so nobody removes the safety net.
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+rendering_device/fallback_to_opengl3=true
 ; Android needs ETC2/ASTC; desktop keeps its smaller formats.
 textures/vram_compression/import_etc2_astc=true
 textures/canvas_textures/default_texture_filter=0
@@ -67,4 +64,10 @@ environment/defaults/default_clear_color=Color(0.35, 0.55, 0.85, 1)
 
 [threading]
 
-worker_pool/max_threads=0
+; -1 is the engine default: one worker per logical core. 0 does NOT mean "auto".
+; WorkerThreadPool::init() treats any negative count as auto and resizes the
+; pool to the literal value otherwise, so 0 leaves an exported game with no
+; worker threads at all: chunk generation, meshing and Vulkan shader compilation
+; then all run inline on the main thread, the game freezes for long enough on a
+; phone, and Android kills it as "not responding".
+worker_pool/max_threads=-1

@@ -24,6 +24,7 @@ func _initialize() -> void:
 	_test_structures()
 	_test_achievements()
 	_test_touch_controls()
+	_test_startup_config()
 	print("")
 	if failures == 0:
 		print("SMOKE OK - %d checks passed" % checks)
@@ -182,6 +183,29 @@ func _test_achievements() -> void:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Startup configuration
+# ---------------------------------------------------------------------------
+
+
+## The settings a build can get wrong without any script ever failing: a worker
+## pool with no threads (threading/worker_pool/max_threads = 0) runs every chunk
+## generation, mesh and shader compilation on the main thread, which froze the
+## game on a phone until Android killed it as "not responding".
+func _test_startup_config() -> void:
+	print("- startup configuration")
+	var requested: int = int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1))
+	check(requested != 0, "worker_pool/max_threads is not 0 (0 means no worker threads)")
+	var log_script: GDScript = load("res://scripts/core/game_log.gd")
+	check(log_script != null, "the log helper loads")
+	if log_script != null:
+		check(log_script.worker_thread_count() > 0, "the worker pool really has threads")
+	var mobile_method: String = str(ProjectSettings.get_setting("rendering/renderer/rendering_method.mobile", ""))
+	var fallback: bool = bool(ProjectSettings.get_setting("rendering/rendering_device/fallback_to_opengl3", false))
+	check(mobile_method != "" and fallback,
+		"the Android build overrides the renderer and can fall back to OpenGL")
 
 
 func check(condition: bool, label: String) -> void:

@@ -30,6 +30,7 @@ var _quit_requested: bool = false
 
 func _ready() -> void:
 	randomize()
+	GameLog.step("game: starting")
 	var pending: Dictionary = SaveManager.pending_world
 	save_slot = str(pending.get("slot", ""))
 	world = World.new()
@@ -39,6 +40,7 @@ func _ready() -> void:
 	world.slot = save_slot
 	world.gamemode = str(pending.get("gamemode", Settings.get_value("gamemode")))
 	add_child(world)
+	GameLog.step("game: world node ready")
 
 	player = Player.new()
 	player.name = "Player"
@@ -56,6 +58,7 @@ func _ready() -> void:
 
 	_build_hud()
 	_build_loading_overlay()
+	GameLog.step("game: hud ready")
 	_restore_or_start()
 	MpManager.attach_world(world, player)
 	var wants_host: bool = MpManager.pending_host
@@ -141,6 +144,7 @@ func _restore_or_start() -> void:
 
 
 func _load_saved_world() -> void:
+	GameLog.step("load: slot '%s'" % save_slot)
 	var meta: Dictionary = SaveManager.read_meta(save_slot)
 	if meta.is_empty():
 		_loading.visible = false
@@ -168,6 +172,7 @@ func _load_saved_world() -> void:
 
 
 func save_world() -> void:
+	GameLog.step("save: slot '%s'" % save_slot)
 	if save_slot == "":
 		hud.toast("This world has no save slot (quit to the menu to create one)")
 		return
@@ -254,9 +259,10 @@ func _update_loading() -> void:
 	_loading_bar.value = clampf(float(loaded) / float(mini(wanted, 25)), 0.0, 1.0)
 	_loading_label.text = "Generating world..."
 	_status.text = "%d chunks ready" % loaded
-	if loaded >= 9:
+	if loaded >= 9 and not spawn_chunks_ready:
 		_loading.visible = false
 		spawn_chunks_ready = true
+		GameLog.step("world ready: %d chunks, player at %s" % [loaded, str(player.global_position)])
 
 
 func _update_autosave(delta: float) -> void:

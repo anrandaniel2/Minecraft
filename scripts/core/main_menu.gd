@@ -22,6 +22,8 @@ var _address_field: LineEdit
 var _port_field: LineEdit
 var _message: Label
 var _version: Label
+var _log_panel: Control
+var _diagnostics: Button
 var _scroll: ScrollContainer
 var _time: float = 0.0
 
@@ -42,8 +44,11 @@ func _ready() -> void:
 		MpManager.close()
 	# Printed as well as shown: on a phone the log is the only channel a bug
 	# report can quote, and "menu ready" is the marker the export smoke test
-	# waits for to prove the packed build actually boots.
-	print("Blockcraft: renderer=%s - menu ready" % renderer_label())
+	# waits for to prove the packed build actually boots. The worker count is in
+	# the same line because a pool with no threads freezes a phone hard enough
+	# for Android to kill the game (see threading/worker_pool/max_threads).
+	print("Blockcraft: renderer=%s workers=%d - menu ready" % [
+		renderer_label(), GameLog.worker_thread_count()])
 
 
 ## The rendering backend and GPU this build actually came up on. Phones have no
@@ -155,6 +160,86 @@ func _build_foreground() -> void:
 	_version.text = "Godot %s - %s - %d blocks, %d items, %d recipes" % [
 		Engine.get_version_info()["string"], renderer_label(), Blocks.defs.size(),
 		Items.defs.size(), Recipes.shaped.size() + Recipes.shapeless.size()]
+
+	# Bottom-right: the crash journal. Phones keep no console, so this is how a
+	# bug report gets made without a cable - show the tail, copy it, send it.
+	_diagnostics = _panel_button("Log", _open_log_viewer)
+	_diagnostics.name = "Diagnostics"
+	_diagnostics.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_diagnostics.position = Vector2(-146, -_diagnostics.custom_minimum_size.y - 14)
+	add_child(_diagnostics)
+
+
+func _is_touch() -> bool:
+	return OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
+
+
+## A button sized for fingers on a phone and for a mouse everywhere else, used by
+## the panels that are not part of the main menu's button column.
+func _panel_button(text: String, callback: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(132, 52 if _is_touch() else 34)
+	button.add_theme_font_size_override("font_size", 20 if _is_touch() else 14)
+	button.pressed.connect(callback)
+	return button
+
+
+## Shows `user://log.txt` (the previous session included) so a crash on a device
+## can be read and copied from the phone itself.
+func _open_log_viewer() -> void:
+	if _log_panel != null:
+		return
+	_log_panel = Control.new()
+	_log_panel.name = "LogPanel"
+	_log_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_log_panel)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.02, 0.02, 0.04, 0.85)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_log_panel.add_child(dim)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "top", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_%s" % side, 20)
+	_log_panel.add_child(margin)
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	margin.add_child(box)
+
+	var title := Label.new()
+	title.text = "Blockcraft log  -  %s  -  %d lines" % [GameLog.PATH, GameLog.line_count()]
+	title.add_theme_font_size_override("font_size", 16)
+	box.add_child(title)
+
+	var view := TextEdit.new()
+	view.name = "Text"
+	view.editable = false
+	view.text = GameLog.tail(240)
+	view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	view.add_theme_font_size_override("font_size", 12)
+	box.add_child(view)
+	# Open at the bottom: the lines before a crash are the interesting ones.
+	view.set_caret_line(view.get_line_count() - 1)
+	view.scroll_vertical = view.get_line_count()
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	box.add_child(row)
+	row.add_child(_panel_button("Copy", func() -> void:
+		DisplayServer.clipboard_set("%s" % GameLog.tail(240))
+		_message.text = "Log copied to the clipboard"))
+	row.add_child(_panel_button("Clear", func() -> void:
+		GameLog.clear()
+		view.text = ""
+		title.text = "Blockcraft log  -  %s  -  0 lines" % GameLog.PATH))
+	row.add_child(_panel_button("Close", func() -> void:
+		_log_panel.queue_free()
+		_log_panel = null))
 
 
 func _menu_button(text: String, callback: Callable) -> Button:
@@ -313,6 +398,9 @@ func _start_world(meta: Dictionary, is_new: bool) -> void:
 	SaveManager.pending_is_new = is_new
 	SaveManager.current_slot = str(meta.get("slot", ""))
 	_message.text = "Loading %s..." % str(meta.get("name", ""))
+	GameLog.step("menu: opening '%s' slot '%s' seed %d new=%s" % [
+		str(meta.get("name", "world")), SaveManager.current_slot,
+		int(meta.get("seed", 0)), str(is_new)])
 	SceneRouter.goto(GAME_SCENE, "Generating %s" % str(meta.get("name", "world")),
 		"seed %d" % int(meta.get("seed", 0)))
 

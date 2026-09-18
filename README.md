@@ -332,10 +332,11 @@ What the job does:
    check — then exports the debug APK, attempts a release APK, verifies the
    archive with `aapt2 dump badging` and uploads `build/*.apk` as the
    `blockcraft-android` artifact.
-5. Verifies the APK really is launchable: the packed `project.binary` has to
-   request `gl_compatibility`, both JSON manifests have to be inside the
-   archive, and a Linux export of the same project is started headlessly and
-   has to reach the main menu. That last check is the closest CI can get to
+5. Verifies the APK really is launchable: the packed `project.binary` must not
+   carry a stray OpenGL override, both JSON manifests have to be inside the
+   archive, and a Linux export of the same project is started headlessly. It has
+   to reach the main menu *and* open a world, with the boot line reporting the
+   `mobile` renderer and a worker pool that actually has threads. That last check is the closest CI can get to
    installing the APK — a runner has no Android emulator — and it catches the
    class of bugs where the project works in the editor but the packed build
    does not.
@@ -352,16 +353,22 @@ the workflow input) if you fork this and want your own package id.
 ## Playing on a phone
 
 The APK is a full-build, not a demo: landscape, immersive (no status or
-navigation bar), **OpenGL ES 3 (`gl_compatibility`) with ETC2/ASTC
+navigation bar), the **`mobile` renderer (Vulkan) with ETC2/ASTC
 compression**, and the touch controls described in [Controls](#controls) are on
 by default on Android/iOS (`touch_controls = auto`).
 
-The game never asks a device for Vulkan on purpose. The `mobile` and
-`forward_plus` rendering methods both need a Vulkan driver, and when a phone
-cannot create one the engine aborts during start-up — Godot only falls back to
-OpenGL when a Vulkan *context* fails, not when the project asked for a
-Vulkan-only method. Every shader here is a plain spatial shader, so
-`gl_compatibility` runs the identical art on desktop and on phones.
+Android keeps Godot's OpenGL safety net switched on
+(`rendering/rendering_device/fallback_to_opengl3`), so a device whose Vulkan
+device cannot be created falls back to OpenGL 3 instead of dying at start-up.
+
+The one setting that makes or breaks phone performance is
+`threading/worker_pool/max_threads`. Godot only reads a **negative** value as
+"auto" (one worker per core); `0` means *no worker threads at all*, because
+`WorkerThreadPool::init()` resizes its pool to the literal number it is given.
+With the pool empty, chunk generation, meshing and Vulkan shader compilation all
+run inline on the main thread, and Android kills the frozen game as "not
+responding". It stays at `-1`, and the smoke test plus the APK workflow assert
+it.
 
 **First run on a phone** writes a mobile preset to `user://settings.cfg`:
 render distance 5, 60 FPS cap, V-Sync off, particles and clouds off, UI scale
@@ -388,11 +395,18 @@ usual with the **Chat** button.
 
 The main menu prints one line of launch diagnostics and the menu shows the same
 thing in its bottom-left corner, so a screenshot says which backend a device
-picked:
+picked and whether the worker pool came up:
 
 ```
-Blockcraft: renderer=OpenGL ES 3.0 (gl_compatibility) - menu ready
+Blockcraft: renderer=Vulkan 1.3.0 (mobile) workers=8 - menu ready
 ```
+
+The **Log** button in the bottom-right corner opens `user://log.txt`, which is
+written and flushed line by line while the game runs and carries the previous
+session over. Starting up and opening a world are journaled step by step
+(`menu: opening ...`, `world: spawn chunks generated`, `world ready: 9 chunks`),
+so a crash leaves a trail that can be read on the phone itself: open the log,
+tap **Copy**, paste it into the report. No cable needed.
 
 If the app closes before that line can appear, the fault is below the game
 scripts and the Android log is the only place that knows where:
@@ -404,8 +418,10 @@ adb logcat -d | grep -A 30 "FATAL EXCEPTION"   # Java-side crash
 
 A `FATAL EXCEPTION` means the Godot Android activity itself died (usually the
 packaged project or its manifest); a `DEBUG`/`SIGSEGV` crash with a driver name
-next to it is a graphics driver problem — which is why the renderer is pinned to
-`gl_compatibility` in `project.godot`.
+next to it is a graphics driver problem. A process that is killed with no
+exception at all is usually the system ending an unresponsive app, which is what
+an empty worker pool looks like from the outside — check the `workers=` count in
+the boot line before blaming the driver.
 
 Three things that are worth re-checking when a build only misbehaves on a
 device:
@@ -519,14 +535,16 @@ Full details, including the name-matching rules and the PNG formats accepted:
   the project headlessly, compiles **every** script with
   `tests/compile_check.tscn` (so a helper nothing references cannot rot
   unnoticed), loads the main scene until it reports `renderer=... - menu ready`
-  and runs `tests/smoke_test.gd` (403 checks over the registries, the atlas
+  and runs `tests/smoke_test.gd` (407 checks over the registries, the atlas
   manifests, recipe matching, terrain generation, structures, achievements,
-  mob/trade tables, container serialisation and the touch-control logic).
+  mob/trade tables, container serialisation, the touch-control logic and the
+  startup configuration, which includes that the worker pool is not empty).
 - `.github/workflows/android.yml` — the APK build described above, plus its
-  launch checks: the packed settings have to request `gl_compatibility`, both
-  JSON manifests have to be inside the APK, and a Linux export of the project is
-  started headlessly and has to reach `menu ready` (a runner has no Android
-  emulator, so this is the closest CI can get to opening the APK).
+  launch checks: both JSON manifests have to be inside the APK, the packed
+  settings must not carry a stray OpenGL override, and a Linux export of the
+  project has to boot with `renderer=mobile workers=<n>` and finish loading a
+  world (a runner has no Android emulator, so this is the closest CI can get to
+  opening the APK).
 - Locally, `godot --headless --path . --import` catches the same script errors,
   `godot --headless --path . res://tests/compile_check.tscn` compiles every
   script, `godot --headless --path . --script res://tests/smoke_test.gd` runs
