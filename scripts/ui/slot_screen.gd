@@ -181,24 +181,24 @@ func _on_slot_clicked(slot: ItemSlot, button: int) -> void:
 	if slot.infinite:
 		# Creative palette: hand out a stack, the source never empties.
 		if button == MOUSE_BUTTON_LEFT and cursor_stack == null:
-			var palette: Variant = slot.get_stack()
+			var palette: Variant = slot.current_stack()
 			if palette != null:
 				set_cursor(_copy_stack(palette))
 				AudioManager.play_ui()
 		elif button == MOUSE_BUTTON_RIGHT and cursor_stack == null:
-			var single: Variant = slot.get_stack()
+			var single: Variant = slot.current_stack()
 			if single != null:
 				set_cursor(BlockContainer.make_stack(int(single["id"]), 1))
 		return
 	if slot.readonly:
 		# Crafting results can only be taken, never inserted.
 		if button == MOUSE_BUTTON_LEFT and cursor_stack == null:
-			var result: Variant = slot.get_stack()
+			var result: Variant = slot.current_stack()
 			if result != null:
 				set_cursor(_copy_stack(result))
 				_consume_crafting_grid()
 		elif button == MOUSE_BUTTON_RIGHT and cursor_stack == null:
-			var one: Variant = slot.get_stack()
+			var one: Variant = slot.current_stack()
 			if one != null:
 				set_cursor(BlockContainer.make_stack(int(one["id"]), 1))
 				_consume_crafting_grid()
@@ -209,7 +209,7 @@ func _on_slot_clicked(slot: ItemSlot, button: int) -> void:
 	if button == 2:
 		_handle_double_click(slot)
 		return
-	var stack: Variant = slot.get_stack()
+	var stack: Variant = slot.current_stack()
 	if button == MOUSE_BUTTON_LEFT:
 		if cursor_stack == null:
 			if stack != null:
@@ -263,7 +263,7 @@ func _on_slot_clicked(slot: ItemSlot, button: int) -> void:
 
 ## Shift-click: push a stack between the inventory and the open container.
 func _quick_move(slot: ItemSlot) -> void:
-	var stack: Variant = slot.get_stack()
+	var stack: Variant = slot.current_stack()
 	if stack == null or player == null:
 		return
 	var target: BlockContainer = _transfer_target(slot)

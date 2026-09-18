@@ -41,7 +41,7 @@ func _ready() -> void:
 	)
 
 
-func get_stack() -> Variant:
+func current_stack() -> Variant:
 	if manual:
 		return manual_stack
 	if container == null or index < 0:
@@ -49,11 +49,12 @@ func get_stack() -> Variant:
 	return container.get_slot(index)
 
 
-## `get_stack()` straight from a container should always be a Dictionary, but a
-## stale or mis-assigned slot must not spam the log from `_draw()`, so every
-## stack goes through here first.
+## `current_stack()` straight from a container should always be a Dictionary,
+## but a stale or mis-assigned slot must not spam the log from `_draw()`, so
+## every stack goes through here first. (Named `current_stack` because
+## `Object.get_stack()` is an engine method and would otherwise win the call.)
 func stack_dictionary() -> Dictionary:
-	var value: Variant = get_stack()
+	var value: Variant = current_stack()
 	if typeof(value) == TYPE_DICTIONARY:
 		return value
 	if value != null:

@@ -180,6 +180,7 @@ static func _register(
 	definition.id = block_id
 	definition.name = block_name
 	definition.tile_names = _tile_spec_only(tile_spec)
+	definition.item_icon = str(opts.get("item_icon", ""))
 	definition.display_name = str(opts.get("title", _prettify(block_name)))
 	definition.solid = bool(opts.get("solid", true))
 	definition.opaque = bool(opts.get("opaque", true))
@@ -439,7 +440,7 @@ static func _register_plants() -> void:
 		"drops": [{"item": "sugar_cane", "count": 1}], "plantable": true}))
 	_register("cactus", {"top": "cactus_top", "bottom": "cactus_bottom", "side": "cactus_side"},
 		{"hardness": 0.4, "sound": SOUND_PLANT, "plantable": true})
-	_register("wheat", {"all": "wheat_0"}, _merge(cross, {
+	_register("wheat", {"all": "wheat_0"}, _merge(cross, {"item_icon": "wheat",
 		"title": "Wheat Crop", "plantable": true, "drops": [],
 		"harvest": "wheat", "seed": "wheat_seeds"}))
 	_register("carrots", {"all": "carrots"}, _merge(cross, {

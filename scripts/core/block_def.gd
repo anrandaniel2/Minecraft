@@ -11,6 +11,7 @@ var display_name: String = ""
 
 ## Raw tile spec as authored in blocks.gd: one of all / side / top / bottom / front.
 var tile_names: Dictionary = {}
+var item_icon: String = ""         # inventory icon tile, when it differs from the block
 
 var solid: bool = true            # included in collision shapes
 var collides: bool = true         # blocks player/mob movement

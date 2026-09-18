@@ -135,14 +135,24 @@ static func build() -> void:
 	# 2) Pure items.
 	for item_name in EXTRA_ITEMS:
 		var props: Dictionary = EXTRA_ITEMS[item_name]
-		var item := ItemDef.new()
-		item.name = item_name
-		item.display_name = Blocks._prettify(item_name)
-		item.icon = item_name
-		item.stack = int(props.get("stack", 64))
-		item.fuel = float(props.get("fuel", 0.0))
-		item.durability = int(props.get("durability", 0))
-		_register(item)
+		# A few names (torch, wheat, sugar cane) are both blocks and items. The
+		# block item keeps the id and the atlas icon, and only the extra
+		# properties are merged in, so the name never resolves to a stray twin.
+		var existing: ItemDef = def_by_name(item_name)
+		var item: ItemDef = null
+		if existing != null and existing.is_block():
+			item = existing
+		else:
+			item = ItemDef.new()
+			item.name = item_name
+			item.display_name = Blocks._prettify(item_name)
+			item.icon = item_name
+			item.stack = int(props.get("stack", 64))
+			_register(item)
+		item.fuel = float(props.get("fuel", item.fuel))
+		item.durability = int(props.get("durability", item.durability))
+		if props.has("stack"):
+			item.stack = int(props["stack"])
 	# 3) Foods.
 	for food_name in FOODS:
 		var food := _ensure(food_name)
@@ -220,6 +230,8 @@ static func _ensure(item_name: String) -> ItemDef:
 
 
 static func _block_icon_tile(block_def: BlockDef) -> String:
+	if block_def.item_icon != "":
+		return block_def.item_icon
 	var spec := block_def.tile_names
 	if spec.has("all"):
 		return str(spec["all"])
