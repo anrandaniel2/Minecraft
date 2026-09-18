@@ -90,7 +90,8 @@ func on_block_changed(pos: Vector3i, old_id: int, new_id: int) -> void:
 		if Blocks.shape(new_id) == Blocks.SHAPE_CROSS:
 			schedule(pos, 0.1, "fluid")
 	# Neighbours react: fluids flow in, floating blocks fall, crops uproot.
-	for offset in [Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(1, 0, 0),
+	for offset: Vector3i in [
+			Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(1, 0, 0),
 			Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
 		var neighbour := pos + offset
 		var neighbour_id: int = world.get_block(neighbour)
@@ -138,7 +139,8 @@ func _update_fluid(pos: Vector3i) -> void:
 	var supported: bool = _has_supply(pos, block_id, level, is_water)
 	if not supported and level < 7:
 		world.set_block(pos, Blocks.AIR)
-		for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+		for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 				Vector3i(0, 0, -1), Vector3i(0, -1, 0), Vector3i(0, 1, 0)]:
 			schedule(pos + offset, FLUID_DELAY)
 		return
@@ -149,7 +151,8 @@ func _update_fluid(pos: Vector3i) -> void:
 		return
 	# 3. Spread sideways into air or replaceable plants.
 	var spread_count: int = 0
-	for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
+	for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
 		var target := pos + offset
 		var target_id: int = world.get_block(target)
 		if target_id == Blocks.AIR or Blocks.is_replaceable(target_id):
@@ -169,7 +172,8 @@ func _has_supply(pos: Vector3i, block_id: int, level: int, is_water: bool) -> bo
 	if level >= 7:
 		return true  # source block
 	# A flowing block survives while any neighbour supplies it one level higher.
-	for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
+	for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
 		var neighbour := pos + offset
 		if world.get_block(neighbour) != block_id:
 			continue
@@ -249,7 +253,8 @@ func _tick_farmland(pos: Vector3i) -> void:
 	var above: int = world.get_block(pos + Vector3i(0, 1, 0))
 	if Blocks.def(above).harvest != "":
 		return
-	for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+	for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 			Vector3i(0, 0, -1), Vector3i(1, -1, 0), Vector3i(-1, -1, 0),
 			Vector3i(0, -1, 1), Vector3i(0, -1, -1)]:
 		if world.get_block(pos + offset) == Blocks.WATER:

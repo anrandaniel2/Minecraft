@@ -776,7 +776,7 @@ func _use(delta: float) -> void:
 
 ## Lights any TNT touching the given block (used by flint and steel).
 func _try_ignite_neighbours(position: Vector3i) -> void:
-	for offset in [Vector3i.ZERO, Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(-1, 0, 0),
+	for offset: Vector3i in [Vector3i.ZERO, Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(-1, 0, 0),
 			Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
 		if world.get_block(position + offset) == Blocks.id("tnt"):
 			_ignite_tnt(position + offset)
@@ -889,7 +889,8 @@ func _use_bucket(target: Dictionary) -> void:
 		AudioManager.play_3d("splash", Vector3(position) + Vector3(0.5, 0.5, 0.5), self, -4.0)
 		return
 	# Fill from a nearby source block.
-	for offset in [Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+	for offset: Vector3i in [
+			Vector3i(0, 1, 0), Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 			Vector3i(0, 0, -1)]:
 		var probe: Vector3i = position + offset
 		var probe_id: int = world.get_block(probe)

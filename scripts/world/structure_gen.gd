@@ -168,7 +168,8 @@ static func _plaza(gen: WorldGen, chunk: Chunk, origin: Vector2i, ground: int,
 			_set(chunk, path_x, path_y, path_z, floor_block)
 			_clear_column(chunk, path_x, path_y + 1, path_z)
 	# lamps
-	for corner in [Vector2i(4, 4), Vector2i(-4, 4), Vector2i(4, -4), Vector2i(-4, -4)]:
+	for corner: Vector2i in [
+			Vector2i(4, 4), Vector2i(-4, 4), Vector2i(4, -4), Vector2i(-4, -4)]:
 		var lamp_x: int = origin.x + corner.x
 		var lamp_z: int = origin.y + corner.y
 		var lamp_y: int = gen.height_at(lamp_x, lamp_z)

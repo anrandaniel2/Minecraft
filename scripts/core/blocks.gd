@@ -100,6 +100,9 @@ static var GLOWSTONE: int = 0
 static var TNT: int = 0
 static var OBSIDIAN: int = 0
 static var SNOW_LAYER: int = 0
+static var GRANITE: int = 0
+static var DIORITE: int = 0
+static var ANDESITE: int = 0
 
 
 static func id(block_name: String) -> int:
@@ -648,6 +651,9 @@ static func _cache_hot_ids() -> void:
 	TNT = id("tnt")
 	OBSIDIAN = id("obsidian")
 	SNOW_LAYER = id("snow_layer")
+	GRANITE = id("granite")
+	DIORITE = id("diorite")
+	ANDESITE = id("andesite")
 
 
 # ---------------------------------------------------------------------------

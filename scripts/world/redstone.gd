@@ -47,7 +47,8 @@ func on_block_changed(pos: Vector3i, old_id: int, new_id: int) -> void:
 	if old_id == Blocks.id("redstone_wire") or new_id == Blocks.id("redstone_wire"):
 		_request_rebuild(pos)
 	# A block placed next to a wire can cut or complete a connection.
-	for offset in [Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(1, 0, 0),
+	for offset: Vector3i in [
+			Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(1, 0, 0),
 			Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
 		var neighbour := pos + offset
 		var neighbour_id: int = world.get_block(neighbour)
@@ -103,7 +104,8 @@ func rebuild(origin: Vector3i) -> void:
 	for entry in sources:
 		var source_pos: Vector3i = entry["pos"]
 		var strength: int = int(entry["power"])
-		for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+		for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 				Vector3i(0, 0, -1), Vector3i(0, 1, 0), Vector3i(0, -1, 0)]:
 			var neighbour := source_pos + offset
 			if wires.has(neighbour):
@@ -122,7 +124,8 @@ func rebuild(origin: Vector3i) -> void:
 		var power: int = int(entry["power"])
 		if power <= 1:
 			continue
-		for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+		for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 				Vector3i(0, 0, -1)]:
 			_offer(queue, wires, pos + offset, power - 1)
 	# Apply power to consumers.
@@ -192,13 +195,15 @@ func _collect(origin: Vector3i, wires: Dictionary, sources: Array, consumers: Di
 				pass
 		# Spread the search through wires and around components.
 		if kind == "wire" or kind == "":
-			for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+			for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 					Vector3i(0, 0, -1)]:
 				var neighbour := pos + offset
 				if not visited.has(neighbour):
 					queue.append(neighbour)
 		else:
-			for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+			for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 					Vector3i(0, 0, -1), Vector3i(0, 1, 0), Vector3i(0, -1, 0)]:
 				var neighbour := pos + offset
 				if not visited.has(neighbour):
@@ -251,7 +256,8 @@ func _input_power(pos: Vector3i) -> int:
 		return _torch_power(pos)
 	# Powered by an adjacent wire or source.
 	var best: int = 0
-	for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+	for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 			Vector3i(0, 0, -1), Vector3i(0, 1, 0), Vector3i(0, -1, 0)]:
 		var neighbour := pos + offset
 		var neighbour_id: int = world.get_block(neighbour)
@@ -267,7 +273,8 @@ func _input_power(pos: Vector3i) -> int:
 
 func _adjacent_source_power(pos: Vector3i) -> int:
 	var best: int = 0
-	for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+	for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 			Vector3i(0, 0, -1), Vector3i(0, 1, 0), Vector3i(0, -1, 0)]:
 		var neighbour := pos + offset
 		var neighbour_id: int = world.get_block(neighbour)
@@ -283,7 +290,8 @@ func _adjacent_source_power(pos: Vector3i) -> int:
 
 func _consumer_power(pos: Vector3i, wires: Dictionary) -> int:
 	var best: int = 0
-	for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+	for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 			Vector3i(0, 0, -1), Vector3i(0, 1, 0), Vector3i(0, -1, 0)]:
 		var neighbour := pos + offset
 		if wires.has(neighbour):

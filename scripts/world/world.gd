@@ -336,7 +336,8 @@ func _adopt_chunk(coord: Vector2i, chunk: Chunk) -> void:
 	# Lighting needs the neighbours, so it runs once they exist (and is redone
 	# whenever a neighbour arrives, which is how light crosses chunk borders).
 	LightEngine.relight_chunk(chunk, _neighbours_of(coord))
-	for offset in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+	for offset: Vector2i in [
+			Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 		var neighbour_coord: Vector2i = coord + offset
 		if chunks.has(neighbour_coord):
 			_dirty[neighbour_coord] = true
@@ -349,7 +350,8 @@ func _adopt_chunk(coord: Vector2i, chunk: Chunk) -> void:
 
 func _neighbours_of(coord: Vector2i) -> Dictionary:
 	var out := {}
-	for offset in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+	for offset: Vector2i in [
+			Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 		var neighbour = chunks.get(coord + offset)
 		if neighbour != null:
 			out[offset] = neighbour
@@ -495,7 +497,8 @@ func _update_collision_window(center: Vector2i) -> void:
 
 
 func _all_neighbours_loaded(coord: Vector2i) -> bool:
-	for offset in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+	for offset: Vector2i in [
+			Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 		if not chunks.has(coord + offset):
 			return false
 	return true
@@ -638,7 +641,8 @@ func _relight_around(coord: Vector2i, local_pos: Vector3i) -> void:
 	var local_x: int = local_pos.x
 	var local_z: int = local_pos.z
 	if local_x <= 7 or local_x >= 8 or local_z <= 7 or local_z >= 8:
-		for offset in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		for offset: Vector2i in [
+			Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 			var neighbour_coord: Vector2i = coord + offset
 			var neighbour: Chunk = chunks.get(neighbour_coord)
 			if neighbour != null:
@@ -686,7 +690,8 @@ func break_block(pos: Vector3i, tool_item: int = -1, by_player: bool = false,
 	set_block(pos, Blocks.AIR)
 	block_broken.emit(pos, block_id, by_player)
 	# Neighbouring plants fall away.
-	for offset in [Vector3i(0, 1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1),
+	for offset: Vector3i in [
+			Vector3i(0, 1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1),
 			Vector3i(1, 0, 0), Vector3i(-1, 0, 0)]:
 		var neighbour: Vector3i = pos + offset
 		var neighbour_id: int = get_block(neighbour)
@@ -713,7 +718,8 @@ func place_block(pos: Vector3i, block_id: int, facing: int = 0) -> bool:
 		if definition.shape == Blocks.SHAPE_TORCH:
 			var supported: bool = Blocks.is_opaque(below)
 			if not supported:
-				for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+				for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 						Vector3i(0, 0, -1)]:
 					if Blocks.is_opaque(get_block(pos + offset)):
 						supported = true
@@ -725,7 +731,8 @@ func place_block(pos: Vector3i, block_id: int, facing: int = 0) -> bool:
 				return false
 			if get_block(pos + Vector3i(0, -1, 0)) != Blocks.id("sugar_cane"):
 				var near_water: bool = false
-				for offset in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
+				for offset: Vector3i in [
+			Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1),
 						Vector3i(0, 0, -1), Vector3i(1, -1, 0), Vector3i(-1, -1, 0),
 						Vector3i(0, -1, 1), Vector3i(0, -1, -1)]:
 					if is_liquid(pos + offset):

@@ -787,7 +787,7 @@ func _update_debug_text() -> void:
 	lines.append("Held %s" % (Items.display_name(held_id) if held_id >= 0 else "nothing"))
 	var target: Dictionary = player.raycast_target()
 	if bool(target.get("hit", false)) and not target.has("mob"):
-		lines.append("Looking at %s @ %s" % [Blocks.display_name(int(target["block"])),
+		lines.append("Looking at %s @ %s" % [Registry.display_name(int(target["block"])),
 			str(target["position"])])
 	elif bool(target.get("hit", false)):
 		lines.append("Looking at a mob")
