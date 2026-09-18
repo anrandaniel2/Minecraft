@@ -152,9 +152,9 @@ static func _plaza(gen: WorldGen, chunk: Chunk, origin: Vector2i, ground: int,
 	for x in range(-3, 4):
 		for z in range(-3, 4):
 			if absi(x) == 3 or absi(z) == 3:
-				_set(chunk, origin.x + x, ground, origin.y + z, Blocks.id("cobblestone"))
+				_put(chunk, origin.x + x, ground, origin.y + z, Blocks.id("cobblestone"))
 			elif absi(x) <= 1 and absi(z) <= 1:
-				_set(chunk, origin.x + x, ground, origin.y + z, Blocks.WATER)
+				_put(chunk, origin.x + x, ground, origin.y + z, Blocks.WATER)
 			_clear_column(chunk, origin.x + x, ground + 1, origin.y + z)
 	for index in 4:
 		var dir := Vector2i(1, 0) if index == 0 else (Vector2i(-1, 0) if index == 1 else
@@ -165,7 +165,7 @@ static func _plaza(gen: WorldGen, chunk: Chunk, origin: Vector2i, ground: int,
 			var path_y: int = gen.height_at(path_x, path_z)
 			if path_y <= WorldGen.SEA_LEVEL:
 				break
-			_set(chunk, path_x, path_y, path_z, floor_block)
+			_put(chunk, path_x, path_y, path_z, floor_block)
 			_clear_column(chunk, path_x, path_y + 1, path_z)
 	# lamps
 	for corner: Vector2i in [
@@ -173,9 +173,9 @@ static func _plaza(gen: WorldGen, chunk: Chunk, origin: Vector2i, ground: int,
 		var lamp_x: int = origin.x + corner.x
 		var lamp_z: int = origin.y + corner.y
 		var lamp_y: int = gen.height_at(lamp_x, lamp_z)
-		_set(chunk, lamp_x, lamp_y, lamp_z, Blocks.id("cobblestone"))
-		_set(chunk, lamp_x, lamp_y + 1, lamp_z, Blocks.id("cobblestone"))
-		_set(chunk, lamp_x, lamp_y + 2, lamp_z, Blocks.id("torch"), 2)
+		_put(chunk, lamp_x, lamp_y, lamp_z, Blocks.id("cobblestone"))
+		_put(chunk, lamp_x, lamp_y + 1, lamp_z, Blocks.id("cobblestone"))
+		_put(chunk, lamp_x, lamp_y + 2, lamp_z, Blocks.id("torch"), 2)
 
 
 static func _building(gen: WorldGen, chunk: Chunk, center: Vector2i, width: int, depth: int,
@@ -191,7 +191,7 @@ static func _building(gen: WorldGen, chunk: Chunk, center: Vector2i, width: int,
 	for x in range(-half_w, half_w + 1):
 		for z in range(-half_d, half_d + 1):
 			_clear_column(chunk, center.x + x, base_y + 1, center.y + z)
-			_set(chunk, center.x + x, base_y, center.y + z, floor_block)
+			_put(chunk, center.x + x, base_y, center.y + z, floor_block)
 	for level in range(1, height + 1):
 		for x in range(-half_w, half_w + 1):
 			for z in range(-half_d, half_d + 1):
@@ -200,9 +200,9 @@ static func _building(gen: WorldGen, chunk: Chunk, center: Vector2i, width: int,
 					continue
 				# corners are logs
 				if absi(x) == half_w and absi(z) == half_d:
-					_set(chunk, center.x + x, base_y + level, center.y + z, log_block)
+					_put(chunk, center.x + x, base_y + level, center.y + z, log_block)
 					continue
-				_set(chunk, center.x + x, base_y + level, center.y + z, planks)
+				_put(chunk, center.x + x, base_y + level, center.y + z, planks)
 	# Door on a random wall
 	var door_side: int = rng.randi_range(0, 3)
 	var door_x: int = center.x
@@ -221,32 +221,32 @@ static func _building(gen: WorldGen, chunk: Chunk, center: Vector2i, width: int,
 	# Windows
 	for x in range(-half_w + 1, half_w):
 		if x % 2 == 0:
-			_set(chunk, center.x + x, base_y + 2, center.y - half_d, Blocks.GLASS)
-			_set(chunk, center.x + x, base_y + 2, center.y + half_d, Blocks.GLASS)
+			_put(chunk, center.x + x, base_y + 2, center.y - half_d, Blocks.GLASS)
+			_put(chunk, center.x + x, base_y + 2, center.y + half_d, Blocks.GLASS)
 	for z in range(-half_d + 1, half_d):
 		if z % 2 == 0:
-			_set(chunk, center.x - half_w, base_y + 2, center.y + z, Blocks.GLASS)
-			_set(chunk, center.x + half_w, base_y + 2, center.y + z, Blocks.GLASS)
+			_put(chunk, center.x - half_w, base_y + 2, center.y + z, Blocks.GLASS)
+			_put(chunk, center.x + half_w, base_y + 2, center.y + z, Blocks.GLASS)
 	# Roof: flat slab of planks, desert gets a stepped sandstone dome
 	for x in range(-half_w - 1, half_w + 2):
 		for z in range(-half_d - 1, half_d + 2):
 			var edge: bool = absi(x) > half_w - 1 or absi(z) > half_d - 1
-			_set(chunk, center.x + x, base_y + height + 1, center.y + z, planks)
+			_put(chunk, center.x + x, base_y + height + 1, center.y + z, planks)
 			if edge and rng.randf() < 0.6:
-				_set(chunk, center.x + x, base_y + height + 2, center.y + z, planks)
+				_put(chunk, center.x + x, base_y + height + 2, center.y + z, planks)
 	if not desert:
-		_set(chunk, center.x, base_y + height + 1, center.y, Blocks.id("glowstone"))
+		_put(chunk, center.x, base_y + height + 1, center.y, Blocks.id("glowstone"))
 	# Interior: torch, chest, crafting table, bed-less bedroom
-	_set(chunk, center.x + 1, base_y + 2, center.y + 1, Blocks.TORCH, 2)
+	_put(chunk, center.x + 1, base_y + 2, center.y + 1, Blocks.TORCH, 2)
 	if rng.randf() < 0.7:
-		_set(chunk, center.x - 1, base_y + 1, center.y - 1, Blocks.CHEST, 4)
+		_put(chunk, center.x - 1, base_y + 1, center.y - 1, Blocks.CHEST, 4)
 	if rng.randf() < 0.6:
-		_set(chunk, center.x + 1, base_y + 1, center.y - 1, Blocks.CRAFTING_TABLE)
+		_put(chunk, center.x + 1, base_y + 1, center.y - 1, Blocks.CRAFTING_TABLE)
 	if rng.randf() < 0.5:
-		_set(chunk, center.x - 1, base_y + 2, center.y + 1, Blocks.FURNACE, 4)
+		_put(chunk, center.x - 1, base_y + 2, center.y + 1, Blocks.FURNACE, 4)
 	if not desert and rng.randf() < 0.4:
 		for step in range(1, 3):
-			_set(chunk, center.x - half_w - step, base_y + step, center.y - half_d, planks)
+			_put(chunk, center.x - half_w - step, base_y + step, center.y - half_d, planks)
 
 
 # ---------------------------------------------------------------------------
@@ -276,24 +276,24 @@ static func _try_dungeon(gen: WorldGen, chunk: Chunk, origin: Vector2i,
 				var pos_z: int = origin.y + z
 				var pos_y: int = room_y + y
 				if is_shell:
-					_set(chunk, pos_x, pos_y, pos_z, wall)
+					_put(chunk, pos_x, pos_y, pos_z, wall)
 				else:
-					_set(chunk, pos_x, pos_y, pos_z, Blocks.AIR)
+					_put(chunk, pos_x, pos_y, pos_z, Blocks.AIR)
 	# Chests and torches
 	var chests: int = rng.randi_range(1, 3)
 	for index in chests:
 		var cx: int = origin.x + rng.randi_range(-width + 1, width - 1)
 		var cz: int = origin.y + rng.randi_range(-depth + 1, depth - 1)
-		_set(chunk, cx, room_y, cz, Blocks.CHEST, rng.randi_range(0, 3))
+		_put(chunk, cx, room_y, cz, Blocks.CHEST, rng.randi_range(0, 3))
 	if rng.randf() < 0.6:
-		_set(chunk, origin.x + 2, room_y, origin.y + 2, Blocks.id("web"))
-	_set(chunk, origin.x, room_y + height - 1, origin.y, Blocks.TORCH, 2)
-	_set(chunk, origin.x + width - 1, room_y + height - 1, origin.y - depth + 1, Blocks.TORCH, 2)
+		_put(chunk, origin.x + 2, room_y, origin.y + 2, Blocks.id("web"))
+	_put(chunk, origin.x, room_y + height - 1, origin.y, Blocks.TORCH, 2)
+	_put(chunk, origin.x + width - 1, room_y + height - 1, origin.y - depth + 1, Blocks.TORCH, 2)
 	# Entrance shaft up to the surface on some dungeons
 	if rng.randf() < 0.4:
 		var surface: int = gen.height_at(origin.x, origin.y)
 		for y in range(room_y + height, surface):
-			_set(chunk, origin.x, y, origin.y, Blocks.AIR)
+			_put(chunk, origin.x, y, origin.y, Blocks.AIR)
 
 
 # ---------------------------------------------------------------------------
@@ -323,12 +323,12 @@ static func _try_mineshaft(gen: WorldGen, chunk: Chunk, origin: Vector2i,
 		_corridor_slice(chunk, cx, cz, base_y, along_x, rng)
 		if step % 8 == 0:
 			# support beams
-			_set(chunk, cx, base_y, cz, Blocks.id("oak_log"))
-			_set(chunk, cx, base_y + 3, cz, Blocks.id("oak_log"))
+			_put(chunk, cx, base_y, cz, Blocks.id("oak_log"))
+			_put(chunk, cx, base_y + 3, cz, Blocks.id("oak_log"))
 			if step % 16 == 0:
-				_set(chunk, cx, base_y + 3, cz - 1, Blocks.TORCH, 2)
+				_put(chunk, cx, base_y + 3, cz - 1, Blocks.TORCH, 2)
 			if rng.randf() < 0.12:
-				_set(chunk, cx + (1 if along_x else 0), base_y + 1,
+				_put(chunk, cx + (1 if along_x else 0), base_y + 1,
 					cz + (1 if not along_x else 0), Blocks.CHEST, rng.randi_range(0, 3))
 	# A couple of side branches
 	for branch in 3:
@@ -350,12 +350,12 @@ static func _corridor_slice(chunk: Chunk, x: int, z: int, y: int, along_x: bool,
 			var px: int = x + (0 if along_x else side)
 			var pz: int = z + (side if along_x else 0)
 			if dy == 0:
-				_set(chunk, px, y + dy, pz, Blocks.id("oak_planks"))
+				_put(chunk, px, y + dy, pz, Blocks.id("oak_planks"))
 			else:
-				_set(chunk, px, y + dy, pz, Blocks.AIR)
+				_put(chunk, px, y + dy, pz, Blocks.AIR)
 	# occasional cave-in rubble
 	if rng.randf() < 0.08:
-		_set(chunk, x, y + 3, z, Blocks.id("gravel"))
+		_put(chunk, x, y + 3, z, Blocks.id("gravel"))
 
 
 # ---------------------------------------------------------------------------
@@ -377,10 +377,10 @@ static func _try_desert_well(gen: WorldGen, chunk: Chunk, origin: Vector2i,
 			_clear_column(chunk, origin.x + x, ground + 1, origin.y + z)
 			if is_ring:
 				for level in range(-2, 2):
-					_set(chunk, origin.x + x, ground + level, origin.y + z, sandstone)
+					_put(chunk, origin.x + x, ground + level, origin.y + z, sandstone)
 			else:
-				_set(chunk, origin.x + x, ground - 2, origin.y + z, Blocks.WATER)
-				_set(chunk, origin.x + x, ground - 1, origin.y + z, Blocks.AIR)
+				_put(chunk, origin.x + x, ground - 2, origin.y + z, Blocks.WATER)
+				_put(chunk, origin.x + x, ground - 1, origin.y + z, Blocks.AIR)
 
 
 static func _try_hut(gen: WorldGen, chunk: Chunk, origin: Vector2i,
@@ -401,7 +401,7 @@ static func _try_hut(gen: WorldGen, chunk: Chunk, origin: Vector2i,
 	for x in range(-half, half + 1):
 		for z in range(-half, half + 1):
 			_clear_column(chunk, origin.x + x, ground + 1, origin.y + z)
-			_set(chunk, origin.x + x, ground, origin.y + z, planks)
+			_put(chunk, origin.x + x, ground, origin.y + z, planks)
 			var is_wall: bool = absi(x) == half or absi(z) == half
 			if not is_wall:
 				continue
@@ -409,17 +409,17 @@ static func _try_hut(gen: WorldGen, chunk: Chunk, origin: Vector2i,
 			if rng.randf() < 0.22:
 				continue
 			for y in range(1, 4):
-				_set(chunk, origin.x + x, ground + y, origin.y + z,
+				_put(chunk, origin.x + x, ground + y, origin.y + z,
 					logs if (absi(x) == half and absi(z) == half) else planks)
 	for x in range(-half - 1, half + 2):
 		for z in range(-half - 1, half + 2):
 			if rng.randf() < 0.85:
-				_set(chunk, origin.x + x, ground + 4, origin.y + z, planks)
+				_put(chunk, origin.x + x, ground + 4, origin.y + z, planks)
 	_clear_column(chunk, origin.x, ground + 1, origin.y - half)
 	if rng.randf() < 0.7:
-		_set(chunk, origin.x + 1, ground + 1, origin.y + 1, Blocks.CHEST, 0)
+		_put(chunk, origin.x + 1, ground + 1, origin.y + 1, Blocks.CHEST, 0)
 	if rng.randf() < 0.5:
-		_set(chunk, origin.x - 1, ground + 2, origin.y - 1, Blocks.id("web"))
+		_put(chunk, origin.x - 1, ground + 2, origin.y - 1, Blocks.id("web"))
 
 
 static func _try_boulder(gen: WorldGen, chunk: Chunk, origin: Vector2i,
@@ -439,7 +439,7 @@ static func _try_boulder(gen: WorldGen, chunk: Chunk, origin: Vector2i,
 			for dy in range(0, radius + 1):
 				if dx * dx + dy * dy + dz * dz > radius * radius + 1:
 					continue
-				_set(chunk, origin.x + dx, ground + dy, origin.y + dz, stone)
+				_put(chunk, origin.x + dx, ground + dy, origin.y + dz, stone)
 
 
 # ---------------------------------------------------------------------------
@@ -454,7 +454,7 @@ static func _intersects(chunk: Chunk, x: int, z: int, reach: int) -> bool:
 		and z + reach >= origin_z and z - reach < origin_z + SIZE
 
 
-static func _set(chunk: Chunk, world_x: int, y: int, world_z: int, block_id: int,
+static func _put(chunk: Chunk, world_x: int, y: int, world_z: int, block_id: int,
 		block_meta: int = 0) -> void:
 	var local_x: int = world_x - chunk.coord.x * SIZE
 	var local_z: int = world_z - chunk.coord.y * SIZE
