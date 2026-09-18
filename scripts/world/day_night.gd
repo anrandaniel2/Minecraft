@@ -109,8 +109,13 @@ func _build_environment() -> void:
 	sun = DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.shadow_enabled = true
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 90.0
+	# Phones get a tighter shadow box with two splits: much cheaper, and the
+	# distance fog hides the shorter range anyway.
+	var mobile: bool = OS.has_feature("mobile") or OS.has_feature("android") \
+		or OS.has_feature("ios")
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if mobile \
+		else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	sun.directional_shadow_max_distance = 48.0 if mobile else 90.0
 	sun.shadow_bias = 0.06
 	sun.shadow_normal_bias = 1.5
 	sun.light_angular_distance = 1.2

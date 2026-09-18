@@ -550,10 +550,8 @@ func _handle_actions(delta: float) -> void:
 		drop_held_item()
 	if Input.is_action_just_pressed("pick_block"):
 		_pick_block()
-	if Input.is_action_just_pressed("toggle_fly") and gamemode == "creative":
-		flying = not flying
-		velocity = Vector3.ZERO
-		AudioManager.play_ui()
+	if Input.is_action_just_pressed("toggle_fly"):
+		toggle_flying()
 	if Input.is_action_just_pressed("toggle_perspective"):
 		third_person = not third_person
 		_camera.position.z = 4.0 if third_person else 0.0
@@ -580,10 +578,23 @@ func look_pitch() -> float:
 	return _pitch
 
 
+## Enter or leave creative flight. Shared by the keyboard and the mobile button.
+func toggle_flying() -> void:
+	if gamemode != "creative":
+		return
+	flying = not flying
+	velocity = Vector3.ZERO
+	AudioManager.play_ui()
+
+
 ## Touch controls feed look deltas directly instead of mouse motion events.
+## The sensitivity setting scales them, with the old 0.006 rad/px as the
+## default (0.22) value.
 func add_look_delta(delta: Vector2) -> void:
-	_yaw -= delta.x * 0.006
-	_pitch -= delta.y * 0.006
+	var sensitivity: float = float(Settings.get_value("sensitivity")) * 0.027
+	var invert: float = -1.0 if bool(Settings.get_value("invert_y")) else 1.0
+	_yaw -= delta.x * sensitivity
+	_pitch -= delta.y * sensitivity * invert
 	_pitch = clampf(_pitch, -PI * 0.495, PI * 0.495)
 
 

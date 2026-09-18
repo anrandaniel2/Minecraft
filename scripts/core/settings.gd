@@ -11,6 +11,19 @@ signal changed(key: String, value: Variant)
 
 const PATH: String = "user://settings.cfg"
 
+## First-run values on phones and tablets: shorter draw distance and no extras,
+## so a mid-range device holds a playable frame rate out of the box. Only
+## applied when there is no settings file yet, so choices are never overwritten.
+const MOBILE_DEFAULTS: Dictionary = {
+	"render_distance": 5,
+	"max_fps": 60,
+	"vsync": false,
+	"particles": false,
+	"clouds": false,
+	"gui_scale": 1.25,
+	"touch_scale": 1.1,
+}
+
 const DEFAULTS: Dictionary = {
 	# graphics
 	"render_distance": {"value": 7, "min": 2, "max": 16, "step": 1, "type": "int",
@@ -69,8 +82,35 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for key in DEFAULTS:
 		_values[key] = DEFAULTS[key]["value"]
+	apply_mobile_defaults()
 	load_settings()
+	# The InputMap lives in code (see InputSetup), so it has to be built here,
+	# once the saved rebinds are known.
+	InputSetup.install()
 	_apply_display()
+	changed.connect(_on_setting_changed)
+
+
+func _on_setting_changed(key: String, _value: Variant) -> void:
+	if key == "touch_controls":
+		# Turning the on-screen controls on or off changes whether the mouse
+		# actions may stay bound, so the map is rebuilt.
+		InputSetup.install()
+
+
+## True on Android/iOS (and on mobile exports), regardless of input devices.
+static func is_mobile_platform() -> bool:
+	return OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
+
+
+## Writes the mobile preset on a phone's very first run. Existing settings are
+## left alone, and the player can change everything in the settings menu.
+func apply_mobile_defaults() -> void:
+	if not is_mobile_platform() or FileAccess.file_exists(PATH):
+		return
+	for key in MOBILE_DEFAULTS:
+		set_value(key, MOBILE_DEFAULTS[key], false)
+	save_settings()
 
 
 func get_value(key: String, fallback: Variant = null) -> Variant:
@@ -202,3 +242,4 @@ func input_binding(action: String) -> int:
 func set_input_binding(action: String, keycode: int) -> void:
 	_input_bindings[action] = keycode
 	save_settings()
+	InputSetup.install()

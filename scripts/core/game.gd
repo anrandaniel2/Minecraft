@@ -346,6 +346,20 @@ func _on_block_placed(_position: Vector3i, _block_id: int) -> void:
 	pass
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and hud != null:
+		_on_back_requested()
+
+
+## Android back button: close whatever is open, otherwise open the pause menu
+## instead of dropping straight out of the game.
+func _on_back_requested() -> void:
+	if hud.screens_open():
+		hud.close_screens()
+	else:
+		hud.open_pause_menu()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and not get_tree().paused:
 		hud.pause_menu.open()

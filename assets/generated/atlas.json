@@ -4,6 +4,7 @@
  "pad": 4,
  "rows": 9,
  "size": 384,
+ "source": "generated",
  "tile_pixels": 16,
  "tiles": {
   "bed_side": [

@@ -58,6 +58,55 @@ jobs:
           fi
           echo "Asset pipeline ran cleanly."
 
+      - name: Import a texture pack and rebuild the atlas at HD
+        run: |
+          set -euo pipefail
+          # A stand-in "Bedrock" pack: committed tiles renamed the way Bedrock
+          # names them, so the importer's name matching is exercised for real.
+          rm -rf /tmp/pack && mkdir -p /tmp/pack/textures/blocks
+          cp assets/generated/blocks/stone.png /tmp/pack/textures/blocks/stone.png
+          cp assets/generated/blocks/dirt.png /tmp/pack/textures/blocks/dirt.png
+          cp assets/generated/blocks/oak_log_side.png /tmp/pack/textures/blocks/log_oak.png
+          cp assets/generated/blocks/wool_red.png /tmp/pack/textures/blocks/wool_colored_red.png
+          python3 tools/pack_import.py --pack /tmp/pack --tile 32
+          (cd tools && python3 gen_assets.py atlas)
+          python3 - <<'PY'
+          import json, sys
+          manifest = json.load(open("assets/generated/atlas.json"))
+          pack = json.load(open("assets/pack/pack.json"))
+          print("pack manifest:", pack)
+          print("atlas:", manifest["size"], manifest["tile_pixels"], manifest["source"])
+          problems = []
+          if manifest["tile_pixels"] != 32 or manifest["size"] != 768:
+              problems.append("the HD atlas is not 768x768 at 32px per tile")
+          if manifest["source"] != "pack":
+              problems.append("the atlas did not record the pack as its source")
+          matched = len(pack["imported"])
+          if matched < 4:
+              problems.append("only %d tiles matched the pack" % matched)
+          if problems:
+              for problem in problems:
+                  print("::error::" + problem)
+              sys.exit(1)
+          PY
+          # Clearing the pack must bring the committed 16px art back untouched.
+          python3 tools/pack_import.py --clear
+          (cd tools && python3 gen_assets.py atlas)
+          python3 - <<'PY'
+          import json, sys
+          manifest = json.load(open("assets/generated/atlas.json"))
+          print("restored atlas:", manifest["size"], manifest["tile_pixels"], manifest["source"])
+          if manifest["tile_pixels"] != 16 or manifest["source"] != "generated":
+              print("::error::clearing the pack did not restore the generated atlas")
+              sys.exit(1)
+          PY
+          if ! git diff --quiet -- assets; then
+            echo "::error::clearing the pack left the committed art modified"
+            git diff --stat -- assets
+            exit 1
+          fi
+          echo "Texture pack import and reset verified."
+
   godot-import:
     name: Headless import
     runs-on: ubuntu-latest

@@ -26,8 +26,10 @@ addons.
 - [Multiplayer](#multiplayer)
 - [Building and running](#building-and-running)
 - [Android APK from CI](#android-apk-from-ci)
+- [Playing on a phone](#playing-on-a-phone)
 - [How the code is organised](#how-the-code-is-organised)
 - [The asset pipeline](#the-asset-pipeline)
+- [Custom textures (Minecraft packs)](#custom-textures-minecraft-packs)
 - [Testing and CI checks](#testing-and-ci-checks)
 - [Credits and licence](#credits-and-licence)
 
@@ -158,8 +160,8 @@ Ten mob types, all driven by one AI with per-type stats:
   sensitivity, invert Y, touch controls and three volume sliders. Everything
   saves to `user://settings.cfg`.
 - **Debug overlay (F3)** and **player list (Tab)**, chat with history, toasts,
-  damage vignette, underwater tint, screenshots (F2) and on-screen touch
-  controls for phones.
+  damage vignette, underwater tint, screenshots (F2) and multi-touch controls
+  for phones (see [Playing on a phone](#playing-on-a-phone)).
 
 ### Multiplayer
 
@@ -203,8 +205,28 @@ Ten mob types, all driven by one AI with per-type stats:
 | Third person | F5 |
 
 Gamepad (jump, sneak, inventory, drop, pause, debug, sticks for movement and
-look) and touch controls (virtual stick, look area, jump/mine/place buttons)
-are set up too — `Settings.touch_controls` selects `auto`, `on` or `off`.
+look) is set up too, and so are touch controls — `Settings.touch_controls`
+selects `auto`, `on` or `off`.
+
+### Touch controls
+
+Everything happens at once: the movement stick, the look area and every button
+track their own finger, so you can walk, aim and mine simultaneously.
+
+| Control | Where | What it does |
+| --- | --- | --- |
+| Move stick | anywhere in the left half | Walk; push to the edge to sprint. The stick appears under your thumb where you touch, and recentres when you let go. |
+| Look | any other free spot on the right | Drag to turn the camera. Tapping a button never steals the look finger. |
+| Mine / Place | bottom right | Hold **Mine** to break blocks, tap **Place** to use the held item. |
+| Jump / Sneak | above them | Jump is held; **Sneak** latches until you tap it again. |
+| Run / Fly | left of the cluster | **Run** latches sprinting on. **Fly** toggles creative flight and lights up while you are flying. |
+| Bag / Chat / Esc | top right | Inventory, chat line and pause menu. |
+| Hotbar | bottom centre | Tap a slot to select it; taps here never move the camera. |
+
+The layout keeps clear of notches and rounded corners through the Android safe
+area, follows the **Touch Button Size** setting, fades out (and stops listening)
+while a screen is open, and the Android **back** button closes whatever is open
+instead of quitting — press it again from the world for the pause menu.
 
 ## Chat commands
 
@@ -306,6 +328,34 @@ or browser). The APK targets `arm64-v8a`, needs Android 6.0+ and enables the
 Change `package/unique_name` in `export_presets.cfg` (or pass a version through
 the workflow input) if you fork this and want your own package id.
 
+## Playing on a phone
+
+The APK is a full-build, not a demo: landscape, immersive (no status or
+navigation bar), `Mobile` renderer with ETC2/ASTC compression, and the touch
+controls described in [Controls](#controls) are on by default on Android/iOS
+(`touch_controls = auto`).
+
+**First run on a phone** writes a mobile preset to `user://settings.cfg`:
+render distance 5, 60 FPS cap, V-Sync off, particles and clouds off, UI scale
+1.25 and slightly larger buttons. It is only applied when no settings file
+exists yet, and every value can be changed in the pause menu afterwards — on a
+flagship phone, turning render distance up to 8–10 and particles back on looks
+much better.
+
+Two more things adapt automatically on mobile:
+
+- the sun uses two shadow splits with a 48-block shadow box instead of four
+  splits and 90 blocks, which is the single biggest frame-time saving;
+- the mouse actions (`attack`/`use`/`pick block`) stay unbound, because Android
+  turns every tap into an emulated mouse click, and a tap anywhere would
+  otherwise start mining. The touch buttons press those actions directly, so
+  nothing is lost.
+
+Handy when tuning: `gui_scale` (UI scale) can go up to 2.0, `render_distance`
+down to 2, and the **Touch Button Size** slider (0.7–1.6) resizes the on-screen
+controls live. If a device reports a soft keyboard, the chat line opens it as
+usual with the **Chat** button.
+
 ## How the code is organised
 
 ```
@@ -324,12 +374,13 @@ scripts/
                          primed TNT, falling blocks, villager trades
   player/                first/third-person controller, survival, inventory,
                          mining, placing, combat
-  ui/                    HUD, inventory + recipe book, container screens, trade
-                         screen, pause menu, settings
+  ui/                    HUD, touch controls, inventory + recipe book, container
+                         screens, trade screen, pause menu, settings
   fx/                    particle effects
   net/                   ENet multiplayer manager, remote player avatars
 shaders/                 terrain, water, clouds and stars shaders
-tools/                   the Python asset pipeline
+tools/                   the Python asset pipeline + Bedrock pack importer
+docs/texture-packs.md    how to play with your own Minecraft textures
 assets/generated/         block tiles, item icons, HUD art, mob skins, atlas
 assets/audio/             39 sound effects + 4 music loops (22 kHz mono WAV)
 ```
@@ -373,14 +424,41 @@ The generated art is committed, so the game runs without ever touching Python.
 Textures are 16 × 16 with a 4-pixel padding in a 384 × 384 atlas; music and
 effects are 22 kHz mono WAVs for a small repository.
 
+`gen_assets.py` also takes `--tile N` (16/32/64/128) to rebuild the atlas at a
+higher resolution, and `--no-pack` to ignore an imported texture pack — see
+[Custom textures](#custom-textures-minecraft-packs).
+
+## Custom textures (Minecraft packs)
+
+The game can render with **real Minecraft Bedrock textures** from the copy you
+own, without any Mojang asset ever entering the repository. Import a pack
+locally and rebuild the atlas:
+
+```bash
+python3 tools/pack_import.py --pack ~/packs/MyPack --tile 32   # or --list first
+cd tools && python3 gen_assets.py all                          # 768x768 atlas
+python3 tools/pack_import.py --clear                           # back to built-in art
+```
+
+`tools/pack_import.py` matches the pack's file names against the game's 137
+block tiles (Bedrock *and* Java spellings, plus `--map` for anything exotic),
+normalises every tile to the resolution you picked, and writes
+`assets/pack/tiles/*.png` — a folder git ignores, since the artwork is Mojang's
+and the pack author's. Unmatched tiles keep the generated art, so partial packs
+mix in cleanly. Item icons, mob skins and sounds stay generated.
+
+Full details, including the name-matching rules and the PNG formats accepted:
+[docs/texture-packs.md](docs/texture-packs.md).
+
 ## Testing and CI checks
 
 - `.github/workflows/checks.yml` — parses every `.gd` file with `gdparse`,
   re-runs the whole asset pipeline to prove it is byte-for-byte reproducible,
-  imports the project headlessly, loads the main scene looking for script
-  errors and runs `tests/smoke_test.gd` (239 checks over the registries, the
-  atlas manifests, recipe matching, terrain generation, mob/trade tables, the
-  light engine and container serialisation).
+  imports a synthetic texture pack and checks the HD atlas it produces, imports
+  the project headlessly, loads the main scene looking for script errors and
+  runs `tests/smoke_test.gd` (the headless suite over the registries, the atlas
+  manifests, recipe matching, terrain generation, structures, achievements,
+  mob/trade tables, container serialisation and the touch-control logic).
 - `.github/workflows/android.yml` — the APK build described above.
 - Locally, `godot --headless --path . --import` catches the same script errors,
   `godot --headless --path . --script res://tests/smoke_test.gd` runs the smoke

@@ -75,6 +75,8 @@ static func install() -> void:
 	for action in MOUSE_ACTIONS:
 		_ensure_action(action)
 		InputMap.action_erase_events(action)
+		if touch_only():
+			continue      # see touch_only(): a finger must not double as a click
 		for button in MOUSE_ACTIONS[action]:
 			var event := InputEventMouseButton.new()
 			event.button_index = button
@@ -92,6 +94,18 @@ static func install() -> void:
 			event.axis = int(spec["axis"])
 			event.axis_value = float(spec["value"])
 			InputMap.action_add_event(action, event)
+
+
+## True when a phone or tablet is being played with the on-screen controls.
+##
+## Godot turns every tap into an emulated mouse click, and that click would also
+## press "attack" (bound to the left mouse button), so tapping anywhere would
+## start mining. While the touch controls are in charge the mouse actions stay
+## unbound; the touch buttons press those actions directly, so they still work.
+static func touch_only() -> bool:
+	if not Settings.touch_controls_enabled():
+		return false
+	return OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
 
 
 static func _ensure_action(action: String) -> void:

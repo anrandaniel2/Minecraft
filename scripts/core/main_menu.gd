@@ -145,8 +145,11 @@ func _build_foreground() -> void:
 func _menu_button(text: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(380, 40)
-	button.add_theme_font_size_override("font_size", 18)
+	# Taller buttons and bigger text on a phone, where fingers replace a cursor.
+	var touch: bool = OS.has_feature("mobile") or OS.has_feature("android") \
+		or OS.has_feature("ios")
+	button.custom_minimum_size = Vector2(380, 52 if touch else 40)
+	button.add_theme_font_size_override("font_size", 21 if touch else 18)
 	button.pressed.connect(callback)
 	_main_buttons.add_child(button)
 	return button

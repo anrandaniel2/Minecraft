@@ -43,15 +43,10 @@ var _water_overlay: ColorRect
 var _hotbar_items_label: Label
 var _clock_label: Label
 var _pickup_label: Label
-var _touch_root: Control
-var _touch_joystick: Control
-var _touch_look_area: Control
+var _touch: TouchControls
 var _debug_visible: bool = false
 var _player_list_visible: bool = false
-var _touch_move: Vector2 = Vector2.ZERO
-var _touch_look: Vector2 = Vector2.ZERO
-var _touch_look_active: bool = false
-var _touch_look_last: Vector2 = Vector2.ZERO
+var _touch_scale_applied: float = -1.0
 var _pickup_timer: float = 0.0
 var _pickup_text: String = ""
 var _toasts: Array = []
@@ -318,102 +313,84 @@ func _build_screens() -> void:
 
 
 func _build_touch_controls() -> void:
-	_touch_root = Control.new()
-	_touch_root.name = "TouchControls"
-	_touch_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_touch_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_touch_root.visible = false
-	_root.add_child(_touch_root)
-
-	_touch_joystick = Control.new()
-	_touch_joystick.name = "Joystick"
-	_touch_joystick.custom_minimum_size = Vector2(180, 180)
-	_touch_joystick.size = Vector2(180, 180)
-	_touch_joystick.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_touch_joystick.position = Vector2(40, -220)
-	_touch_joystick.mouse_filter = Control.MOUSE_FILTER_STOP
-	_touch_joystick.draw.connect(_draw_joystick)
-	_touch_root.add_child(_touch_joystick)
-
-	_touch_look_area = Control.new()
-	_touch_look_area.name = "LookArea"
-	_touch_look_area.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_touch_look_area.mouse_filter = Control.MOUSE_FILTER_PASS
-	_touch_root.add_child(_touch_look_area)
-
-	_touch_button("Jump", Vector2(-160, -210), Vector2(96, 96), "jump")
-	_touch_button("Mine", Vector2(-270, -160), Vector2(88, 88), "attack")
-	_touch_button("Place", Vector2(-270, -260), Vector2(88, 88), "use")
-	_touch_button("Inv", Vector2(-360, -150), Vector2(70, 70), "inventory")
-	_touch_button("Fly", Vector2(-360, -240), Vector2(70, 70), "toggle_fly")
-	_touch_button("Sneak", Vector2(-160, -110), Vector2(76, 60), "sneak")
+	_touch = TouchControls.new()
+	_touch.enabled = false
+	_touch.move_changed.connect(_on_touch_move)
+	_touch.look_delta.connect(_on_touch_look)
+	_touch.action_changed.connect(_on_touch_action)
+	add_child(_touch)
 
 
-func _touch_button(text: String, offset: Vector2, size: Vector2, action: String) -> void:
-	var button := Button.new()
-	button.text = text
-	button.custom_minimum_size = size
-	button.size = size
-	button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	button.position = offset
-	button.add_theme_font_size_override("font_size", 16)
-	button.modulate = Color(1, 1, 1, 0.6)
-	button.button_down.connect(func() -> void: _touch_press(action, true))
-	button.button_up.connect(func() -> void: _touch_press(action, false))
-	_touch_root.add_child(button)
+func _init_touch_reserved() -> void:
+	# The hotbar keeps its own taps: a slot tap must not move the camera.
+	if _touch == null or _hotbar_box == null or not _hotbar_box.is_inside_tree():
+		return
+	var to_touch: Transform2D = _touch.get_global_transform_with_canvas().affine_inverse() \
+		* _hotbar_box.get_global_transform_with_canvas()
+	_touch.set_reserved_rects([to_touch * _hotbar_box.get_global_rect()])
 
 
-func _touch_press(action: String, pressed: bool) -> void:
-	if pressed:
-		Input.action_press(action)
+func _update_touch_controls() -> void:
+	var wanted: bool = Settings.touch_controls_enabled()
+	if _touch.enabled != wanted:
+		_touch.enabled = wanted
+		_touch.visible = wanted
+		_crosshair.visible = not wanted          # the crosshair is replaced by the look zone
+		if wanted:
+			_init_touch_reserved()
+	if not wanted:
+		return
+	# While a screen is open the controls stay visible but inert, so a stray
+	# finger on the world does not move the camera behind the menu.
+	_touch.interactive = not screens_open()
+	var scale: float = float(Settings.get_value("touch_scale"))
+	if not is_equal_approx(scale, _touch_scale_applied):
+		_touch_scale_applied = scale
+		_touch.set_button_scale(scale)
+		_init_touch_reserved()
+	if player != null:
+		_touch.set_state("toggle_fly", player.flying)
+
+
+func _on_touch_move(move: Vector2) -> void:
+	_set_action("move_forward", move.y < -0.25)
+	_set_action("move_back", move.y > 0.25)
+	_set_action("move_left", move.x < -0.25)
+	_set_action("move_right", move.x > 0.25)
+	if _touch.is_toggled("sprint"):
+		_set_action("sprint", true)              # the Run button latches it on
 	else:
-		Input.action_release(action)
+		_set_action("sprint", move.length() > 0.9)
 
 
-func _draw_joystick() -> void:
-	var center: Vector2 = _touch_joystick.size * 0.5
-	_touch_joystick.draw_circle(center, 78.0, Color(1, 1, 1, 0.10))
-	_touch_joystick.draw_circle(center + _touch_move * 60.0, 30.0, Color(1, 1, 1, 0.28))
-	_touch_joystick.draw_arc(center, 78.0, 0.0, TAU, 40, Color(1, 1, 1, 0.28), 3.0)
+func _on_touch_look(delta: Vector2) -> void:
+	if player != null:
+		player.add_look_delta(delta)
 
 
-func _touch_input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch:
-		var touch := event as InputEventScreenTouch
-		if touch.pressed:
-			if _touch_joystick.get_global_rect().has_point(touch.position):
-				_touch_move = Vector2.ZERO
-			else:
-				_touch_look_active = true
-				_touch_look_last = touch.position
-		else:
-			_touch_move = Vector2.ZERO
-			_touch_look_active = false
-			Input.action_release("move_forward")
-			Input.action_release("move_back")
-			Input.action_release("move_left")
-			Input.action_release("move_right")
-		_touch_joystick.queue_redraw()
-	elif event is InputEventScreenDrag:
-		var drag := event as InputEventScreenDrag
-		if _touch_joystick.get_global_rect().has_point(drag.position):
-			_touch_move = (drag.position - (_touch_joystick.global_position
-				+ _touch_joystick.size * 0.5)) / 60.0
-			_touch_move = _touch_move.limit_length(1.0)
-			_apply_touch_move()
-			_touch_joystick.queue_redraw()
-		elif _touch_look_active and player != null:
-			var delta: Vector2 = drag.position - _touch_look_last
-			_touch_look_last = drag.position
-			player.add_look_delta(delta)
-
-
-func _apply_touch_move() -> void:
-	_set_action("move_forward", _touch_move.y < -0.25)
-	_set_action("move_back", _touch_move.y > 0.25)
-	_set_action("move_left", _touch_move.x < -0.25)
-	_set_action("move_right", _touch_move.x > 0.25)
-	_set_action("sprint", _touch_move.length() > 0.9)
+func _on_touch_action(action: String, pressed: bool) -> void:
+	if not pressed:
+		_set_action(action, false)
+		return
+	# Screens are opened by action *events*, which a synthetic press does not
+	# create, so those buttons call the HUD directly.
+	match action:
+		"chat":
+			if not _chat_input.visible:
+				_open_chat()
+		"pause":
+			open_pause_menu()
+		"inventory":
+			if not (get_tree().paused and pause_menu != null and pause_menu.visible):
+				if _screens_open():
+					inventory_screen.close()
+				else:
+					inventory_screen.open_with(player, false)
+		"toggle_fly":
+			if player != null:
+				player.toggle_flying()
+		_:
+			_set_action(action, true)
 
 
 func _set_action(action: String, pressed: bool) -> void:
@@ -429,9 +406,6 @@ func _set_action(action: String, pressed: bool) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if _touch_root.visible:
-		if event is InputEventScreenTouch or event is InputEventScreenDrag:
-			_touch_input(event)
 	if event.is_action_pressed("player_list"):
 		_show_player_list(true)
 		get_viewport().set_input_as_handled()
@@ -499,7 +473,7 @@ func _process(delta: float) -> void:
 		if _player_list_refresh <= 0.0:
 			_player_list_refresh = 1.0
 			_refresh_player_list()
-	_touch_root.visible = Settings.touch_controls_enabled()
+	_update_touch_controls()
 	_crosshair.visible = not _screens_open()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if (_screens_open() or _chat_input.visible
 		or get_tree().paused) else Input.MOUSE_MODE_CAPTURED
@@ -513,6 +487,36 @@ func _screens_open() -> bool:
 		or (container_screen != null and container_screen.visible) \
 		or (trade_screen != null and trade_screen.visible) \
 		or (pause_menu != null and pause_menu.visible)
+
+
+## True when any panel, including the chat line, is up. Used by the Android
+## back button and by the touch controls.
+func screens_open() -> bool:
+	return _screens_open() or (_chat_input != null and _chat_input.visible)
+
+
+## Closes whatever is open, the way the Android back button expects: chat
+## first, then the panels, and never the world itself.
+func close_screens() -> void:
+	if _chat_input != null and _chat_input.visible:
+		_close_chat()
+		return
+	if inventory_screen != null and inventory_screen.visible:
+		inventory_screen.close()
+	if container_screen != null and container_screen.visible:
+		container_screen.close()
+	if trade_screen != null and trade_screen.visible:
+		trade_screen.close()
+	if sign_screen != null and sign_screen.visible:
+		sign_screen.close()
+	if pause_menu != null and pause_menu.visible:
+		pause_menu.close()
+
+
+## Opens the pause menu (mobile Escape button, Android back button).
+func open_pause_menu() -> void:
+	if pause_menu != null and not pause_menu.visible:
+		pause_menu.open()
 
 
 # ---------------------------------------------------------------------------
@@ -882,6 +886,11 @@ func _on_player_died() -> void:
 	_on_chat_message("Server", "You died")
 	if MpManager != null:
 		MpManager.set_local_health(0.0)
+	if _touch != null:
+		# Latched buttons must not survive a respawn.
+		_touch.release_all()
+		_touch.clear_toggle("sneak")
+		_touch.clear_toggle("sprint")
 
 
 func _on_player_respawned() -> void:

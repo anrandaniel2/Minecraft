@@ -23,6 +23,7 @@ func _initialize() -> void:
 	_test_containers()
 	_test_structures()
 	_test_achievements()
+	_test_touch_controls()
 	print("")
 	if failures == 0:
 		print("SMOKE OK - %d checks passed" % checks)
@@ -595,3 +596,110 @@ func _test_containers() -> void:
 	if output != null:
 		check(int(output["id"]) == Items.id("iron_ingot"), "the output is an iron ingot")
 	check(restored.burn_time > 0.0 or restored.lit, "the furnace consumed its fuel")
+
+
+# ---------------------------------------------------------------------------
+# Touch controls
+# ---------------------------------------------------------------------------
+
+
+func _has_action(actions: Array, action: String, pressed: bool) -> bool:
+	for entry in actions:
+		if str(entry[0]) == action and bool(entry[1]) == pressed:
+			return true
+	return false
+
+
+## The on-screen controls must keep every finger apart: holding *Mine* while
+## walking and dragging the camera is the whole point of the layout, and the old
+## single-finger code dropped the stick as soon as any finger was lifted.
+func _test_touch_controls() -> void:
+	print("- touch controls")
+	var view := Vector2(1280, 720)
+	check(TouchControls.safe_rect(view, Rect2()) == Rect2(Vector2.ZERO, view),
+		"the safe rect is the whole screen without insets")
+	check(TouchControls.safe_rect(view, Rect2(40, 10, 50, 20)) == Rect2(40, 10, 1190, 690),
+		"notch and rounded-corner insets shrink the safe rect")
+	var mine_rect: Rect2 = TouchControls.button_rect(view, Rect2(), Vector2(-140, -226), 100.0)
+	check(mine_rect == Rect2(1090, 444, 100, 100), "bottom-right buttons sit at their offset")
+	var bag_rect: Rect2 = TouchControls.button_rect(view, Rect2(), Vector2(-58, 62), 62.0, true)
+	check(bag_rect == Rect2(1191, 31, 62, 62), "top-right buttons hang from the top corner")
+
+	var touch := TouchControls.new()
+	touch.size = view
+	touch.enabled = true
+	var actions: Array = []
+	var moves: Array = []
+	var looks: Array = []
+	touch.action_changed.connect(func(action: String, pressed: bool) -> void:
+		actions.append([action, pressed]))
+	touch.move_changed.connect(func(move: Vector2) -> void:
+		moves.append(move))
+	touch.look_delta.connect(func(delta: Vector2) -> void:
+		looks.append(delta))
+
+	var stick: Vector2 = touch.move_zone().get_center()
+	check(touch.handle_press(0, (touch.button_rects()["attack"] as Rect2).get_center()),
+		"a tap on Mine is claimed by the control")
+	check(_has_action(actions, "attack", true), "Mine presses the attack action")
+	check(touch.handle_press(1, stick), "a second finger takes the stick")
+	touch.handle_drag(1, stick + Vector2(0, -70))
+	check(touch.move_vector().y < -0.5, "pushing the stick forward walks forward")
+	# Clear of the buttons and of the left half, so this is a look drag.
+	var look_start := Vector2(900, 150)
+	check(touch.handle_press(2, look_start), "a third finger is free to look around")
+	touch.handle_drag(2, look_start + Vector2(30, 12))
+	check(looks.size() == 1, "dragging the look finger reports one delta")
+	if looks.size() == 1:
+		check((looks[0] as Vector2).is_equal_approx(Vector2(30, 12)),
+			"the look delta matches the finger movement")
+	touch.handle_release(2)
+	check(touch.move_vector().y < -0.5, "lifting the look finger keeps the stick held")
+	check(not touch.held_roles().has("look"), "the look finger is forgotten")
+	touch.handle_release(0)
+	check(_has_action(actions, "attack", false), "releasing Mine stops mining")
+	touch.handle_release(1)
+	check(touch.move_vector() == Vector2.ZERO, "letting the stick go stops movement")
+	check(not touch.held_roles().has("move"), "no finger is left on the stick")
+
+	# Stick dead zone and clamping
+	touch.handle_press(0, stick)
+	touch.handle_drag(0, stick + Vector2(6, 0))
+	check(touch.move_vector() == Vector2.ZERO, "a small wobble stays inside the dead zone")
+	touch.handle_drag(0, stick + Vector2(0, 400))
+	check(touch.move_vector().length() <= 1.0 and touch.move_vector().y > 0.9,
+		"the stick clamps to a unit vector when dragged past its edge")
+	touch.handle_release(0)
+	check(touch.move_vector() == Vector2.ZERO, "the stick recentres on release")
+
+	# Toggles latch on a tap: Sneak and Run stay on until tapped again.
+	var sneak: Vector2 = (touch.button_rects()["sneak"] as Rect2).get_center()
+	touch.handle_press(0, sneak)
+	touch.handle_release(0)
+	check(touch.is_toggled("sneak") and _has_action(actions, "sneak", true),
+		"the Sneak button latches on")
+	check(not _has_action(actions, "sneak", false), "tapping Sneak does not release it")
+	touch.handle_press(0, sneak)
+	touch.handle_release(0)
+	check(not touch.is_toggled("sneak") and _has_action(actions, "sneak", false),
+		"tapping Sneak again turns it off")
+
+	# The hotbar keeps its taps: the reserved rect wins over the look area.
+	touch.set_reserved_rects([Rect2(440, 640, 400, 60)])
+	check(not touch.handle_press(0, Vector2(500, 660)), "a hotbar tap is left to the HUD")
+	check(not touch.held_roles().has("look"), "a hotbar tap does not drag the camera")
+
+	# Screens switch the controls off (or make them inert) rather than leaving
+	# fingers holding actions on a paused game.
+	touch.enabled = false
+	check(not touch.handle_press(0, mine_rect.get_center()), "disabled controls claim nothing")
+	touch.enabled = true
+	touch.handle_press(0, mine_rect.get_center())
+	touch.interactive = false
+	check(touch.held_roles().is_empty(), "closing a screen drops every held finger")
+	check(not touch.handle_press(0, mine_rect.get_center()),
+		"screen-open controls ignore new presses")
+	check(touch.held_roles().is_empty(), "and no finger sneaks back in")
+	touch.interactive = true
+	check(touch.handle_press(0, mine_rect.get_center()), "closing the screen re-arms the controls")
+	touch.handle_release(0)

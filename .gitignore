@@ -20,3 +20,6 @@ Thumbs.db
 # Python bytecode from the asset tools
 __pycache__/
 *.pyc
+# Texture packs imported from disk (see docs/texture-packs.md). These are
+# third-party art - Mojang's or someone else's - so they never get committed.
+assets/pack/

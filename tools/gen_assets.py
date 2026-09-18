@@ -4,6 +4,13 @@
     python3 tools/gen_assets.py textures   # blocks/items/ui/entities/atlas
     python3 tools/gen_assets.py sounds     # audio only
     python3 tools/gen_assets.py atlas      # re-pack the terrain atlas only
+    python3 tools/gen_assets.py textures --tile 32   # HD atlas from the same art
+    python3 tools/gen_assets.py textures --no-pack   # ignore assets/pack/
+
+Texture pack support: if `assets/pack/pack.json` exists (written by
+`tools/pack_import.py`), those tiles replace the generated ones and the whole
+atlas is rebuilt at the pack's resolution. `--tile N` upscales the generated art
+to N pixels per tile instead.
 
 Outputs (all committed, all reproducible):
     assets/generated/blocks/<name>.png     individual block faces (also used as
@@ -27,10 +34,17 @@ import sys
 import gen_items
 import gen_textures as gt
 import gen_sounds
+import pngread
 from pixelart import Canvas, rgba
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "assets")
+PACK_DIR = os.path.join(OUT, "pack")
+PACK_MANIFEST = os.path.join(PACK_DIR, "pack.json")
+
+#: Tile resolutions the pipeline understands; each is a power-of-two multiple of
+#: the 16px source art so upscaling stays crisp.
+VALID_TILE_SIZES = (16, 32, 64, 128)
 
 
 def _stable_seed(text: str) -> int:
@@ -50,6 +64,75 @@ def ensure(path: str) -> str:
 # ---------------------------------------------------------------------------
 # Block tiles
 # ---------------------------------------------------------------------------
+
+
+def pack_manifest() -> dict:
+    """The imported pack's manifest, or {} when no pack is installed."""
+    if not os.path.exists(PACK_MANIFEST):
+        return {}
+    try:
+        with open(PACK_MANIFEST, encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        print("assets/pack/pack.json is unreadable; ignoring the pack", file=sys.stderr)
+        return {}
+
+
+def pack_tiles(tile_pixels: int) -> dict[str, Canvas]:
+    """Loads imported pack tiles at `tile_pixels`, keyed by tile name."""
+    manifest = pack_manifest()
+    if not manifest:
+        return {}
+    tiles: dict[str, Canvas] = {}
+    for name in manifest.get("imported", {}):
+        path = os.path.join(PACK_DIR, "tiles", f"{name}.png")
+        if not os.path.exists(path):
+            continue
+        width, height, pixels = pngread.read_png(path)
+        if width != tile_pixels:
+            pixels = pngread.resize_rgba(width, height, pixels, tile_pixels)
+            width = height = tile_pixels
+        canvas = Canvas(tile_pixels)
+        for y in range(height):
+            for x in range(width):
+                index = (y * width + x) * 4
+                canvas.set(x, y, (pixels[index], pixels[index + 1], pixels[index + 2],
+                                  pixels[index + 3]))
+        tiles[name] = canvas
+    return tiles
+
+
+def scale_tiles(tiles: dict[str, Canvas], tile_pixels: int) -> dict[str, Canvas]:
+    """Nearest-neighbour upscale of the 16px source art to `tile_pixels`."""
+    factor: int = tile_pixels // gt.TILE
+    if factor <= 1:
+        return tiles
+    return {name: canvas.scale(factor) for name, canvas in tiles.items()}
+
+
+def resolve_tiles(requested_tile, use_pack: bool):
+    """Builds the tile set: generated art, overridden by an imported pack.
+
+    Returns `(tiles, tile_pixels, source)` where source is "pack" or "generated".
+    """
+    generated: dict[str, Canvas] = build_block_tiles()
+    manifest: dict = pack_manifest() if use_pack else {}
+    if manifest:
+        tile_pixels: int = int(manifest.get("tile_pixels", gt.TILE))
+        imported: dict[str, Canvas] = pack_tiles(tile_pixels)
+        if imported:
+            merged = dict(generated)
+            if tile_pixels != gt.TILE:
+                merged = scale_tiles(merged, tile_pixels)
+            merged.update(imported)
+            print(f"pack: {len(imported)} imported tiles at {tile_pixels}px "
+                  f"(from {', '.join(manifest.get('source', ['?']))})")
+            return merged, tile_pixels, "pack"
+        print("pack manifest found but no tiles loaded; using generated art")
+    tile_pixels = requested_tile or gt.TILE
+    if tile_pixels not in VALID_TILE_SIZES:
+        raise SystemExit(f"--tile must be one of {VALID_TILE_SIZES}")
+    return scale_tiles(generated, tile_pixels), tile_pixels, "generated"
 
 
 def build_block_tiles() -> dict[str, Canvas]:
@@ -150,37 +233,44 @@ def build_block_tiles() -> dict[str, Canvas]:
 ATLAS_COLS = 16
 
 
-def build_atlas(tiles: dict[str, Canvas]) -> tuple[Canvas, dict]:
-    """Pack tiles in a padded grid so mipmapped sampling never bleeds."""
-    cell = gt.TILE + gt.PAD * 2
+def build_atlas(tiles: dict[str, Canvas], tile_pixels: int = gt.TILE,
+                source: str = "generated") -> tuple[Canvas, dict]:
+    """Pack tiles in a padded grid so mipmapped sampling never bleeds.
+
+    The padding scales with the tile so HD packs keep the same mipmap guard the
+    16px art uses (a quarter of a tile, at least one pixel).
+    """
+    pad: int = max(1, tile_pixels // 4)
+    cell = tile_pixels + pad * 2
     rows = (len(tiles) + ATLAS_COLS - 1) // ATLAS_COLS
     # The canvas is square, so a 16x16 grid of cells holds up to 256 tiles.
     side = ATLAS_COLS
     assert rows <= side, "atlas grid overflow"
     atlas = Canvas(cell * side)
-    manifest = {"tile_pixels": gt.TILE, "pad": gt.PAD, "cell": cell, "cols": side,
-                "rows": rows, "size": cell * side, "tiles": {}}
+    manifest = {"tile_pixels": tile_pixels, "pad": pad, "cell": cell, "cols": side,
+                "rows": rows, "size": cell * side, "source": source, "tiles": {}}
     for index, (name, tile) in enumerate(tiles.items()):
         col = index % side
         row = index // side
-        x0 = col * cell + gt.PAD
-        y0 = row * cell + gt.PAD
-        for y in range(gt.TILE):
-            for x in range(gt.TILE):
+        x0 = col * cell + pad
+        y0 = row * cell + pad
+        for y in range(tile_pixels):
+            for x in range(tile_pixels):
                 atlas.set(x0 + x, y0 + y, tile.get(x, y))
         # replicate edge pixels into the padding (mipmap bleed guard)
-        for i in range(gt.PAD):
-            for j in range(gt.TILE):
+        for i in range(pad):
+            for j in range(tile_pixels):
                 atlas.set(x0 - 1 - i, y0 + j, tile.get(0, j))
-                atlas.set(x0 + gt.TILE + i, y0 + j, tile.get(gt.TILE - 1, j))
+                atlas.set(x0 + tile_pixels + i, y0 + j, tile.get(tile_pixels - 1, j))
                 atlas.set(x0 + j, y0 - 1 - i, tile.get(j, 0))
-                atlas.set(x0 + j, y0 + gt.TILE + i, tile.get(j, gt.TILE - 1))
-        for i in range(gt.PAD):
-            for j in range(gt.PAD):
+                atlas.set(x0 + j, y0 + tile_pixels + i, tile.get(j, tile_pixels - 1))
+        for i in range(pad):
+            for j in range(pad):
                 atlas.set(x0 - 1 - j, y0 - 1 - i, tile.get(0, 0))
-                atlas.set(x0 + gt.TILE + j, y0 - 1 - i, tile.get(gt.TILE - 1, 0))
-                atlas.set(x0 - 1 - j, y0 + gt.TILE + i, tile.get(0, gt.TILE - 1))
-                atlas.set(x0 + gt.TILE + j, y0 + gt.TILE + i, tile.get(gt.TILE - 1, gt.TILE - 1))
+                atlas.set(x0 + tile_pixels + j, y0 - 1 - i, tile.get(tile_pixels - 1, 0))
+                atlas.set(x0 - 1 - j, y0 + tile_pixels + i, tile.get(0, tile_pixels - 1))
+                atlas.set(x0 + tile_pixels + j, y0 + tile_pixels + i,
+                          tile.get(tile_pixels - 1, tile_pixels - 1))
         manifest["tiles"][name] = [col, row]
     return atlas, manifest
 
@@ -295,14 +385,15 @@ def write_all(canvases: dict[str, Canvas], directory: str) -> None:
         canvas.save(os.path.join(directory, f"{name}.png"))
 
 
-def do_textures() -> None:
-    tiles = build_block_tiles()
+def do_textures(requested_tile=None, use_pack: bool = True) -> None:
+    tiles, tile_pixels, source = resolve_tiles(requested_tile, use_pack)
     write_all(tiles, os.path.join(OUT, "generated", "blocks"))
-    atlas, manifest = build_atlas(tiles)
+    atlas, manifest = build_atlas(tiles, tile_pixels, source)
     atlas.save(os.path.join(OUT, "generated", "atlas.png"))
     with open(os.path.join(OUT, "generated", "atlas.json"), "w") as handle:
         json.dump(manifest, handle, indent=1, sort_keys=True)
-    print(f"atlas: {len(tiles)} tiles, {manifest['size']}x{manifest['size']}px")
+    print(f"atlas: {len(tiles)} tiles, {manifest['size']}x{manifest['size']}px "
+          f"({tile_pixels}px tiles, {source})")
 
     write_all(build_items(), os.path.join(OUT, "generated", "items"))
     write_all(build_ui(), os.path.join(OUT, "generated", "ui"))
@@ -321,13 +412,14 @@ def do_textures() -> None:
     print(f"entities: {len(skins)} mob skins")
 
 
-def do_atlas() -> None:
-    tiles = build_block_tiles()
-    atlas, manifest = build_atlas(tiles)
+def do_atlas(requested_tile=None, use_pack: bool = True) -> None:
+    tiles, tile_pixels, source = resolve_tiles(requested_tile, use_pack)
+    atlas, manifest = build_atlas(tiles, tile_pixels, source)
     atlas.save(os.path.join(OUT, "generated", "atlas.png"))
     with open(os.path.join(OUT, "generated", "atlas.json"), "w") as handle:
         json.dump(manifest, handle, indent=1, sort_keys=True)
-    print(f"atlas: {len(tiles)} tiles, {manifest['size']}x{manifest['size']}px")
+    print(f"atlas: {len(tiles)} tiles, {manifest['size']}x{manifest['size']}px "
+          f"({tile_pixels}px tiles, {source})")
 
 
 def do_sounds() -> None:
@@ -342,14 +434,32 @@ def do_sounds() -> None:
 
 
 def main(argv: list[str]) -> int:
-    targets = argv[1:] or ["textures", "sounds"]
+    arguments = argv[1:]
+    requested_tile = None
+    use_pack: bool = True
+    targets: list[str] = []
+    index: int = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument == "--tile" and index + 1 < len(arguments):
+            requested_tile = int(arguments[index + 1])
+            index += 2
+            continue
+        if argument == "--no-pack":
+            use_pack = False
+            index += 1
+            continue
+        targets.append(argument)
+        index += 1
+
+    targets = targets or ["textures", "sounds"]
     if "all" in targets:
         targets = ["textures", "sounds"]
     for target in targets:
         if target == "textures":
-            do_textures()
+            do_textures(requested_tile, use_pack)
         elif target == "atlas":
-            do_atlas()
+            do_atlas(requested_tile, use_pack)
         elif target == "sounds":
             do_sounds()
         else:
