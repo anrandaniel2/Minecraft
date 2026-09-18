@@ -29,7 +29,7 @@ const ACTIONS: Dictionary = {
 	"pause": [KEY_ESCAPE],
 	"chat": [KEY_ENTER],
 	"player_list": [KEY_TAB],
-	"pick_block": [KEY_PICKUP],
+	"pick_block": [],            # middle mouse only, see MOUSE_ACTIONS
 	"slot_scroll": [],
 }
 
@@ -91,7 +91,7 @@ static func install() -> void:
 		_ensure_action(action)
 		for spec in JOYPAD_AXES[action]:
 			var event := InputEventJoypadMotion.new()
-			event.axis = int(spec["axis"])
+			event.axis = int(spec["axis"]) as JoyAxis
 			event.axis_value = float(spec["value"])
 			InputMap.action_add_event(action, event)
 
@@ -115,7 +115,7 @@ static func _ensure_action(action: String) -> void:
 
 static func _add_key(action: String, keycode: int) -> void:
 	var event := InputEventKey.new()
-	event.physical_keycode = keycode
+	event.physical_keycode = keycode as Key
 	InputMap.action_add_event(action, event)
 
 
