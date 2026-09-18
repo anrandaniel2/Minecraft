@@ -10,7 +10,7 @@ signal closed()
 const MAX_LENGTH: int = 60
 
 var world: World = null
-var position: Vector3i = Vector3i.ZERO
+var sign_position: Vector3i = Vector3i.ZERO
 
 var _panel: PanelContainer
 var _entry: LineEdit
@@ -87,7 +87,7 @@ func _build() -> void:
 
 func open_with(world_ref: World, pos: Vector3i) -> void:
 	world = world_ref
-	position = pos
+	sign_position = pos
 	if world != null:
 		_entry.text = world.sign_text(pos)
 	_hint.text = "Enter to write, Esc to cancel"
@@ -113,7 +113,7 @@ func _on_submitted(_text: String) -> void:
 
 func _commit() -> void:
 	if world != null:
-		world.set_sign_text(position, _entry.text)
+		world.set_sign_text(sign_position, _entry.text)
 		AudioManager.play_ui()
 	close()
 
