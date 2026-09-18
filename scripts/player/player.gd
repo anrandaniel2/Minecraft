@@ -686,6 +686,18 @@ func _attack_mob(mob: Node3D) -> void:
 		_damage_tool(1)
 
 
+## Swaps a door between the solid closed block and the flat open one, keeping
+## the facing meta so it stays in its frame.
+func _toggle_door(position: Vector3i, opened: bool) -> void:
+	if world == null:
+		return
+	_use_cooldown = 0.3
+	var meta: int = world.get_block_meta(position)
+	var target: int = Blocks.id("oak_door") if opened else Blocks.id("oak_door_open")
+	world.set_block(position, target, meta)
+	AudioManager.play_3d("lever", Vector3(position) + Vector3(0.5, 0.5, 0.5), self, -6.0, 0.85)
+
+
 ## Beds: sleep through the night and move the respawn point there, like the real
 ## thing. Refuses while monsters are close, so night is not a free pass.
 func _try_sleep(position: Vector3i) -> void:
@@ -756,12 +768,16 @@ func _use(delta: float) -> void:
 		return
 	var position: Vector3i = target["position"]
 	var block_id: int = int(target["block"])
+	var block_name: String = Blocks.name_of(block_id)
+	if (block_name == "oak_door" or block_name == "oak_door_open") and _use_cooldown <= 0.0:
+		_toggle_door(position, block_name == "oak_door_open")
+		return
 	# Empty-handed use edits a sign; holding anything still places it.
-	if Blocks.name_of(block_id) == "sign" and item_id < 0 and _use_cooldown <= 0.0:
+	if block_name == "sign" and item_id < 0 and _use_cooldown <= 0.0:
 		_use_cooldown = 0.3
 		open_sign_editor.emit(position)
 		return
-	if Blocks.name_of(block_id) == "bed" and _use_cooldown <= 0.0:
+	if block_name == "bed" and _use_cooldown <= 0.0:
 		_use_cooldown = 0.3
 		_try_sleep(position)
 		return

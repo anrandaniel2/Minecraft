@@ -12,7 +12,7 @@ registries are data-driven, and every script is plain GDScript with no external
 addons.
 
 <p align="center">
-  <em>124 block types, 353 items, 98 recipes, 11 biomes, 10 mob types, 39 sounds,
+  <em>125 block types, 353 items, 98 recipes, 11 biomes, 10 mob types, 39 sounds,
   villages, dungeons, mineshafts and ENet multiplayer.</em>
 </p>
 
@@ -80,6 +80,9 @@ addons.
   into ingots and raw meat into cooked meat.
 - **Death and respawn** — inventory drops (unless "keep inventory" is on) and the
   player respawns at the world spawn three seconds later.
+- **Doors that open** — right-click an oak door to swing it open or shut. The
+  open state is a thinner block you can walk through, and it drops the door
+  when broken.
 - **Signs** — six planks and a stick. Right-click a sign empty-handed to write
   on it; the text floats above the post for everyone nearby and is saved with
   the world, so you can label a base, a mine or a chest room.

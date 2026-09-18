@@ -129,7 +129,7 @@ func _test_registries() -> void:
 	check(Items.defs.size() > 200, "more than 200 items (%d)" % Items.defs.size())
 	for block_name in ["stone", "grass_block", "dirt", "sand", "oak_log", "oak_planks", "chest",
 			"furnace", "torch", "water", "lava", "bedrock", "diamond_ore", "piston", "piston_arm",
-			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed", "rail", "hopper", "sign"]:
+			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed", "rail", "hopper", "sign", "oak_door_open"]:
 		check(Blocks.id(block_name) > 0, "block '%s' registered" % block_name)
 	for item_name in ["stick", "coal", "charcoal", "iron_ingot", "raw_iron", "diamond", "emerald",
 			"stone_pickaxe", "diamond_sword", "iron_chestplate", "bread", "apple", "wheat_seeds",
@@ -308,6 +308,19 @@ func _test_recipes() -> void:
 	check(sign_def.shape == Blocks.SHAPE_TORCH, "signs stand on a post like a torch")
 	check(not sign_def.solid and not sign_def.opaque, "players can walk through a sign")
 	check(sign_def.drops.size() == 1, "a broken sign gives itself back")
+
+	# Doors open and close between two block states that share the planks tile.
+	var closed_door: BlockDef = Blocks.def(Blocks.id("oak_door"))
+	var open_door: BlockDef = Blocks.def(Blocks.id("oak_door_open"))
+	check(closed_door.solid and closed_door.shape == Blocks.SHAPE_CUBE, "a closed door is solid")
+	check(open_door.shape == Blocks.SHAPE_LADDER, "an open door is a flat panel")
+	check(not open_door.solid and not open_door.collides, "players can walk through an open door")
+	check(closed_door.tile_names.has("all") and open_door.tile_names.has("all")
+		and str(closed_door.tile_names["all"]) == str(open_door.tile_names["all"]),
+		"both door states use the same texture")
+	check(open_door.drops.size() == 1 and str(open_door.drops[0]["item"]) == "oak_door",
+		"an open door drops a door")
+	check(Blocks.has_facing(Blocks.id("oak_door_open")), "doors keep their facing")
 
 	var smelt: Dictionary = Recipes.smelting_for(Items.id("iron_ore"))
 	check(not smelt.is_empty(), "iron ore can be smelted")
