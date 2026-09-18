@@ -33,6 +33,11 @@ func _init(world_ref: World = null) -> void:
 
 func _ready() -> void:
 	add_to_group("mob_manager")
+	# Also works when the manager is added by hand without a world argument.
+	if world == null:
+		world = get_parent() as World
+	if world == null:
+		world = get_tree().get_first_node_in_group("world") as World
 
 
 func _process(delta: float) -> void:

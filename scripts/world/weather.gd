@@ -15,7 +15,15 @@ const STATE_THUNDER: String = "thunder"
 const RAIN_RADIUS: float = 22.0
 const RAIN_HEIGHT: float = 14.0
 
-var current: String = STATE_CLEAR
+var state: String = STATE_CLEAR
+
+
+## Backwards-compatible alias for `state`.
+var current: String:
+	get:
+		return state
+	set(value):
+		state = value
 var time_left: float = 120.0
 var world: World
 
@@ -38,7 +46,7 @@ func _ready() -> void:
 
 
 func is_raining() -> bool:
-	return current != STATE_CLEAR
+	return state != STATE_CLEAR
 
 
 func _process(delta: float) -> void:
@@ -55,7 +63,7 @@ func _process(delta: float) -> void:
 		_update_biome_precipitation(player.global_position)
 
 	# Lightning
-	if current == STATE_THUNDER and player != null:
+	if state == STATE_THUNDER and player != null:
 		_lightning_timer -= delta
 		if _lightning_timer <= 0.0:
 			_strike(player.global_position)
@@ -87,8 +95,11 @@ func _roll_weather() -> void:
 	set_weather(next)
 
 
-func set_weather(state: String) -> void:
-	current = state
+## Switches the weather. Accepts "clear", "rain" or "thunder".
+func set_weather(requested: String) -> void:
+	if not requested in [STATE_CLEAR, STATE_RAIN, STATE_THUNDER]:
+		return
+	state = requested
 	match state:
 		STATE_RAIN:
 			time_left = randf_range(60.0, 200.0)
@@ -98,7 +109,7 @@ func set_weather(state: String) -> void:
 		_:
 			time_left = randf_range(180.0, 600.0)
 	_apply_particles()
-	weather_changed.emit(current)
+	weather_changed.emit(state)
 
 
 func _update_biome_precipitation(player_position: Vector3) -> void:
@@ -120,7 +131,7 @@ func _apply_particles() -> void:
 	if _snow != null:
 		_snow.emitting = false
 	AudioManager.set_ambience("rain_loop" if raining else "",
-		-14.0 if current == STATE_RAIN else -8.0)
+		-14.0 if state == STATE_RAIN else -8.0)
 
 
 func _strike(origin: Vector3) -> void:

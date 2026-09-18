@@ -83,8 +83,16 @@ jobs:
       - name: Load the main scene and quit
         run: |
           set -euo pipefail
-          timeout 60 godot --headless --path . --quit-after 30 2>&1 | tee /tmp/run.log || true
+          timeout 90 godot --headless --path . --quit-after 60 2>&1 | tee /tmp/run.log || true
           if grep -qE "SCRIPT ERROR" /tmp/run.log; then
             echo "::error::Runtime script errors on startup"
+            exit 1
+          fi
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          timeout 180 godot --headless --path . --script res://tests/smoke_test.gd 2>&1 | tee /tmp/smoke.log
+          if ! grep -q "SMOKE OK" /tmp/smoke.log; then
+            echo "::error::The smoke test failed"
             exit 1
           fi

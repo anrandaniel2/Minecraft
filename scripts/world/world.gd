@@ -83,11 +83,15 @@ func _ready() -> void:
 	block_updates = BlockUpdates.new(self)
 	redstone = Redstone.new(self)
 	add_child(block_updates)
+	# Subsystems get their world reference before entering the tree, so their
+	# `_ready` and first `_process` can already talk to it safely.
 	day_night = DayNightCycle.new()
+	day_night.setup(self)
 	add_child(day_night)
 	weather = WeatherSystem.new()
+	weather.setup(self)
 	add_child(weather)
-	mobs = MobManager.new()
+	mobs = MobManager.new(self)
 	add_child(mobs)
 	particles = ParticleFx.new()
 	add_child(particles)
@@ -1035,7 +1039,7 @@ func apply_entities(data: Array) -> void:
 func save_state() -> Dictionary:
 	return {
 		"day_time": day_night.time_of_day,
-		"weather": weather.current,
+		"weather": weather.state,
 		"weather_timer": weather.time_left,
 		"played_seconds": played_seconds,
 		"spawn": {"x": _spawn_position.x, "y": _spawn_position.y, "z": _spawn_position.z},
@@ -1044,7 +1048,7 @@ func save_state() -> Dictionary:
 
 func apply_state(state: Dictionary) -> void:
 	day_night.time_of_day = float(state.get("day_time", 0.3))
-	weather.current = str(state.get("weather", "clear"))
+	weather.set_weather(str(state.get("weather", "clear")))
 	weather.time_left = float(state.get("weather_timer", 120.0))
 	played_seconds = float(state.get("played_seconds", 0.0))
 	var spawn = state.get("spawn")
