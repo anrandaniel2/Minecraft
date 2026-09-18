@@ -84,11 +84,8 @@ func _build_hud() -> void:
 	hud.pause_menu.requested_save.connect(save_world)
 	hud.pause_menu.requested_quit.connect(_quit_to_menu)
 	player.open_container_screen.connect(_on_open_container)
-	player.open_crafting_screen.connect(func(_kind: String) -> void:
-		hud.inventory_screen.open_with(player, true))
-	player.open_trade_screen.connect(func(mob: Node) -> void:
-		if mob is Mob:
-			hud.trade_screen.open_with(player, mob))
+	player.open_crafting_screen.connect(_on_open_crafting)
+	player.open_trade_screen.connect(_on_open_trade)
 
 
 func _build_loading_overlay() -> void:
@@ -263,6 +260,22 @@ func _take_screenshot() -> void:
 # ---------------------------------------------------------------------------
 # Gameplay hooks
 # ---------------------------------------------------------------------------
+
+
+func _on_open_crafting(kind: String) -> void:
+	if hud == null:
+		return
+	var inventory_ui: InventoryScreen = hud.inventory_screen
+	if inventory_ui != null:
+		inventory_ui.open_with(player, kind == "table")
+
+
+func _on_open_trade(mob: Node) -> void:
+	if hud == null or not (mob is Mob):
+		return
+	var trade_ui: TradeScreen = hud.trade_screen
+	if trade_ui != null:
+		trade_ui.open_with(player, mob)
 
 
 func _on_open_container(container: BlockContainer, position: Vector3i) -> void:
