@@ -68,9 +68,9 @@ func _test_achievements() -> void:
 	check(not Achievements.unlock("getting_wood"), "a goal only unlocks once")
 	check(Achievements.is_unlocked("getting_wood"), "the goal is remembered")
 	check(not Achievements.unlock("no_such_goal"), "unknown goals are ignored")
-	check(not Achievements.unlock_for_block(Blocks.id("oak_log")).is_empty(),
-		"block triggers fire from a block id")
-	check(Achievements.unlock_for_block(Blocks.id("oak_log")).is_empty(),
+	var mined: Array = Achievements.unlock_for_block(Blocks.id("stone"))
+	check(mined.has("time_to_mine"), "block triggers fire from a block id")
+	check(Achievements.unlock_for_block(Blocks.id("stone")).is_empty(),
 		"the same block does not fire twice")
 	check(Achievements.unlock_for_block(Blocks.id("diamond_ore")).has("diamonds"),
 		"finding diamond ore reports the DIAMONDS! goal")
