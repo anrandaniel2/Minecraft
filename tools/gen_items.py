@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import random
+import zlib
 
 from pixelart import Canvas, mix, rgba, shade
 from gen_textures import WOOD_TYPES, draw_glyph
@@ -20,6 +21,11 @@ TILE = 16
 # Item shapes
 # ---------------------------------------------------------------------------
 
+
+
+def _stable_seed(text) -> int:
+    """Deterministic stand-in for _stable_seed() - Python salts _stable_seed() per process."""
+    return zlib.crc32(str(text).encode("utf-8"))
 
 def ingot(color: str, dark: str) -> Canvas:
     canvas = Canvas(TILE)
@@ -747,7 +753,7 @@ def skin_pig() -> Canvas:
     limb.rect(0, 12, TILE, 4, "#a05a66")
     _put_tile(canvas, "limb_side", limb)
     for key in ("limb_top", "extra_a", "extra_b", "extra_c", "extra_d"):
-        _put_tile(canvas, key, _skin_base(pink, hash(key) % 90))
+        _put_tile(canvas, key, _skin_base(pink, _stable_seed(key) % 90))
     tail = _skin_base(pink, 60)
     tail.rect(6, 4, 4, 4, "#d98a94")
     _put_tile(canvas, "extra_a", tail)
@@ -837,9 +843,9 @@ def skin_chicken() -> Canvas:
     _put_tile(canvas, "body_top", _skin_base(white, 118))
     _put_tile(canvas, "limb_side", _skin_base("#f0a030", 119))
     for key in ("limb_top", "extra_a"):
-        _put_tile(canvas, key, _skin_base(white, hash(key) % 90))
+        _put_tile(canvas, key, _skin_base(white, _stable_seed(key) % 90))
     for key in ("extra_b", "extra_c", "extra_d"):
-        _put_tile(canvas, key, _skin_base("#f0a030", hash(key) % 90))
+        _put_tile(canvas, key, _skin_base("#f0a030", _stable_seed(key) % 90))
     return canvas
 
 

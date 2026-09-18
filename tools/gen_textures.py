@@ -15,6 +15,7 @@ import json
 import math
 import os
 import random
+import zlib
 
 from pixelart import Canvas, mix, rgba, shade
 
@@ -72,6 +73,11 @@ ORE_COLORS = {
 # Noise helpers
 # ---------------------------------------------------------------------------
 
+
+
+def _stable_seed(text) -> int:
+    """Deterministic stand-in for _stable_seed() - Python salts _stable_seed() per process."""
+    return zlib.crc32(str(text).encode("utf-8"))
 
 def value_noise(seed: int, size: int = 16, scale: float = 4.0) -> list[list[float]]:
     """Cheap tiling value noise in 0..1, used for rock/soil textures."""
@@ -241,7 +247,7 @@ def tex_sandstone_top(seed: int = 12) -> Canvas:
 
 def tex_log_side(wood: str = "oak") -> Canvas:
     bark, dark, _, _, _, _ = WOOD_TYPES[wood]
-    canvas = noise_canvas(hash(wood) % 999, bark, contrast=0.18, scale=2.0)
+    canvas = noise_canvas(_stable_seed(wood) % 999, bark, contrast=0.18, scale=2.0)
     rng = random.Random(len(wood) * 31)
     for _ in range(9):  # vertical bark streaks
         x = rng.randrange(TILE)
@@ -268,7 +274,7 @@ def tex_log_top(wood: str = "oak") -> Canvas:
         for x in range(TILE):
             if x < 1 or y < 1 or x > TILE - 2 or y > TILE - 2:
                 canvas.set(x, y, shade(bark, 0.9))
-    return canvas.noise(hash(wood) % 777, 0.1)
+    return canvas.noise(_stable_seed(wood) % 777, 0.1)
 
 
 def tex_planks(wood: str = "oak", color: str | None = None) -> Canvas:
@@ -276,7 +282,7 @@ def tex_planks(wood: str = "oak", color: str | None = None) -> Canvas:
     base = color or mix(light, "#c9a56a", 0.5)
     canvas = Canvas(TILE)
     plank_h = 4
-    rng = random.Random(hash(wood) % 555)
+    rng = random.Random(_stable_seed(wood) % 555)
     for y in range(TILE):
         row = y // plank_h
         tone = 1.0 + (row % 2) * 0.06
@@ -285,7 +291,7 @@ def tex_planks(wood: str = "oak", color: str | None = None) -> Canvas:
     for y in range(plank_h, TILE, plank_h):  # plank seams
         for x in range(TILE):
             canvas.set(x, y, shade(base, 0.62))
-    rng = random.Random(hash(wood) % 111)
+    rng = random.Random(_stable_seed(wood) % 111)
     for _ in range(6):  # vertical grain nicks
         x = rng.randrange(TILE)
         y = rng.randrange(TILE) // plank_h * plank_h
@@ -297,7 +303,7 @@ def tex_planks(wood: str = "oak", color: str | None = None) -> Canvas:
 def tex_leaves(wood: str = "oak", density: float = 0.16) -> Canvas:
     _, _, _, _, leaf, alt = WOOD_TYPES[wood]
     canvas = Canvas(TILE)
-    rng = random.Random(hash(wood) % 321)
+    rng = random.Random(_stable_seed(wood) % 321)
     for y in range(TILE):
         for x in range(TILE):
             r = rng.random()
@@ -309,7 +315,7 @@ def tex_leaves(wood: str = "oak", density: float = 0.16) -> Canvas:
 
 
 def tex_ore(kind: str, seed: int = 20) -> Canvas:
-    canvas = tex_stone(seed + hash(kind) % 50)
+    canvas = tex_stone(seed + _stable_seed(kind) % 50)
     color = ORE_COLORS[kind]
     rng = random.Random(seed)
     blobs = {

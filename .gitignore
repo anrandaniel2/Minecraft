@@ -16,3 +16,7 @@ exports/
 # OS cruft
 .DS_Store
 Thumbs.db
+
+# Python bytecode from the asset tools
+__pycache__/
+*.pyc
