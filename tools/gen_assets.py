@@ -125,11 +125,12 @@ def build_block_tiles() -> dict[str, Canvas]:
         add(f"wool_{color}", wool)
 
     # --- crossed / cutout plants and devices ---
+    for wood in ("oak", "birch", "spruce", "jungle"):
+        add(f"{wood}_sapling", gt.tex_cross("sapling_%s" % wood))
     for name in (
         "torch", "redstone_torch", "redstone_dust", "tall_grass", "fern", "dead_bush",
         "sugar_cane", "wheat_0", "wheat_1", "wheat_2", "wheat_3", "carrots", "potatoes",
-        "mushroom_red", "mushroom_brown", "web", "sapling_oak", "sapling_birch",
-        "sapling_spruce", "sapling_jungle", "flower_dandelion", "flower_poppy",
+        "mushroom_red", "mushroom_brown", "web", "flower_dandelion", "flower_poppy",
         "flower_tulip_red", "flower_tulip_orange", "flower_tulip_white", "flower_blue_orchid",
         "flower_allium",
     ):

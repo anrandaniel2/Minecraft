@@ -30,6 +30,10 @@
    13,
    1
   ],
+  "birch_sapling": [
+   6,
+   6
+  ],
   "bookshelf": [
    4,
    3
@@ -51,7 +55,7 @@
    4
   ],
   "carrots": [
-   0,
+   4,
    7
   ],
   "chest_front": [
@@ -95,7 +99,7 @@
    3
   ],
   "dead_bush": [
-   10,
+   14,
    6
   ],
   "diamond_ore": [
@@ -119,7 +123,7 @@
    4
   ],
   "fern": [
-   9,
+   13,
    6
   ],
   "flower_allium": [
@@ -226,6 +230,10 @@
    5,
    2
   ],
+  "jungle_sapling": [
+   8,
+   6
+  ],
   "ladder": [
    0,
    8
@@ -259,11 +267,11 @@
    3
   ],
   "mushroom_brown": [
-   3,
+   7,
    7
   ],
   "mushroom_red": [
-   2,
+   6,
    7
   ],
   "note_block": [
@@ -286,6 +294,10 @@
    9,
    1
   ],
+  "oak_sapling": [
+   5,
+   6
+  ],
   "obsidian": [
    4,
    1
@@ -307,7 +319,7 @@
    4
   ],
   "potatoes": [
-   1,
+   5,
    7
   ],
   "pressure_plate": [
@@ -331,7 +343,7 @@
    4
   ],
   "redstone_dust": [
-   7,
+   11,
    6
   ],
   "redstone_ore": [
@@ -339,7 +351,7 @@
    2
   ],
   "redstone_torch": [
-   6,
+   10,
    6
   ],
   "sand": [
@@ -357,22 +369,6 @@
   "sandstone_top": [
    11,
    0
-  ],
-  "sapling_birch": [
-   6,
-   7
-  ],
-  "sapling_jungle": [
-   8,
-   7
-  ],
-  "sapling_oak": [
-   5,
-   7
-  ],
-  "sapling_spruce": [
-   7,
-   7
   ],
   "snow": [
    14,
@@ -398,6 +394,10 @@
    1,
    2
   ],
+  "spruce_sapling": [
+   7,
+   6
+  ],
   "sticky_piston_top": [
    13,
    4
@@ -411,11 +411,11 @@
    2
   ],
   "sugar_cane": [
-   11,
+   15,
    6
   ],
   "tall_grass": [
-   8,
+   12,
    6
   ],
   "tnt_bottom": [
@@ -431,7 +431,7 @@
    3
   ],
   "torch": [
-   5,
+   9,
    6
   ],
   "water": [
@@ -439,24 +439,24 @@
    1
   ],
   "web": [
-   4,
+   8,
    7
   ],
   "wheat_0": [
-   12,
-   6
+   0,
+   7
   ],
   "wheat_1": [
-   13,
-   6
+   1,
+   7
   ],
   "wheat_2": [
-   14,
-   6
+   2,
+   7
   ],
   "wheat_3": [
-   15,
-   6
+   3,
+   7
   ],
   "wool_black": [
    4,

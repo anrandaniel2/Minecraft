@@ -183,7 +183,7 @@ func _test_recipes() -> void:
 	if table_recipe != null:
 		check(Items.id(str(table_recipe.results[0]["item"])) == Blocks.id("crafting_table"),
 			"planks craft into a crafting table")
-	check(Recipes.match([planks, -1, -1, planks], 2, 2) != null,
+	check(Recipes.match([planks, planks, planks, planks], 2, 2) != null,
 		"the crafting table also fits a 2x2 grid")
 
 	var stick_recipe: Recipes.Recipe = Recipes.match([planks, -1, planks, -1], 2, 2)
@@ -340,8 +340,10 @@ func _test_containers() -> void:
 	check(chest.add(iron, 100) == 0, "100 more ingots fit")
 	check(chest.count_of(iron) == 140, "the chest holds 140 ingots")
 	check(chest.add(iron, 2000) > 0, "the chest refuses to overflow and reports the leftover")
-	var emptied: int = chest.remove(iron, chest.count_of(iron))
-	check(emptied == 140 and chest.is_empty(), "the chest empties again")
+	var stored: int = chest.count_of(iron)
+	check(stored > 140, "the chest keeps filling up to its capacity (%d ingots)" % stored)
+	var emptied: int = chest.remove(iron, stored)
+	check(emptied == stored and chest.is_empty(), "the chest empties again")
 
 	var furnace := BlockContainer.new(BlockContainer.KIND_FURNACE)
 	furnace.set_slot(0, BlockContainer.make_stack(Items.id("iron_ore"), 3))

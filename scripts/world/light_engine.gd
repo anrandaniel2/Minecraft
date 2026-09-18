@@ -47,6 +47,12 @@ class Region:
 		return x >= min_v.x and x <= max_v.x and z >= min_v.z and z <= max_v.z \
 			and y >= min_v.y and y <= max_v.y
 
+	## Includes the one-voxel border that is sampled from neighbouring chunks.
+	func in_bounds(x: int, y: int, z: int) -> bool:
+		return x >= min_v.x - 1 and x <= max_v.x + 1 \
+			and z >= min_v.z - 1 and z <= max_v.z + 1 \
+			and y >= min_v.y - 1 and y <= max_v.y + 1
+
 
 ## Relights a whole chunk (used after generation and when a neighbour loads).
 static func relight_chunk(chunk: Chunk, neighbors: Dictionary = {}) -> void:
@@ -231,7 +237,7 @@ static func _flood(region: Region, queue: PackedInt32Array, sky: bool) -> void:
 					nz += 1
 				_:
 					nz -= 1
-			if ny < region.min_v.y - 1 or ny > Chunk.HEIGHT:
+			if not region.in_bounds(nx, ny, nz):
 				continue
 			var j: int = region.index(nx, ny, nz)
 			var target_block: int = region.blocks[j]

@@ -717,8 +717,8 @@ def tex_cross(kind: str, seed: int = 50) -> Canvas:
         canvas.set(7, 3, "#ffffff") if kind == "flower_tulip_white" else None
         canvas.set(8, 2, dark)
         return canvas
-    if kind.startswith("sapling_"):
-        wood = kind.split("_", 1)[1]
+    if kind.startswith("sapling_") or kind.endswith("_sapling"):
+        wood = kind.split("_", 1)[1] if kind.startswith("sapling_") else kind[:-len("_sapling")]
         _, _, _, _, leaf, alt = WOOD_TYPES[wood]
         for y in range(9, 15):
             canvas.set(7, y, "#6b5132")
