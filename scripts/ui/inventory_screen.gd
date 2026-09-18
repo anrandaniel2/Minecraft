@@ -451,10 +451,3 @@ func open_with(player_ref: Player, from_table: bool = false) -> void:
 	_update_result()
 	_sync_craft_slots()
 	open()
-
-
-func _toast(text: String) -> void:
-	var hud := get_tree().get_first_node_in_group("hud")
-	if hud != null and hud.has_method("toast"):
-		hud.toast(text)
-	AudioManager.play_ui()
