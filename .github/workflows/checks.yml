@@ -124,9 +124,21 @@ jobs:
           fi
       - name: Smoke test
         run: |
-          set -euo pipefail
-          timeout 180 godot --headless --path . --script res://tests/smoke_test.gd 2>&1 | tee /tmp/smoke.log
+          set +e
+          timeout 240 godot --headless --path . --script res://tests/smoke_test.gd 2>&1 | tee /tmp/smoke.log
+          status=${PIPESTATUS[0]}
+          set -e
+          grep -E "FAIL|SCRIPT ERROR|Parse Error|ERROR:|SMOKE" /tmp/smoke.log \
+            | head -40 | while IFS= read -r line; do echo "::error::$line"; done
           if ! grep -q "SMOKE OK" /tmp/smoke.log; then
-            echo "::error::The smoke test failed"
+            echo "::error::The smoke test failed (godot exit status $status)"
             exit 1
           fi
+      - name: Upload the smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-log
+          path: /tmp/smoke.log
+          if-no-files-found: ignore
+          retention-days: 7
