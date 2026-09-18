@@ -89,6 +89,18 @@ jobs:
             -validity 9999 -deststoretype pkcs12
           ls -l "$HOME/.android/debug.keystore"
 
+      - name: Point the export preset at the generated keystore
+        run: |
+          set -euo pipefail
+          KEYSTORE="$HOME/.android/debug.keystore"
+          sed -i "s|^keystore/debug=.*|keystore/debug=\"${KEYSTORE}\"|" export_presets.cfg
+          sed -i "s|^keystore/debug_user=.*|keystore/debug_user=\"androiddebugkey\"|" export_presets.cfg
+          sed -i "s|^keystore/debug_password=.*|keystore/debug_password=\"android\"|" export_presets.cfg
+          sed -i "s|^keystore/release=.*|keystore/release=\"${KEYSTORE}\"|" export_presets.cfg
+          sed -i "s|^keystore/release_user=.*|keystore/release_user=\"androiddebugkey\"|" export_presets.cfg
+          sed -i "s|^keystore/release_password=.*|keystore/release_password=\"android\"|" export_presets.cfg
+          grep -n "^keystore/" export_presets.cfg
+
       - name: Point Godot at the Android toolchain
         run: |
           set -euo pipefail
@@ -137,9 +149,15 @@ jobs:
       - name: Export release APK
         continue-on-error: true
         run: |
-          set -euo pipefail
-          godot --headless --path . --export-release "Android" "build/${APK_BASENAME}-release.apk"
-          ls -lh build
+          set +e
+          godot --headless --path . --export-release "Android" "build/${APK_BASENAME}-release.apk" \
+            2>&1 | tee /tmp/release.log
+          status=${PIPESTATUS[0]}
+          set -e
+          grep -E "ERROR|error:" /tmp/release.log | head -20 \
+            | while IFS= read -r line; do echo "::warning::release export: $line"; done
+          echo "release export exit status: $status"
+          ls -lh build || true
 
       - name: Verify the APK
         run: |
