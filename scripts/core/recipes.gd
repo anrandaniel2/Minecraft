@@ -109,6 +109,7 @@ static func build() -> void:
 	_shaped(["##", "##"], {"#": "#planks"}, [{"item": "crafting_table", "count": 1}])
 	_shaped(["###", "# #", "###"], {"#": "#planks"}, [{"item": "chest", "count": 1}])
 	_shaped(["WW", "WW", "WW"], {"W": "#planks"}, [{"item": "oak_door", "count": 1}])
+	_shaped(["###", "PPP"], {"#": "#wool", "P": "#planks"}, [{"item": "bed", "count": 1}])
 	_shaped(["##"], {"#": "#planks"}, [{"item": "slab_oak", "count": 2}])
 	_shaped(["# #", "###", "# #"], {"#": "stick"}, [{"item": "ladder", "count": 3}])
 	_shaped(["###", "#X#", "###"], {"#": "#planks", "X": "diamond"}, [{"item": "jukebox", "count": 1}])

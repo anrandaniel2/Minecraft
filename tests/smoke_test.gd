@@ -66,7 +66,7 @@ func _test_registries() -> void:
 	check(Items.defs.size() > 200, "more than 200 items (%d)" % Items.defs.size())
 	for block_name in ["stone", "grass_block", "dirt", "sand", "oak_log", "oak_planks", "chest",
 			"furnace", "torch", "water", "lava", "bedrock", "diamond_ore", "piston", "piston_arm",
-			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool"]:
+			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed"]:
 		check(Blocks.id(block_name) > 0, "block '%s' registered" % block_name)
 	for item_name in ["stick", "coal", "charcoal", "iron_ingot", "raw_iron", "diamond", "emerald",
 			"stone_pickaxe", "diamond_sword", "iron_chestplate", "bread", "apple", "wheat_seeds",
@@ -191,6 +191,19 @@ func _test_recipes() -> void:
 	if stick_recipe != null:
 		check(Items.id(str(stick_recipe.results[0]["item"])) == Items.id("stick"),
 			"planks craft into sticks")
+
+	# Beds: wool over planks, and low enough to sleep in.
+	var white_wool: int = Items.id("white_wool")
+	var bed_grid: Array = [white_wool, white_wool, white_wool, planks, planks, planks, -1, -1, -1]
+	var bed_recipe: Recipes.Recipe = Recipes.match(bed_grid, 3, 3)
+	check(bed_recipe != null, "wool over planks matches the bed recipe")
+	if bed_recipe != null:
+		check(Items.id(str(bed_recipe.results[0]["item"])) == Blocks.id("bed"),
+			"the bed recipe makes a bed")
+	var bed_block: BlockDef = Blocks.def(Blocks.id("bed"))
+	check(bed_block.shape == Blocks.SHAPE_SLAB, "beds sit low like a slab")
+	check(Blocks.tile_cell("bed_top").x >= 0 and Blocks.tile_cell("bed_side").x >= 0,
+		"the bed has both atlas tiles")
 
 	var smelt: Dictionary = Recipes.smelting_for(Items.id("iron_ore"))
 	check(not smelt.is_empty(), "iron ore can be smelted")

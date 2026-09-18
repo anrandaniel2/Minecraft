@@ -297,6 +297,7 @@ static func build() -> void:
 	_register_building()
 	_register_devices()
 	_register_wool()
+	_register_furniture()
 	_load_atlas_manifest()
 	_resolve_tiles()
 	_cache_hot_ids()
@@ -544,6 +545,14 @@ static func _register_devices() -> void:
 	_register("glass_pane", {"all": "glass"}, {"title": "Glass Pane", "hardness": 0.3,
 		"sound": SOUND_GLASS, "shape": SHAPE_LAYER, "opaque": false, "solid": false,
 		"cutout": true, "drops": []})
+
+
+## Furniture added after the originals on purpose: saved chunks store raw block
+## ids, so every new block has to be appended to the end of the registry.
+static func _register_furniture() -> void:
+	_register("bed", {"top": "bed_top", "bottom": "oak_planks", "side": "bed_side"},
+		{"hardness": 0.2, "sound": SOUND_WOOD, "shape": SHAPE_SLAB, "opaque": false,
+		 "burning": true, "drops": [{"item": "bed", "count": 1}]})
 
 
 static func _register_wool() -> void:

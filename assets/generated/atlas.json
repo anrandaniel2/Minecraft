@@ -6,6 +6,14 @@
  "size": 384,
  "tile_pixels": 16,
  "tiles": {
+  "bed_side": [
+   2,
+   8
+  ],
+  "bed_top": [
+   1,
+   8
+  ],
   "bedrock": [
    3,
    1

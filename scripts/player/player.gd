@@ -48,6 +48,8 @@ var health: float = MAX_HEALTH
 var hunger: float = MAX_HUNGER
 var saturation: float = 5.0
 var exhaustion: float = 0.0
+var bed_spawn: Vector3 = Vector3.ZERO      # respawn point set by sleeping
+var has_bed_spawn: bool = false
 var breath: float = MAX_BREATH
 var xp: int = 0
 var level: int = 0
@@ -670,6 +672,37 @@ func _attack_mob(mob: Node3D) -> void:
 		_damage_tool(1)
 
 
+## Beds: sleep through the night and move the respawn point there, like the real
+## thing. Refuses while monsters are close, so night is not a free pass.
+func _try_sleep(position: Vector3i) -> void:
+	if world == null or world.day_night == null:
+		return
+	if not world.day_night.is_night():
+		_toast("You can only sleep at night")
+		return
+	var monsters: int = 0
+	if world.mobs != null:
+		var where := Vector3(position) + Vector3(0.5, 0.5, 0.5)
+		for mob in world.mobs.nearby(where, 8.0):
+			if is_instance_valid(mob) and MobTypes.is_hostile(mob.mob_type):
+				monsters += 1
+	if monsters > 0:
+		_toast("%d monsters nearby - clear them out to sleep" % monsters)
+		return
+	bed_spawn = Vector3(position) + Vector3(0.5, 1.0, 0.5)
+	has_bed_spawn = true
+	world.day_night.set_time(0.27)
+	AudioManager.play_ui()
+	_toast("Good morning! Respawn point set to this bed")
+
+
+## Small helper so gameplay code can talk to the HUD without a direct reference.
+func _toast(text: String) -> void:
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud != null and hud.has_method("toast"):
+		hud.toast(text)
+
+
 func _use(delta: float) -> void:
 	var target: Dictionary = raycast_target()
 	var item_id: int = held_item()
@@ -701,6 +734,10 @@ func _use(delta: float) -> void:
 		return
 	var position: Vector3i = target["position"]
 	var block_id: int = int(target["block"])
+	if Blocks.name_of(block_id) == "bed" and _use_cooldown <= 0.0:
+		_use_cooldown = 0.3
+		_try_sleep(position)
+		return
 	var container_kind: String = Blocks.container_kind(block_id)
 	if container_kind != "" and _use_cooldown <= 0.0:
 		_use_cooldown = 0.3
@@ -1169,7 +1206,7 @@ func respawn() -> void:
 	breath = MAX_BREATH
 	flying = false
 	if world != null:
-		var spawn: Vector3 = world.get_spawn_position()
+		var spawn: Vector3 = bed_spawn if has_bed_spawn else world.get_spawn_position()
 		global_position = spawn
 		velocity = Vector3.ZERO
 	respawned.emit()
@@ -1231,6 +1268,7 @@ func serialize() -> Dictionary:
 		"saturation": saturation, "xp": xp, "level": level, "gamemode": gamemode,
 		"hotbar": hotbar_index, "flying": flying, "inventory": items, "armor": armor_items,
 		"play_time": _play_time,
+		"bed_spawn": [bed_spawn.x, bed_spawn.y, bed_spawn.z] if has_bed_spawn else [],
 	}
 
 
@@ -1247,6 +1285,10 @@ func apply_state(state: Dictionary) -> void:
 	hotbar_index = clampi(int(state.get("hotbar", 0)), 0, HOTBAR_SIZE - 1)
 	flying = bool(state.get("flying", false)) and gamemode == "creative"
 	_play_time = float(state.get("play_time", 0.0))
+	var bed: Array = state.get("bed_spawn", [])
+	has_bed_spawn = bed.size() >= 3
+	if has_bed_spawn:
+		bed_spawn = Vector3(float(bed[0]), float(bed[1]), float(bed[2]))
 	_restore_items(state.get("inventory", []), inventory)
 	_restore_items(state.get("armor", []), armor)
 	inventory_changed.emit()

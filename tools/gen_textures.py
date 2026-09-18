@@ -653,6 +653,25 @@ def tex_workstation(kind: str, seed: int = 40) -> Canvas:
     raise ValueError(f"unknown workstation texture: {kind}")
 
 
+def tex_bed(kind: str) -> Canvas:
+    """Bed block: red blanket with a pillow band (top) and a wooden frame (side)."""
+    if kind == "top":
+        canvas = Canvas(TILE).fill("#8f2f2f")
+        for y in range(4, TILE):  # fabric weave on the blanket
+            for x in range(TILE):
+                if (x + y) % 4 == 0:
+                    canvas.set(x, y, shade("#8f2f2f", 0.92))
+        canvas.rect(0, 0, TILE, 4, "#e8e4d8")     # pillow
+        canvas.rect(0, 0, TILE, 1, "#c9c4b4")
+        canvas.rect(0, 3, TILE, 1, "#6f2323")     # blanket edge
+        return canvas
+    canvas = tex_planks("oak", "#a5793f")         # frame
+    canvas.rect(0, 0, TILE, 5, "#8f2f2f")         # blanket overhangs the frame
+    canvas.rect(0, 4, TILE, 1, "#6f2323")
+    canvas.rect(2, 8, 12, 4, "#7c5426")           # legs
+    return canvas
+
+
 def tex_cross(kind: str, seed: int = 50) -> Canvas:
     """Plants, torches, dust: transparent sprites rendered as crossed quads."""
     canvas = Canvas(TILE)
