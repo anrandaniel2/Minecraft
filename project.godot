@@ -10,7 +10,7 @@ config_version=5
 
 config/name="Blockcraft"
 config/description="An open-world voxel sandbox: survival, building, redstone and multiplayer."
-config/version="1.0.0"
+config/version="1.0.1"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="res://assets/generated/ui/logo.png"

@@ -49,9 +49,16 @@ func _ready() -> void:
 	# for Android to kill the game (see threading/worker_pool/max_threads).
 	print("Blockcraft: renderer=%s workers=%d - menu ready" % [
 		renderer_method(), GameLog.worker_thread_count()])
-	print("Blockcraft: display %s | os %s %s" % [
-		renderer_label(), OS.get_name(), OS.get_version()])
+	print("Blockcraft: display %s | os %s %s | blockcraft %s" % [
+		renderer_label(), OS.get_name(), OS.get_version(), app_version()])
 	_handle_launch_args()
+
+
+## The version baked into this build. Two APKs that behave differently are
+## otherwise indistinguishable on a phone, and "which build is this?" is the
+## first question any bug report has to answer.
+static func app_version() -> String:
+	return str(ProjectSettings.get_setting("application/config/version", "dev"))
 
 
 ## Which backend the packed settings ask for. Kept separate from
@@ -212,8 +219,8 @@ func _build_foreground() -> void:
 	_version.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_version.position = Vector2(14, -26)
 	add_child(_version)
-	_version.text = "Godot %s - %s - %d blocks, %d items, %d recipes" % [
-		Engine.get_version_info()["string"], renderer_label(), Blocks.defs.size(),
+	_version.text = "Blockcraft %s - Godot %s - %s - %d blocks, %d items, %d recipes" % [
+		app_version(), Engine.get_version_info()["string"], renderer_label(), Blocks.defs.size(),
 		Items.defs.size(), Recipes.shaped.size() + Recipes.shapeless.size()]
 
 	# Bottom-right: the crash journal. Phones keep no console, so this is how a
