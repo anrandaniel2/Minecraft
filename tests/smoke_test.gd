@@ -36,40 +36,74 @@ func _initialize() -> void:
 # ---------------------------------------------------------------------------
 
 
-## Generates chunks across a wide area and looks for the fingerprints of the
-## hand-built structures, so a broken placer cannot hide behind "it compiles".
+## Places the newer structures directly on a chunk found in the right biome, so
+## a broken placer cannot hide behind "the seed never rolled one".
 func _test_structures() -> void:
 	print("- structures")
-	var gen := WorldGen.new(4242)
-	var grid: Dictionary = {}          # Vector2i -> Chunk
-	var igloos: int = 0
-	var pyramids: int = 0
-	var sandstone_run: int = 0
-	for cell_x in range(-3, 4):
-		for cell_z in range(-3, 4):
-			var chunk := Chunk.new(Vector2i(cell_x, cell_z))
-			gen.generate_chunk(chunk)
-			grid[chunk.coord] = chunk
-	for coord in grid:
-		var chunk: Chunk = grid[coord]
-		for local_x in Chunk.SIZE:
-			for local_z in Chunk.SIZE:
-				var column_sandstone: int = 0
+	var gen := WorldGen.new(2024)
+	var igloo_origin: Vector2i = _biome_spot(gen, WorldGen.BIOME_SNOWY)
+	check(igloo_origin.x != 0 or igloo_origin.y != 0, "found a snowy spot for the igloo test")
+	var pyramid_origin: Vector2i = _biome_spot(gen, WorldGen.BIOME_DESERT)
+	check(pyramid_origin.x != 0 or pyramid_origin.y != 0, "found a desert spot for the pyramid test")
+
+	if igloo_origin != Vector2i.ZERO:
+		var chunk := Chunk.new(Vector2i(igloo_origin.x >> 4, igloo_origin.y >> 4))
+		gen.generate_chunk(chunk)
+		StructureGen._try_igloo(gen, chunk, igloo_origin, PackedInt32Array(), 1234)
+		var snow_high: int = 0
+		var bricks: int = 0
+		var chests: int = 0
+		for x in Chunk.SIZE:
+			for z in Chunk.SIZE:
 				for y in Chunk.HEIGHT:
-					var id: int = chunk.get_block(local_x, y, local_z)
-					if id == Blocks.id("sandstone"):
-						column_sandstone += 1
+					var id: int = chunk.get_block(x, y, z)
 					if id == Blocks.id("snow_block") and y > WorldGen.SEA_LEVEL + 3:
-						igloos += 1
-				if column_sandstone >= 6:
-					sandstone_run += 1
-					pyramids += 1
-	check(grid.size() == 49, "the structure scan generated every chunk (%d)" % grid.size())
-	check(sandstone_run >= 0, "sandstone stacks appear in the desert (%d columns)" % sandstone_run)
-	# The scan is a smoke test, not a guarantee: seeds and biomes vary, so these
-	# only report what was found.
-	print("  info sandstone columns: %d, snow blocks above sea level: %d, pyramid columns: %d"
-		% [sandstone_run, igloos, pyramids])
+						snow_high += 1
+					elif id == Blocks.id("stone_bricks"):
+						bricks += 1
+					elif id == Blocks.id("chest"):
+						chests += 1
+		check(snow_high > 20, "the igloo built snow walls and a roof (%d blocks)" % snow_high)
+		check(bricks > 10, "the igloo dug a brick-lined basement (%d blocks)" % bricks)
+		check(chests >= 1, "the igloo basement has a chest")
+
+	if pyramid_origin != Vector2i.ZERO:
+		var chunk := Chunk.new(Vector2i(pyramid_origin.x >> 4, pyramid_origin.y >> 4))
+		gen.generate_chunk(chunk)
+		StructureGen._try_pyramid(gen, chunk, pyramid_origin, PackedInt32Array(), 4321)
+		var sandstone: int = 0
+		var gold: int = 0
+		var chests: int = 0
+		var chamber_air: int = 0
+		for x in Chunk.SIZE:
+			for z in Chunk.SIZE:
+				for y in Chunk.HEIGHT:
+					var id: int = chunk.get_block(x, y, z)
+					if id == Blocks.id("sandstone"):
+						sandstone += 1
+					elif id == Blocks.id("gold_block"):
+						gold += 1
+					elif id == Blocks.id("chest"):
+						chests += 1
+					elif id == Blocks.AIR and y > WorldGen.SEA_LEVEL:
+						chamber_air += 1
+		check(sandstone > 200, "the pyramid built a sandstone shell (%d blocks)" % sandstone)
+		check(chests >= 1 or gold >= 1, "the pyramid room holds loot (chest %d, gold %d)"
+			% [chests, gold])
+		check(chamber_air > 20, "the pyramid room is hollow (%d air)" % chamber_air)
+
+
+## Finds a chunk centre in `biome` that is above sea level, or Vector2i.ZERO.
+func _biome_spot(gen: WorldGen, biome: int) -> Vector2i:
+	for cell_x in range(-24, 25):
+		for cell_z in range(-24, 25):
+			var center := Vector2i(cell_x * Chunk.SIZE + 8, cell_z * Chunk.SIZE + 8)
+			if gen.biome_at(center.x, center.y) != biome:
+				continue
+			if gen.height_at(center.x, center.y) <= WorldGen.SEA_LEVEL + 2:
+				continue
+			return center
+	return Vector2i.ZERO
 
 
 # ---------------------------------------------------------------------------
