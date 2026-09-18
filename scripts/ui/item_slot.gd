@@ -49,6 +49,19 @@ func get_stack() -> Variant:
 	return container.get_slot(index)
 
 
+## `get_stack()` straight from a container should always be a Dictionary, but a
+## stale or mis-assigned slot must not spam the log from `_draw()`, so every
+## stack goes through here first.
+func stack_dictionary() -> Dictionary:
+	var value: Variant = get_stack()
+	if typeof(value) == TYPE_DICTIONARY:
+		return value
+	if value != null:
+		push_warning("ItemSlot '%s' slot %d held %s instead of a stack: %s"
+			% [name, index, type_string(typeof(value)), str(value).substr(0, 90)])
+	return {}
+
+
 func set_stack(stack: Variant) -> void:
 	if manual:
 		manual_stack = stack
@@ -58,14 +71,14 @@ func set_stack(stack: Variant) -> void:
 
 
 func item_id() -> int:
-	var stack: Variant = get_stack()
-	if stack == null:
+	var stack: Dictionary = stack_dictionary()
+	if stack.is_empty():
 		return -1
 	return int(stack.get("id", -1))
 
 
 func is_empty() -> bool:
-	return get_stack() == null
+	return stack_dictionary().is_empty()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -100,8 +113,8 @@ func _draw() -> void:
 	draw_rect(rect, Color(0.34, 0.34, 0.40, 0.9), false, 1.0)
 	if _hovered:
 		draw_rect(rect, Color(1, 1, 1, 0.55), false, 2.0)
-	var stack: Variant = get_stack()
-	if stack == null:
+	var stack: Dictionary = stack_dictionary()
+	if stack.is_empty():
 		return
 	var item_id: int = int(stack.get("id", -1))
 	var texture: Texture2D = Registry.icon(item_id)
