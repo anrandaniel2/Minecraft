@@ -907,6 +907,7 @@ func spawn_mob(mob_type: String, position: Vector3, persistent: bool = false) ->
 
 signal container_changed(pos: Vector3i)
 signal item_smelted(pos: Vector3i, item_id: int)
+signal sign_changed(pos: Vector3i, text: String)
 
 
 ## One hopper tick: push an item into the container it points at, or otherwise
@@ -939,6 +940,7 @@ func set_sign_text(pos: Vector3i, text: String) -> void:
 	else:
 		_signs[pos] = trimmed
 	_refresh_sign_label(pos)
+	sign_changed.emit(pos, trimmed)
 
 
 func sign_text(pos: Vector3i) -> String:

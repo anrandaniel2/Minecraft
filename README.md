@@ -233,6 +233,9 @@ are set up too — `Settings.touch_controls` selects `auto`, `on` or `off`.
    copied to the clipboard.
 2. **Join** — Main menu → Multiplayer, type the host address and port (default
    `27015`), *Join*.
+Signs, chests and furnaces keep working while hosting: block edits, container
+contents and sign text are all synced to everyone in the session.
+
 3. On a LAN, use the host's local IP (`192.168.x.x`). Over the internet, forward
    UDP 27015 on the host router, or use a VPN such as Tailscale/ZeroTier.
 

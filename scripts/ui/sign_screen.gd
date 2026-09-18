@@ -90,6 +90,8 @@ func open_with(world_ref: World, pos: Vector3i) -> void:
 	sign_position = pos
 	if world != null:
 		_entry.text = world.sign_text(pos)
+		if _entry.text.strip_edges() == "" and MpManager.is_active() and not MpManager.is_host:
+			MpManager.request_sign(pos)
 	_hint.text = "Enter to write, Esc to cancel"
 	visible = true
 	add_to_group("ui_blocking")

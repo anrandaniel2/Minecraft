@@ -213,6 +213,8 @@ func attach_world(world: World, player: Player = null) -> void:
 	if world == null or _world_connected:
 		return
 	world.block_changed.connect(_on_block_changed)
+	if not world.sign_changed.is_connected(_on_sign_changed):
+		world.sign_changed.connect(_on_sign_changed)
 	_world_connected = true
 
 
@@ -236,6 +238,8 @@ func detach_world() -> void:
 	if _world != null and is_instance_valid(_world) and _world_connected:
 		if _world.block_changed.is_connected(_on_block_changed):
 			_world.block_changed.disconnect(_on_block_changed)
+		if _world.sign_changed.is_connected(_on_sign_changed):
+			_world.sign_changed.disconnect(_on_sign_changed)
 	_world_connected = false
 	_world = null
 	_player = null
@@ -328,6 +332,49 @@ func broadcast_container(pos: Vector3i, container: BlockContainer) -> void:
 	if not is_active() or not is_host or container == null:
 		return
 	_send_container.rpc(pos, container.serialize())
+
+
+## Signs are host-authoritative in the same way: a client asks, the host sends
+## back the text and tells everybody else.
+func request_sign(pos: Vector3i) -> void:
+	if not is_active() or is_host:
+		return
+	_request_sign_rpc.rpc_id(1, pos)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_sign_rpc(pos: Vector3i) -> void:
+	if not is_host or _world == null:
+		return
+	_send_sign.rpc_id(multiplayer.get_remote_sender_id(), pos, _world.sign_text(pos))
+
+
+@rpc("authority", "call_remote", "reliable")
+func _send_sign(pos: Vector3i, text: String) -> void:
+	if _world == null:
+		return
+	_applying_remote = true
+	_world.set_sign_text(pos, text)
+	_applying_remote = false
+
+
+func _on_sign_changed(pos: Vector3i, text: String) -> void:
+	if not is_active() or _applying_remote:
+		return
+	if is_host:
+		_send_sign.rpc(pos, text)
+	else:
+		_client_sign.rpc_id(1, pos, text)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _client_sign(pos: Vector3i, text: String) -> void:
+	if not is_host or _world == null:
+		return
+	_applying_remote = true
+	_world.set_sign_text(pos, text)
+	_applying_remote = false
+	_send_sign.rpc(pos, text)
 
 
 # ---------------------------------------------------------------------------
@@ -476,7 +523,9 @@ func _send_session_start(peer_id: int) -> void:
 		return
 	var edits: PackedByteArray = _world.serialize_edits()
 	var containers: Array = _world.serialize_containers()
-	_receive_session.rpc_id(peer_id, _world_payload(), edits, containers)
+	var payload: Dictionary = _world_payload()
+	payload["signs"] = _world.serialize_signs()
+	_receive_session.rpc_id(peer_id, payload, edits, containers)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -488,6 +537,7 @@ func _receive_session(payload: Dictionary, edits: PackedByteArray, containers: A
 	_applying_remote = true
 	_world.apply_serialized_edits(edits)
 	_world.apply_containers(containers)
+	_world.apply_signs(payload.get("signs", []))
 	_applying_remote = false
 	connection_succeeded.emit()
 
