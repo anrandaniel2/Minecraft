@@ -115,16 +115,19 @@ Ten mob types, all driven by one AI with per-type stats:
 
 ### Building and sandbox
 
-- **120 block types** — stone family, dirt/grass/sand/gravel/clay, ores and
-  metal blocks, four wood types (logs, planks, leaves, saplings), 16 wool
-  colours, glass and panes, bricks, sandstone, quartz, prismarine, nether-ish
-  blocks, workstations (crafting table, furnace, chest, dispenser, lever,
-  pressure plates, redstone torch, piston, sticky piston, TNT, note block,
-  torches, ladders, slabs, snow layers, farmland, crops).
+- **126 block types** — stone family (granite/diorite/andesite, cobblestone,
+  mossy variants, bricks, five slab types), dirt/grass/sand/gravel/clay and
+  sandstone, eight ores plus gold and redstone blocks, four wood types (log,
+  planks, leaves, sapling), 16 wool colours, glass and panes, glowstone, quartz,
+  snow and ice, workstations (crafting table, furnace, chest, dispenser,
+  hopper, lever, pressure plate, redstone torch and wire, piston, sticky
+  piston, TNT, note block, jukebox), torches, ladders, doors, beds, signs,
+  rails, farmland, crops, flowers and plants.
 - **Creative mode** — instant mining, flight (F), infinite palette in the
   inventory, and the same world as survival.
 - **World-edit friendly** — chat commands for `/tp`, `/time`, `/weather`,
-  `/give`, `/gamemode`, `/fly`, `/clear` and `/seed`; the debug overlay reports
+  `/give`, `/gamemode`, `/fly`, `/clear`, `/seed`, `/setblock`, `/fill`,
+  `/summon`, `/killmobs`, `/xp` and `/achievements`; the debug overlay reports
   chunk, triangle and entity counts.
 - **Redstone-ish logic** — wire power propagation (0–15), levers, pressure
   plates, redstone torches, pistons and sticky pistons, dispensers that shoot
