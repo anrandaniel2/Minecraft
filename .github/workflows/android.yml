@@ -190,7 +190,7 @@ jobs:
               exit 1
             fi
           done
-          echo "::notice::APK requests gl_compatibility and ships both data manifests"
+          echo "::notice::APK ships both data manifests and no stray OpenGL override"
 
       - name: Boot the exported build headlessly
         run: |
@@ -214,7 +214,7 @@ jobs:
           set -e
           grep -E "Blockcraft: renderer" /tmp/boot.log | head -2 | while IFS= read -r line; do
             echo "::notice::$line"
-          done
+          done || true
           # The boot line is the whole launch contract: the mobile renderer, and
           # a worker pool that actually has threads. A pool with 0 threads runs
           # every task on the main thread, which is what froze the game on a
@@ -246,14 +246,14 @@ jobs:
           set -e
           grep -E "Blockcraft: step: " /tmp/world.log | head -12 | while IFS= read -r line; do
             echo "::notice::$line"
-          done
+          done || true
           if grep -qE "SCRIPT ERROR" /tmp/world.log; then
             echo "::error::opening a world in the exported build reported script errors"
             exit 1
           fi
           if ! grep -q "step: world ready" /tmp/world.log; then
             echo "::error::the exported build never finished loading a world (exit status $world_status)"
-            tail -n 40 /tmp/world.log
+            echo "::error::world log: $(tail -c 700 /tmp/world.log | tr '\n' '|' | tr -d '%')"
             exit 1
           fi
           echo "::notice::the packaged build opened a world and finished loading it"

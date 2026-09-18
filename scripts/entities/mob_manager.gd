@@ -43,7 +43,11 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if world == null or not is_instance_valid(world):
 		return
-	mobs = mobs.filter(func(mob: Mob) -> bool: return is_instance_valid(mob))
+	# Prune in place: `filter()` returns an untyped Array, which cannot be
+	# assigned back to a typed `Array[Mob]` (and would fail every frame).
+	for index in range(mobs.size() - 1, -1, -1):
+		if not is_instance_valid(mobs[index]):
+			mobs.remove_at(index)
 	_spawn_timer -= delta
 	if _spawn_timer <= 0.0:
 		_spawn_timer = SPAWN_INTERVAL

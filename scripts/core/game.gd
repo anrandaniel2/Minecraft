@@ -225,6 +225,8 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	if not spawn_chunks_ready:
+		_check_world_ready()
 	if _loading.visible:
 		_update_loading()
 	_update_autosave(delta)
@@ -259,10 +261,23 @@ func _update_loading() -> void:
 	_loading_bar.value = clampf(float(loaded) / float(mini(wanted, 25)), 0.0, 1.0)
 	_loading_label.text = "Generating world..."
 	_status.text = "%d chunks ready" % loaded
-	if loaded >= 9 and not spawn_chunks_ready:
+	if spawn_chunks_ready:
 		_loading.visible = false
-		spawn_chunks_ready = true
-		GameLog.step("world ready: %d chunks, player at %s" % [loaded, str(player.global_position)])
+
+
+## Fires once, the first time the spawn area is fully loaded.
+##
+## It is polled from `_process` rather than from the loading overlay because a
+## brand new world skips the overlay entirely, and the journal - and CI - still
+## need to see that the world finished coming up.
+func _check_world_ready() -> void:
+	if world == null or player == null:
+		return
+	var loaded: int = world.loaded_chunk_count()
+	if loaded < 9:
+		return
+	spawn_chunks_ready = true
+	GameLog.step("world ready: %d chunks, player at %s" % [loaded, str(player.global_position)])
 
 
 func _update_autosave(delta: float) -> void:
