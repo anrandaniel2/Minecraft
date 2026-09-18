@@ -147,21 +147,15 @@ func close() -> void:
 
 ## The port this session is (or was) listening on - used by the pause menu.
 func get_port() -> int:
-	return port
+	if peer != null and not is_host:
+		return peer.get_local_port()
+	return DEFAULT_PORT
 
 
 ## "192.168.1.20:7777" style address other players can join.
 func share_string() -> String:
-	if not is_active():
-		return ""
-	var addresses := IP.get_local_addresses()
-	for address in addresses:
-		if address.begins_with("192.168.") or address.begins_with("10.") or address.begins_with("172."):
-			return "%s:%d" % [address, port]
-	for address in addresses:
-		if not address.contains(":") and address != "127.0.0.1":
-			return "%s:%d" % [address, port]
-	return "127.0.0.1:%d" % port
+	var address: String = server_ip if server_ip != "" else _local_ip()
+	return "%s:%d" % [address, get_port()]
 
 
 func is_active() -> bool:
