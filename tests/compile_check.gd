@@ -13,7 +13,7 @@ extends Node
 ## dead code (a helper nothing calls, a constant that does not exist) from
 ## rotting silently.
 
-const ROOTS: Array[String] = ["res://scripts", "res://tests"]
+const ROOTS: Array = ["res://scripts", "res://tests"]
 
 
 func _ready() -> void:
@@ -24,9 +24,11 @@ func _ready() -> void:
 	var broken: Array[String] = []
 	for path in paths:
 		var script: Variant = load(path)
+		# A script that fails to parse or analyse does not load, and one that
+		# half-compiles cannot be instantiated, so both cases are caught here.
 		if script == null:
 			broken.append("%s (could not be loaded)" % path)
-		elif not (script as GDScript).is_valid():
+		elif not (script as Script).can_instantiate():
 			broken.append("%s (did not compile)" % path)
 	print("Blockcraft: compiled %d scripts, %d broken" % [paths.size(), broken.size()])
 	for problem in broken:
