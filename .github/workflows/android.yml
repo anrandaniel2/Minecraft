@@ -174,12 +174,13 @@ jobs:
           unzip -l "$APK" | head -20
           "$ANDROID_SDK_ROOT/build-tools/${BUILD_TOOLS}/aapt2" dump badging "$APK" \
             | grep -E "package:|launchable-activity:|native-code:" || true
-          # The packed settings decide which backend the app asks for. The game
-          # ships on the Vulkan "mobile" renderer, so the packed settings must
-          # not carry an OpenGL override from an experiment.
+          # The packed settings decide which backend the app asks for, and they
+          # are the difference between "starts on a phone" and "the launcher
+          # blinks": the build ships the Compatibility renderer, which needs no
+          # Vulkan driver, so the packed project has to say so.
           unzip -p "$APK" assets/project.binary > /tmp/apk-project.binary
-          if grep -a -q "gl_compatibility" /tmp/apk-project.binary; then
-            echo "::error::The APK asks for gl_compatibility, but the project uses the mobile renderer"
+          if ! grep -a -q "gl_compatibility" /tmp/apk-project.binary; then
+            echo "::error::The APK does not ask for gl_compatibility - the packed settings kept a Vulkan renderer"
             exit 1
           fi
           # JSON manifests are not resources, so "export all resources" drops
@@ -190,17 +191,18 @@ jobs:
               exit 1
             fi
           done
-          echo "::notice::APK ships both data manifests and no stray OpenGL override"
+          echo "::notice::APK ships both data manifests and asks for the Compatibility renderer"
 
       - name: Boot the exported build headlessly
         run: |
           set -euo pipefail
-          # A packaged build boots through a different path than the editor:
+          # A cooked build boots through a different path than the editor:
           # binary-tokenised scripts, packed resources, no .godot cache. A runner
-          # has no Android emulator, so the Linux export of the same project is
-          # the closest thing to the APK that can actually be started here.
+          # has no Android emulator, so the Linux export of the very same project
+          # is the closest thing to the APK that can actually be started here: it
+          # runs the same menu, the same world and the same packed settings.
           sudo apt-get update -qq > /dev/null 2>&1 || true
-          sudo apt-get install -y -qq libx11-6 libgl1 libfontconfig1 libasound2 libpulse0 \
+          sudo apt-get install -y -qq libx11-6 libasound2 libgl1 libfontconfig1 \
             > /dev/null 2>&1 || true
           mkdir -p build/linux
           godot --headless --path . --export-release "Linux" "build/linux/${APK_BASENAME}.x86_64" \
@@ -209,46 +211,54 @@ jobs:
           test -s "$BIN" || { echo "::error::the Linux export produced no binary"; exit 1; }
           chmod +x "$BIN"
           set +e
-          timeout 180 "$BIN" --headless --quit-after 240 2>&1 | tee /tmp/boot.log
+          timeout 240 "$BIN" --headless --quit-after 300 2>&1 | tee /tmp/boot.log
           status=${PIPESTATUS[0]}
           set -e
-          grep -E "Blockcraft: renderer" /tmp/boot.log | head -2 | while IFS= read -r line; do
+          # The menu prints the renderer, the driver and the GPU it came up on;
+          # that line is the first thing worth reading when a device misbehaves.
+          grep -E "Blockcraft: (renderer|display)" /tmp/boot.log | head -3 | while IFS= read -r line; do
             echo "::notice::$line"
           done || true
-          # The boot line is the whole launch contract: the mobile renderer, and
-          # a worker pool that actually has threads. A pool with 0 threads runs
-          # every task on the main thread, which is what froze the game on a
-          # phone until Android killed it.
-          if ! grep -Eq "Blockcraft: renderer=mobile workers=[1-9][0-9]* - menu ready" /tmp/boot.log; then
-            echo "::error::the exported build did not boot with the mobile renderer and worker threads"
-            exit 1
-          fi
           if grep -q "atlas.json is missing" /tmp/boot.log; then
             echo "::error::the exported build has no atlas manifest"
             exit 1
           fi
           if grep -qE "SCRIPT ERROR" /tmp/boot.log; then
             echo "::error::the exported build reported script errors"
+            echo "::error::boot log: $(tail -c 700 /tmp/boot.log | tr '\n' '|' | tr -d '%')"
             exit 1
           fi
-          if ! grep -q "Blockcraft: renderer=.*menu ready" /tmp/boot.log; then
+          if ! grep -q "Blockcraft: renderer=.* - menu ready" /tmp/boot.log; then
             echo "::error::the exported build never reached the main menu (exit status $status)"
-            tail -n 40 /tmp/boot.log
+            echo "::error::boot log: $(tail -c 700 /tmp/boot.log | tr '\n' '|' | tr -d '%')"
+            exit 1
+          fi
+          # The renderer in that line is the one the packed settings asked for,
+          # and it has to be the Compatibility one: a Vulkan-only method on a
+          # phone whose driver cannot make a device is a launcher blink, and the
+          # working pool is what keeps Android from killing the game as "not
+          # responding" while it generates terrain.
+          if ! grep -Eq "Blockcraft: renderer=gl_compatibility workers=[1-9][0-9]* - menu ready" /tmp/boot.log; then
+            echo "::error::the exported build came up with the wrong renderer or with no worker threads"
             exit 1
           fi
           echo "::notice::the packaged build booted to the main menu"
-          # Then do what a player does: open a world. That path builds the
-          # terrain, the sky, the mobs and the interface, so a crash there is
-          # caught here instead of on a phone.
+          # Then do what a player does: make a world and open it. A packaged
+          # build cannot be handed a scene path on the command line (release
+          # templates are compiled without path overrides), so the world is
+          # requested through the menu instead, with a launch argument that goes
+          # down exactly the same path as the Create World button.
           set +e
-          timeout 300 "$BIN" --headless --quit-after 900 res://scenes/game.tscn 2>&1 | tee /tmp/world.log
+          timeout 300 "$BIN" --headless --quit-after 900 -- --blockcraft-world=new \
+            2>&1 | tee /tmp/world.log
           world_status=${PIPESTATUS[0]}
           set -e
           grep -E "Blockcraft: step: " /tmp/world.log | head -12 | while IFS= read -r line; do
             echo "::notice::$line"
           done || true
           if grep -qE "SCRIPT ERROR" /tmp/world.log; then
-            echo "::error::opening a world in the exported build reported script errors"
+            echo "::error::creating and opening a world in the exported build reported script errors"
+            echo "::error::world log: $(tail -c 700 /tmp/world.log | tr '\n' '|' | tr -d '%')"
             exit 1
           fi
           if ! grep -q "step: world ready" /tmp/world.log; then
@@ -256,7 +266,7 @@ jobs:
             echo "::error::world log: $(tail -c 700 /tmp/world.log | tr '\n' '|' | tr -d '%')"
             exit 1
           fi
-          echo "::notice::the packaged build opened a world and finished loading it"
+          echo "::notice::the packaged build created a world, opened it and finished loading it"
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4

@@ -15,6 +15,12 @@ const PATH: String = "user://log.txt"
 const MAX_BYTES: int = 128 * 1024
 const MAX_LINES: int = 400
 
+## Written between the carried-over lines and this run's first line. Android
+## kills a process without giving it a chance to say goodbye, so the journal
+## never claims a run ended badly - it just marks the seam, because the line
+## directly above this banner is where the previous run stopped.
+const RUN_BANNER: String = "--- new run (everything above this line is the run before it) ---"
+
 var _lines: PackedStringArray = PackedStringArray()
 var _file: FileAccess
 
@@ -45,6 +51,8 @@ func _open() -> void:
 	if previous.size() > MAX_LINES:
 		previous = previous.slice(previous.size() - MAX_LINES)
 	_lines = previous
+	if _lines.size() > 0:
+		_lines.append(RUN_BANNER)
 	for line in _lines:
 		_file.store_line(line)
 	_file.flush()

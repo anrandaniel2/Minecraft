@@ -193,7 +193,10 @@ func _test_achievements() -> void:
 ## The settings a build can get wrong without any script ever failing: a worker
 ## pool with no threads (threading/worker_pool/max_threads = 0) runs every chunk
 ## generation, mesh and shader compilation on the main thread, which froze the
-## game on a phone until Android killed it as "not responding".
+## game on a phone until Android killed it as "not responding"; a Vulkan-only
+## renderer on a phone with a half-implemented Vulkan driver; and .json files
+## left out of the pack, because "export all resources" does not classify them
+## as resources.
 func _test_startup_config() -> void:
 	print("- startup configuration")
 	var requested: int = int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1))
@@ -202,10 +205,23 @@ func _test_startup_config() -> void:
 	check(log_script != null, "the log helper loads")
 	if log_script != null:
 		check(log_script.worker_thread_count() > 0, "the worker pool really has threads")
+	var method: String = str(ProjectSettings.get_setting("rendering/renderer/rendering_method", ""))
 	var mobile_method: String = str(ProjectSettings.get_setting("rendering/renderer/rendering_method.mobile", ""))
-	var fallback: bool = bool(ProjectSettings.get_setting("rendering/rendering_device/fallback_to_opengl3", false))
-	check(mobile_method != "" and fallback,
-		"the Android build overrides the renderer and can fall back to OpenGL")
+	check(method == "gl_compatibility" and mobile_method == "gl_compatibility",
+		"both renderer overrides are gl_compatibility, so no Vulkan driver is needed")
+	var presets := ConfigFile.new()
+	var preset_error: Error = presets.load("res://export_presets.cfg")
+	check(preset_error == OK, "the export presets can be read")
+	if preset_error == OK:
+		var missing := PackedStringArray()
+		for index in range(8):
+			var section := "preset.%d" % index
+			if not presets.has_section(section):
+				continue
+			if not str(presets.get_value(section, "include_filter", "")).contains("json"):
+				missing.append(str(presets.get_value(section, "name", section)))
+		check(missing.is_empty(),
+			"every export preset packs the .json manifests (missing: %s)" % ", ".join(missing))
 
 
 func check(condition: bool, label: String) -> void:

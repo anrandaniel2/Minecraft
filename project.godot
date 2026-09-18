@@ -46,14 +46,21 @@ locale/fallback="en"
 
 [rendering]
 
-; The "mobile" renderer (Vulkan) everywhere, which is what a phone wants.
+; Compatibility renderer (OpenGL ES 3 on Android) everywhere.
 ;
-; Android only: if the Vulkan device cannot be created, this lets the
-; DisplayServer fall back to OpenGL 3 instead of aborting the process. It is the
-; engine default; it is written out here so nobody removes the safety net.
-renderer/rendering_method="mobile"
-renderer/rendering_method.mobile="mobile"
-rendering_device/fallback_to_opengl3=true
+; It is the backend with the widest driver support in the engine and the only
+; one that needs no Vulkan driver on the device at all, which is what this game
+; has to survive on: a phone that is not ours, with a driver that may be years
+; old or half-implemented. Everything the game draws is supported here (chunk
+; meshes, the atlas shaders, the unshaded sky dome and particles); the features
+; it cannot do - SDFGI, SSAO, screen-space reflections, volumetric fog, compute
+; - are all switched off anyway.
+;
+; To go back to Vulkan, set both lines below to "mobile". Whichever one is
+; active is printed at boot ("Blockcraft: renderer=... workers=... - menu
+; ready") and under the main menu title, so a phone screenshot says which.
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
 ; Android needs ETC2/ASTC; desktop keeps its smaller formats.
 textures/vram_compression/import_etc2_astc=true
 textures/canvas_textures/default_texture_filter=0

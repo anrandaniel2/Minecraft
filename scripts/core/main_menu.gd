@@ -48,18 +48,73 @@ func _ready() -> void:
 	# the same line because a pool with no threads freezes a phone hard enough
 	# for Android to kill the game (see threading/worker_pool/max_threads).
 	print("Blockcraft: renderer=%s workers=%d - menu ready" % [
-		renderer_label(), GameLog.worker_thread_count()])
+		renderer_method(), GameLog.worker_thread_count()])
+	print("Blockcraft: display %s | os %s %s" % [
+		renderer_label(), OS.get_name(), OS.get_version()])
+	_handle_launch_args()
 
 
-## The rendering backend and GPU this build actually came up on. Phones have no
-## console, so the menu shows it: it is the quickest way to tell which driver a
-## device picked when something looks or behaves wrong.
+## Which backend the packed settings ask for. Kept separate from
+## [method renderer_label] because this is the string the export smoke test
+## greps for, and a raw "gl_compatibility" is much easier to assert on than a
+## sentence with a driver version in it.
+static func renderer_method() -> String:
+	return str(ProjectSettings.get_setting("rendering/renderer/rendering_method", "?"))
+
+
+## The rendering backend, the driver behind it and the GPU this build actually
+## came up on. Phones have no console, so the menu shows it: it is the quickest
+## way to tell which driver a device picked when something looks or behaves
+## wrong.
 static func renderer_label() -> String:
-	var method: String = str(ProjectSettings.get_setting("rendering/renderer/rendering_method", "?"))
-	var version: String = RenderingServer.get_video_adapter_api_version()
-	if version.is_empty():
+	var method: String = renderer_method()
+	var parts := PackedStringArray()
+	var api: String = RenderingServer.get_video_adapter_api_version()
+	var gpu: String = RenderingServer.get_video_adapter_name()
+	if not api.is_empty():
+		parts.append(api)
+	if not gpu.is_empty():
+		parts.append(gpu)
+	if parts.is_empty():
 		return method
-	return "%s (%s)" % [version, method]
+	return "%s (%s)" % [method, ", ".join(parts)]
+
+
+## Command line requests, so a packaged build can be driven without a human.
+##
+## Exported release templates are compiled without command line path overrides,
+## so an exported game refuses a scene path as an argument ("Scene path was
+## specified on the command line, but this Godot binary was compiled without
+## support for path overrides"). The export smoke test therefore asks for a
+## world the way a player would, through this menu:
+##
+##     blockcraft.x86_64 --headless --quit-after 900 -- --blockcraft-world=new
+##
+## `new` creates a world and opens it; `first` opens the most recently played
+## one. Both go through exactly the same calls the buttons use, so a packaged
+## world boot is exercised and not a shortcut around it.
+func _handle_launch_args() -> void:
+	var request: String = ""
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--blockcraft-world="):
+			request = arg.substr("--blockcraft-world=".length()).strip_edges().to_lower()
+	if request.is_empty():
+		return
+	GameLog.step("menu: launch request '%s'" % request)
+	var meta: Dictionary = {}
+	var is_new: bool = request == "new"
+	if is_new:
+		meta = SaveManager.create_world("CI World", SaveManager.random_seed(), "survival",
+			{"day_time": 0.32, "weather": "clear"})
+	else:
+		var worlds: Array = SaveManager.list_worlds()
+		if worlds.is_empty():
+			meta = SaveManager.create_world("CI World", SaveManager.random_seed(), "survival",
+				{"day_time": 0.32, "weather": "clear"})
+			is_new = true
+		else:
+			meta = worlds[0]
+	call_deferred("_start_world", meta, is_new)
 
 
 func _build_background() -> void:
@@ -215,6 +270,15 @@ func _open_log_viewer() -> void:
 	title.text = "Blockcraft log  -  %s  -  %d lines" % [GameLog.PATH, GameLog.line_count()]
 	title.add_theme_font_size_override("font_size", 16)
 	box.add_child(title)
+
+	var hint := Label.new()
+	hint.text = ("The journal keeps the run before this one: the last line above a "
+		+ "\"new run\" banner is where that run stopped. If the game closed by itself, "
+		+ "Copy this and send it.")
+	hint.add_theme_font_size_override("font_size", 13)
+	hint.add_theme_color_override("font_color", Color(0.75, 0.8, 0.88))
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(hint)
 
 	var view := TextEdit.new()
 	view.name = "Text"
