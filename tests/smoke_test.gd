@@ -21,12 +21,75 @@ func _initialize() -> void:
 	_test_world_generation()
 	_test_mobs_and_trades()
 	_test_containers()
+	_test_achievements()
 	print("")
 	if failures == 0:
 		print("SMOKE OK - %d checks passed" % checks)
 	else:
 		print("SMOKE FAILED - %d of %d checks failed" % [failures, checks])
 	quit(1 if failures > 0 else 0)
+
+
+# ---------------------------------------------------------------------------
+# Achievements
+# ---------------------------------------------------------------------------
+
+
+func _test_achievements() -> void:
+	print("- achievements")
+	Achievements.reset()
+	check(Achievements.all().size() >= 12, "the goal list has some length (%d)" % Achievements.all().size())
+	check(Achievements.unlocked_count() == 0, "a fresh list starts empty")
+
+	var ids: Dictionary = {}
+	var broken: Array = []
+	for entry in Achievements.all():
+		var id: String = str(entry.get("id", ""))
+		check(id != "", "every goal has an id")
+		check(not ids.has(id), "goal id '%s' is unique" % id)
+		ids[id] = true
+		check(str(entry.get("title", "")) != "", "goal '%s' has a title" % id)
+		var kind: String = str(entry.get("kind", ""))
+		check(kind != "", "goal '%s' says what fires it" % id)
+		if kind == "block":
+			for name in entry.get("names", []):
+				if Blocks.id(str(name)) <= 0:
+					broken.append("%s -> block '%s'" % [id, name])
+		elif kind == "item":
+			for name in entry.get("names", []):
+				if Items.id(str(name)) < 0:
+					broken.append("%s -> item '%s'" % [id, name])
+		elif kind == "event":
+			check(str(entry.get("event", "")) != "", "goal '%s' names its event" % id)
+	check(broken.is_empty(), "every goal points at something real (%s)"
+		% ", ".join(PackedStringArray(broken)))
+
+	check(Achievements.unlock("getting_wood"), "breaking a log unlocks its goal")
+	check(not Achievements.unlock("getting_wood"), "a goal only unlocks once")
+	check(Achievements.is_unlocked("getting_wood"), "the goal is remembered")
+	check(not Achievements.unlock("no_such_goal"), "unknown goals are ignored")
+	check(not Achievements.unlock_for_block(Blocks.id("oak_log")).is_empty(),
+		"block triggers fire from a block id")
+	check(Achievements.unlock_for_block(Blocks.id("oak_log")).is_empty(),
+		"the same block does not fire twice")
+	check(Achievements.unlock_for_block(Blocks.id("diamond_ore")).has("diamonds"),
+		"finding diamond ore reports the DIAMONDS! goal")
+	check(Achievements.unlock_for_item(Items.id("crafting_table")).has("benchmarking"),
+		"crafting a table reports its goal")
+	check(Achievements.unlock_for_item(Items.id("iron_ingot")).has("acquire_hardware"),
+		"a smelted iron ingot reports its goal")
+	check(Achievements.unlock_for_event("sleep").has("sweet_dreams"),
+		"sleeping reports its goal")
+	check(Achievements.unlock_for_event("nonsense").is_empty(), "unknown events unlock nothing")
+
+	var saved: Array = Achievements.serialize()
+	check(saved.size() == Achievements.unlocked_count(), "saving keeps every unlocked goal")
+	Achievements.reset()
+	check(Achievements.unlocked_count() == 0, "reset clears the list")
+	Achievements.deserialize(saved)
+	check(Achievements.unlocked_count() == saved.size(), "loading restores the list")
+	check(Achievements.title_of("diamonds") == "DIAMONDS!", "titles resolve by id")
+	Achievements.reset()
 
 
 # ---------------------------------------------------------------------------

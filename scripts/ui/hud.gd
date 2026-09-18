@@ -699,7 +699,7 @@ func _run_command(command: String) -> void:
 			_on_chat_message("Commands", "/tp x y z, /time day|night, /gamemode creative|survival, "
 				+ "/give item [count], /weather clear|rain|thunder, /spawn, /seed, /kill, /fly")
 			_on_chat_message("Editing", "/setblock x y z block, /fill x1 y1 z1 x2 y2 z2 block, "
-				+ "/summon mob [count], /killmobs, /xp n, /share, /clear")
+				+ "/summon mob [count], /killmobs, /xp n, /share, /clear, /achievements")
 		"tp":
 			if parts.size() >= 4 and player != null:
 				player.global_position = Vector3(float(parts[1]), float(parts[2]), float(parts[3]))
@@ -773,6 +773,8 @@ func _run_command(command: String) -> void:
 			if parts.size() >= 2 and player != null:
 				player.give_xp(int(parts[1]))
 				_on_chat_message("Server", "Level %d" % player.level)
+		"achievements":
+			achievement_report()
 		"share":
 			# Sharing: the string a friend types into the join box.
 			var address: String = MpManager.share_string()
@@ -785,6 +787,46 @@ func _run_command(command: String) -> void:
 				_on_chat_message("Server", "Inventory cleared")
 		_:
 			_on_chat_message("Server", "Unknown command: /%s" % head)
+
+
+## Achievements are announced here so every trigger looks and sounds the same.
+func unlock_achievement(achievement_id: String) -> void:
+	if not Achievements.unlock(achievement_id):
+		return
+	toast("Achievement: %s" % Achievements.title_of(achievement_id))
+	AudioManager.play("level_up", -8.0)
+
+
+func achievement_block(block_id: int) -> void:
+	for id in Achievements.unlock_for_block(block_id):
+		unlock_achievement(id)
+
+
+func achievement_item(item_id: int) -> void:
+	for id in Achievements.unlock_for_item(item_id):
+		unlock_achievement(id)
+
+
+func achievement_event(event: String) -> void:
+	for id in Achievements.unlock_for_event(event):
+		unlock_achievement(id)
+
+
+## `/achievements` - what is done and what is left.
+func achievement_report() -> void:
+	_on_chat_message("Goals", "%d/%d done" % [Achievements.unlocked_count(), Achievements.total()])
+	var remaining: Array = []
+	for entry in Achievements.all():
+		if Achievements.is_unlocked(str(entry["id"])):
+			continue
+		remaining.append("%s (%s)" % [str(entry["title"]), str(entry["desc"])])
+	if remaining.is_empty():
+		_on_chat_message("Goals", "Every goal is complete - nice.")
+		return
+	for line in remaining.slice(0, 4):
+		_on_chat_message("Next", str(line))
+	if remaining.size() > 4:
+		_on_chat_message("Next", "...and %d more" % (remaining.size() - 4))
 
 
 func toast(text: String) -> void:

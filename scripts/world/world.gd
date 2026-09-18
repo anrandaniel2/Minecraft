@@ -248,6 +248,9 @@ func _tick_containers(delta: float) -> void:
 		var smelted: bool = container.tick_furnace(step)
 		if smelted:
 			container_changed.emit(position)
+			var produced: Variant = container.get_slot(2)
+			if produced != null:
+				item_smelted.emit(position, int(produced["id"]))
 			if container.get_slot(2) != null and Settings.get_value("particles"):
 				spawn_particles(center + Vector3(0.0, 0.6, 0.0), "smoke", 2)
 		if was_lit != container.lit:
@@ -903,6 +906,7 @@ func spawn_mob(mob_type: String, position: Vector3, persistent: bool = false) ->
 
 
 signal container_changed(pos: Vector3i)
+signal item_smelted(pos: Vector3i, item_id: int)
 
 
 ## One hopper tick: push an item into the container it points at, or otherwise

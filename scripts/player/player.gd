@@ -677,6 +677,8 @@ func _attack_mob(mob: Node3D) -> void:
 	var damage: float = Items.attack_damage(item_id)
 	if mob.has_method("take_damage"):
 		mob.take_damage(damage, "player")
+		if float(mob.get("health")) <= 0.0 and MobTypes.is_hostile(str(mob.get("mob_type"))):
+			_achievement("hostile_kill")
 	AudioManager.play_3d("hurt", mob.global_position, self, -6.0, 0.8)
 	if Settings.get_value("particles"):
 		world.spawn_particles(mob.global_position + Vector3(0.0, 1.0, 0.0), "critical", 4)
@@ -705,7 +707,15 @@ func _try_sleep(position: Vector3i) -> void:
 	has_bed_spawn = true
 	world.day_night.set_time(0.27)
 	AudioManager.play_ui()
+	_achievement("sleep")
 	_toast("Good morning! Respawn point set to this bed")
+
+
+## Goal triggers that live in the player (sleeping, kills, placing devices).
+func _achievement(event: String) -> void:
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud != null and hud.has_method("achievement_event"):
+		hud.achievement_event(event)
 
 
 ## Small helper so gameplay code can talk to the HUD without a direct reference.
@@ -863,6 +873,8 @@ func _place_block(hit_position: Vector3i, normal: Vector3i, block_id: int) -> vo
 	var facing: int = _facing_from_normal(normal, true)
 	if not world.place_block(target, block_id, facing):
 		return
+	if Blocks.name_of(block_id) == "hopper":
+		_achievement("hopper")
 	_place_cooldown = 0.18
 	AudioManager.play_3d("place_block", Vector3(target) + Vector3(0.5, 0.5, 0.5), self, -8.0,
 		randf_range(0.9, 1.05))

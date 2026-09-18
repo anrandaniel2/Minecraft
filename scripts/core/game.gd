@@ -20,6 +20,7 @@ var save_slot: String = ""
 var spawn_chunks_ready: bool = false
 
 var _autosave_timer: float = 0.0
+var _position_goal_timer: float = 0.0
 var _status: Label
 var _loading: Control
 var _loading_bar: ProgressBar
@@ -51,6 +52,7 @@ func _ready() -> void:
 	player.item_dropped.connect(_on_item_dropped)
 	world.block_broken.connect(_on_block_broken)
 	world.block_placed.connect(_on_block_placed)
+	world.item_smelted.connect(_on_item_smelted)
 
 	_build_hud()
 	_build_loading_overlay()
@@ -130,6 +132,7 @@ func _restore_or_start() -> void:
 	if not is_new_world and save_slot != "":
 		_load_saved_world()
 	else:
+		Achievements.reset()
 		_loading.visible = false
 		hud.toast("New world: %s (seed %d)" % [world.world_name, world.world_seed])
 		AudioManager.play_music("music_day", 1.5)
@@ -150,6 +153,7 @@ func _load_saved_world() -> void:
 		player.global_position = world.get_spawn_position()
 	else:
 		player.apply_state(state)
+	Achievements.deserialize(meta.get("achievements", []))
 	var world_state: Dictionary = meta.get("world", {})
 	if not world_state.is_empty():
 		world.apply_state(world_state)
@@ -176,6 +180,7 @@ func save_world() -> void:
 	meta["player"] = player.serialize()
 	meta["world"] = world.save_state()
 	meta["mobs"] = world.mobs.serialize() if world.mobs != null else []
+	meta["achievements"] = Achievements.serialize()
 	meta["played_seconds"] = world.played_seconds
 	meta["name"] = world.world_name
 	meta["seed"] = world.world_seed
@@ -219,8 +224,28 @@ func _process(delta: float) -> void:
 		_update_loading()
 	_update_autosave(delta)
 	_sync_multiplayer_health()
+	_position_goal_timer += delta
+	if _position_goal_timer >= 1.0:
+		_position_goal_timer = 0.0
+		_check_position_goals()
 	if Input.is_action_just_pressed("screenshot"):
 		_take_screenshot()
+
+
+## A few goals are about where the player ends up rather than what they do.
+func _check_position_goals() -> void:
+	if player == null or hud == null:
+		return
+	var y: float = player.global_position.y
+	if y <= 16.0:
+		hud.achievement_event("depth")
+	if y >= 120.0:
+		hud.achievement_event("height")
+	if not Achievements.is_unlocked("village_tour") and world != null and world.generator != null:
+		var center: Vector2i = StructureGen.village_center_near(world.generator,
+			floori(player.global_position.x), floori(player.global_position.z), 72)
+		if center.x != StructureGen.NO_VILLAGE.x:
+			hud.achievement_event("village")
 
 
 func _update_loading() -> void:
@@ -301,6 +326,11 @@ func _on_item_dropped(item_id: int, count: int) -> void:
 		hud.announce_pickup(item_id, count)
 
 
+func _on_item_smelted(_position: Vector3i, item_id: int) -> void:
+	if hud != null:
+		hud.achievement_item(item_id)
+
+
 func _on_block_broken(position: Vector3i, block_id: int, by_player: bool) -> void:
 	if not by_player or world == null:
 		return
@@ -308,6 +338,8 @@ func _on_block_broken(position: Vector3i, block_id: int, by_player: bool) -> voi
 	var xp: int = definition.xp
 	if xp > 0:
 		world.spawn_xp(Vector3(position) + Vector3(0.5, 0.5, 0.5), xp)
+	if hud != null:
+		hud.achievement_block(block_id)
 
 
 func _on_block_placed(_position: Vector3i, _block_id: int) -> void:

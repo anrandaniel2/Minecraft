@@ -115,6 +115,10 @@ func _commit() -> void:
 	if world != null:
 		world.set_sign_text(sign_position, _entry.text)
 		AudioManager.play_ui()
+		if _entry.text.strip_edges() != "":
+			var hud := get_tree().get_first_node_in_group("hud")
+			if hud != null and hud.has_method("achievement_event"):
+				hud.achievement_event("sign")
 	close()
 
 

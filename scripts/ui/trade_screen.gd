@@ -122,13 +122,14 @@ func _do_trade(offer: Dictionary, profession: String) -> void:
 		AudioManager.play_ui()
 		_rebuild_offers(profession)
 		return
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud != null and hud.has_method("achievement_event"):
+		hud.achievement_event("trade")
 	if mob != null and is_instance_valid(mob):
 		mob.trade_count += 1
 		_status_label.text = "Trades made: %d" % mob.trade_count
-		if mob.trade_count % 5 == 0:
-			var hud := get_tree().get_first_node_in_group("hud")
-			if hud != null and hud.has_method("toast"):
-				hud.toast("The villager appreciates your business")
+		if mob.trade_count % 5 == 0 and hud != null and hud.has_method("toast"):
+			hud.toast("The villager appreciates your business")
 	var position: Vector3 = player.global_position if player != null else Vector3.ZERO
 	AudioManager.play_3d("item_pickup", position, player if player != null else self, -8.0)
 	player.inventory_changed.emit()

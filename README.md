@@ -129,6 +129,13 @@ Ten mob types, all driven by one AI with per-type stats:
 - **Decorative detail** — block-break particles for ten effect kinds, footstep
   sounds per material, view bobbing, and a held-item viewmodel.
 
+### Goals
+
+- **16 achievements** — from *Getting Wood* and *Benchmarking* to *DIAMONDS!*,
+  *We Need to Go Deeper* and *Automation*. Each one announces itself with a
+  toast and a chime, progress is saved with the world, and `/achievements`
+  lists what is done and what to try next.
+
 ### Interface
 
 - Crosshair, hotbar, hearts, hunger, armour, breath and XP bar.
@@ -213,6 +220,7 @@ are set up too — `Settings.touch_controls` selects `auto`, `on` or `off`.
 /killmobs                          remove hostile mobs in a 30 block radius
 /xp <amount>                       add experience
 /share                             print the address friends can join on
+/achievements                      show goal progress and what is left
 ```
 
 ## Multiplayer

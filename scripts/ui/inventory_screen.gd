@@ -209,6 +209,9 @@ func _update_result() -> void:
 
 
 func _consume_crafting_grid() -> void:
+	var crafted: int = _result_preview_item
+	if crafted >= 0:
+		_achievement_item(crafted)
 	var consumed: bool = false
 	for index in CRAFT_SLOTS:
 		var stack: Variant = _craft_stacks[index]
@@ -386,6 +389,13 @@ func _resolve_spec(spec: String, _wanted: Dictionary) -> int:
 		return int(options[0])
 	var direct: int = Items.id(spec)
 	return direct
+
+
+## Crafting goals are fired from here, where the result is still known.
+func _achievement_item(item_id: int) -> void:
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud != null and hud.has_method("achievement_item"):
+		hud.achievement_item(item_id)
 
 
 func _toast(text: String) -> void:
