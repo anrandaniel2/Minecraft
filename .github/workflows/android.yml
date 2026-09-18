@@ -1,0 +1,286 @@
+name: Android APK
+
+# Builds a ready-to-install .apk on every push to main and on demand.
+# Artifact: blockcraft-android (debug APK, plus a best-effort release APK).
+#
+# The Android toolchain is installed by hand instead of through a marketplace
+# action so the job only depends on Google's own download servers and on Godot.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Version name stamped into the APK"
+        required: false
+        default: "1.0.0"
+
+env:
+  GODOT_VERSION: 4.7.2
+  GODOT_CHANNEL: stable
+  ANDROID_SDK_ROOT: /opt/android-sdk
+  ANDROID_HOME: /opt/android-sdk
+  CMDLINE_TOOLS_BUILD: "11076708"
+  BUILD_TOOLS: "34.0.0"
+  APK_BASENAME: blockcraft
+  PACKAGE_NAME: com.example.blockcraft
+
+jobs:
+  apk:
+    name: Export Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK
+        run: |
+          set -euo pipefail
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          curl -sSL -o /tmp/cmdline-tools.zip \
+            "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_BUILD}_latest.zip"
+          unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools
+          mv /tmp/cmdline-tools/cmdline-tools "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+          sdkmanager --version
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "platform-tools" "build-tools;${BUILD_TOOLS}" "platforms;android-34" > /dev/null
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          ls "$ANDROID_SDK_ROOT/build-tools" "$ANDROID_SDK_ROOT/platforms"
+
+      - name: Install Godot and export templates
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_CHANNEL}"
+          curl -sSL -o /tmp/godot.zip "${BASE}/Godot_v${GODOT_VERSION}-${GODOT_CHANNEL}_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          install -m 0755 "/tmp/godot/Godot_v${GODOT_VERSION}-${GODOT_CHANNEL}_linux.x86_64" /usr/local/bin/godot
+          godot --version
+          curl -sSL -o /tmp/templates.tpz "${BASE}/Godot_v${GODOT_VERSION}-${GODOT_CHANNEL}_export_templates.tpz"
+          mkdir -p /tmp/templates
+          unzip -q /tmp/templates.tpz -d /tmp/templates
+          TARGET="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_CHANNEL}"
+          mkdir -p "$TARGET"
+          mv /tmp/templates/templates/* "$TARGET/"
+          echo "templates installed:"
+          ls "$TARGET" | head -5
+
+      - name: Create debug keystore
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.android"
+          keytool -keyalg RSA -genkeypair \
+            -alias androiddebugkey \
+            -keypass android \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -validity 9999 -deststoretype pkcs12
+          ls -l "$HOME/.android/debug.keystore"
+
+      - name: Point the export preset at the generated keystore
+        run: |
+          set -euo pipefail
+          KEYSTORE="$HOME/.android/debug.keystore"
+          sed -i "s|^keystore/debug=.*|keystore/debug=\"${KEYSTORE}\"|" export_presets.cfg
+          sed -i "s|^keystore/debug_user=.*|keystore/debug_user=\"androiddebugkey\"|" export_presets.cfg
+          sed -i "s|^keystore/debug_password=.*|keystore/debug_password=\"android\"|" export_presets.cfg
+          sed -i "s|^keystore/release=.*|keystore/release=\"${KEYSTORE}\"|" export_presets.cfg
+          sed -i "s|^keystore/release_user=.*|keystore/release_user=\"androiddebugkey\"|" export_presets.cfg
+          sed -i "s|^keystore/release_password=.*|keystore/release_password=\"android\"|" export_presets.cfg
+          grep -n "^keystore/" export_presets.cfg
+
+      - name: Point Godot at the Android toolchain
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "${ANDROID_SDK_ROOT}"
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          export/android/debug_keystore = "$HOME/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          export/android/release_keystore = "$HOME/.android/debug.keystore"
+          export/android/release_keystore_user = "androiddebugkey"
+          export/android/release_keystore_pass = "android"
+          export/android/force_kill_after_export = false
+          EOF
+          sed -n '1,20p' "$HOME/.config/godot/editor_settings-4.tres"
+
+      - name: Import project (validates every GDScript)
+        run: |
+          set -euo pipefail
+          godot --headless --path . --import 2>&1 | tee /tmp/import.log
+          if grep -q "SCRIPT ERROR" /tmp/import.log; then
+            echo "::error::GDScript errors found during import"
+            exit 1
+          fi
+
+      - name: Stamp the version into the export preset
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          NAME="${{ github.event.inputs.version_name }}"
+          sed -i "s|^version/name=.*|version/name=\"${NAME}\"|" export_presets.cfg
+          sed -i "s|^package/unique_name=.*|package/unique_name=\"${PACKAGE_NAME}\"|" export_presets.cfg
+
+      - name: Export debug APK
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          godot --headless --path . --export-debug "Android" "build/${APK_BASENAME}-debug.apk" \
+            2>&1 | tee /tmp/export.log
+          ls -lh build
+
+      - name: Export release APK
+        continue-on-error: true
+        run: |
+          set +e
+          godot --headless --path . --export-release "Android" "build/${APK_BASENAME}-release.apk" \
+            2>&1 | tee /tmp/release.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            tail -n 12 /tmp/release.log | while IFS= read -r line; do
+              echo "::warning::release export: $line"
+            done
+            echo "::warning::release export failed with status $status"
+          else
+            echo "::notice::release export finished (exit status 0)"
+          fi
+          for file in build/*.apk; do
+            [ -e "$file" ] && echo "::notice::$file $(stat -c%s "$file") bytes"
+          done
+
+      - name: Verify the APK
+        run: |
+          set -euo pipefail
+          APK="build/${APK_BASENAME}-debug.apk"
+          test -s "$APK" || { echo "::error::APK was not produced"; exit 1; }
+          unzip -l "$APK" | head -20
+          "$ANDROID_SDK_ROOT/build-tools/${BUILD_TOOLS}/aapt2" dump badging "$APK" \
+            | grep -E "package:|launchable-activity:|native-code:" || true
+          # The packed settings decide which backend the app asks for, and they
+          # are the difference between "starts on a phone" and "the launcher
+          # blinks": the build ships the Compatibility renderer, which needs no
+          # Vulkan driver, so the packed project has to say so.
+          unzip -p "$APK" assets/project.binary > /tmp/apk-project.binary
+          if ! grep -a -q "gl_compatibility" /tmp/apk-project.binary; then
+            echo "::error::The APK does not ask for gl_compatibility - the packed settings kept a Vulkan renderer"
+            exit 1
+          fi
+          # JSON manifests are not resources, so "export all resources" drops
+          # them unless the preset's include filter names them.
+          for required in assets/assets/generated/atlas.json assets/assets/generated/entities.json; do
+            if ! unzip -l "$APK" | grep -q "$required"; then
+              echo "::error::$required is missing from the APK (export include filter)"
+              exit 1
+            fi
+          done
+          echo "::notice::APK ships both data manifests and asks for the Compatibility renderer"
+
+      - name: Boot the exported build headlessly
+        run: |
+          set -euo pipefail
+          # A cooked build boots through a different path than the editor:
+          # binary-tokenised scripts, packed resources, no .godot cache. A runner
+          # has no Android emulator, so the Linux export of the very same project
+          # is the closest thing to the APK that can actually be started here: it
+          # runs the same menu, the same world and the same packed settings.
+          sudo apt-get update -qq > /dev/null 2>&1 || true
+          sudo apt-get install -y -qq libx11-6 libasound2 libgl1 libfontconfig1 \
+            > /dev/null 2>&1 || true
+          mkdir -p build/linux
+          godot --headless --path . --export-release "Linux" "build/linux/${APK_BASENAME}.x86_64" \
+            2>&1 | tail -n 8
+          BIN="build/linux/${APK_BASENAME}.x86_64"
+          test -s "$BIN" || { echo "::error::the Linux export produced no binary"; exit 1; }
+          chmod +x "$BIN"
+          set +e
+          timeout 240 "$BIN" --headless --quit-after 300 2>&1 | tee /tmp/boot.log
+          status=${PIPESTATUS[0]}
+          set -e
+          # The menu prints the renderer, the driver and the GPU it came up on;
+          # that line is the first thing worth reading when a device misbehaves.
+          grep -E "Blockcraft: (renderer|display)" /tmp/boot.log | head -3 | while IFS= read -r line; do
+            echo "::notice::$line"
+          done || true
+          if grep -q "atlas.json is missing" /tmp/boot.log; then
+            echo "::error::the exported build has no atlas manifest"
+            exit 1
+          fi
+          if grep -qE "SCRIPT ERROR" /tmp/boot.log; then
+            echo "::error::the exported build reported script errors"
+            echo "::error::boot log: $(tail -c 700 /tmp/boot.log | tr '\n' '|' | tr -d '%')"
+            exit 1
+          fi
+          if ! grep -q "Blockcraft: renderer=.* - menu ready" /tmp/boot.log; then
+            echo "::error::the exported build never reached the main menu (exit status $status)"
+            echo "::error::boot log: $(tail -c 700 /tmp/boot.log | tr '\n' '|' | tr -d '%')"
+            exit 1
+          fi
+          # The renderer in that line is the one the packed settings asked for,
+          # and it has to be the Compatibility one: a Vulkan-only method on a
+          # phone whose driver cannot make a device is a launcher blink, and the
+          # working pool is what keeps Android from killing the game as "not
+          # responding" while it generates terrain.
+          if ! grep -Eq "Blockcraft: renderer=gl_compatibility workers=[1-9][0-9]* - menu ready" /tmp/boot.log; then
+            echo "::error::the exported build came up with the wrong renderer or with no worker threads"
+            exit 1
+          fi
+          echo "::notice::the packaged build booted to the main menu"
+          # Then do what a player does: make a world and open it. A packaged
+          # build cannot be handed a scene path on the command line (release
+          # templates are compiled without path overrides), so the world is
+          # requested through the menu instead, with a launch argument that goes
+          # down exactly the same path as the Create World button.
+          set +e
+          timeout 300 "$BIN" --headless --quit-after 900 -- --blockcraft-world=new \
+            2>&1 | tee /tmp/world.log
+          world_status=${PIPESTATUS[0]}
+          set -e
+          grep -E "Blockcraft: step: " /tmp/world.log | head -12 | while IFS= read -r line; do
+            echo "::notice::$line"
+          done || true
+          if grep -qE "SCRIPT ERROR" /tmp/world.log; then
+            echo "::error::creating and opening a world in the exported build reported script errors"
+            echo "::error::world log: $(tail -c 700 /tmp/world.log | tr '\n' '|' | tr -d '%')"
+            exit 1
+          fi
+          if ! grep -q "step: world ready" /tmp/world.log; then
+            echo "::error::the exported build never finished loading a world (exit status $world_status)"
+            echo "::error::world log: $(tail -c 700 /tmp/world.log | tr '\n' '|' | tr -d '%')"
+            exit 1
+          fi
+          echo "::notice::the packaged build created a world, opened it and finished loading it"
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockcraft-android
+          path: build/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload export logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: export-logs
+          path: /tmp/*.log
+          if-no-files-found: ignore
+          retention-days: 7

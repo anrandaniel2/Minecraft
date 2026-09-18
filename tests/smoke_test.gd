@@ -1,0 +1,745 @@
+extends SceneTree
+
+## Headless smoke test - run it with:
+##
+##     godot --headless --path . --script res://tests/smoke_test.gd
+##
+## It exercises the parts of the game that are pure logic: content registries,
+## the asset manifests they depend on, recipe matching, terrain generation,
+## mob/trade tables and container serialisation. Any failing check exits with a
+## non-zero status so CI can gate on it.
+
+var failures: int = 0
+var checks: int = 0
+
+
+func _initialize() -> void:
+	print("Blockcraft smoke test")
+	_test_registries()
+	_test_assets()
+	_test_recipes()
+	_test_world_generation()
+	_test_mobs_and_trades()
+	_test_containers()
+	_test_structures()
+	_test_achievements()
+	_test_touch_controls()
+	_test_startup_config()
+	print("")
+	if failures == 0:
+		print("SMOKE OK - %d checks passed" % checks)
+	else:
+		print("SMOKE FAILED - %d of %d checks failed" % [failures, checks])
+	quit(1 if failures > 0 else 0)
+
+
+# ---------------------------------------------------------------------------
+# Structures
+# ---------------------------------------------------------------------------
+
+
+## Places the newer structures directly on a chunk found in the right biome, so
+## a broken placer cannot hide behind "the seed never rolled one".
+func _test_structures() -> void:
+	print("- structures")
+	var gen := WorldGen.new(2024)
+	var igloo_origin: Vector2i = _biome_spot(gen, WorldGen.BIOME_SNOWY)
+	check(igloo_origin.x != 0 or igloo_origin.y != 0, "found a snowy spot for the igloo test")
+	var pyramid_origin: Vector2i = _biome_spot(gen, WorldGen.BIOME_DESERT)
+	check(pyramid_origin.x != 0 or pyramid_origin.y != 0, "found a desert spot for the pyramid test")
+
+	if igloo_origin != Vector2i.ZERO:
+		var chunk := Chunk.new(Vector2i(igloo_origin.x >> 4, igloo_origin.y >> 4))
+		gen.generate_chunk(chunk)
+		StructureGen._try_igloo(gen, chunk, igloo_origin, PackedInt32Array(), 1234)
+		var snow_high: int = 0
+		var bricks: int = 0
+		var chests: int = 0
+		for x in Chunk.SIZE:
+			for z in Chunk.SIZE:
+				for y in Chunk.HEIGHT:
+					var id: int = chunk.get_block(x, y, z)
+					if id == Blocks.id("snow_block") and y > WorldGen.SEA_LEVEL + 3:
+						snow_high += 1
+					elif id == Blocks.id("stone_bricks"):
+						bricks += 1
+					elif id == Blocks.id("chest"):
+						chests += 1
+		check(snow_high > 20, "the igloo built snow walls and a roof (%d blocks)" % snow_high)
+		check(bricks > 10, "the igloo dug a brick-lined basement (%d blocks)" % bricks)
+		check(chests >= 1, "the igloo basement has a chest")
+
+	if pyramid_origin != Vector2i.ZERO:
+		var chunk := Chunk.new(Vector2i(pyramid_origin.x >> 4, pyramid_origin.y >> 4))
+		gen.generate_chunk(chunk)
+		StructureGen._try_pyramid(gen, chunk, pyramid_origin, PackedInt32Array(), 4321)
+		var sandstone: int = 0
+		var gold: int = 0
+		var chests: int = 0
+		var chamber_air: int = 0
+		for x in Chunk.SIZE:
+			for z in Chunk.SIZE:
+				for y in Chunk.HEIGHT:
+					var id: int = chunk.get_block(x, y, z)
+					if id == Blocks.id("sandstone"):
+						sandstone += 1
+					elif id == Blocks.id("gold_block"):
+						gold += 1
+					elif id == Blocks.id("chest"):
+						chests += 1
+					elif id == Blocks.AIR and y > WorldGen.SEA_LEVEL:
+						chamber_air += 1
+		check(sandstone > 200, "the pyramid built a sandstone shell (%d blocks)" % sandstone)
+		check(chests >= 1 or gold >= 1, "the pyramid room holds loot (chest %d, gold %d)"
+			% [chests, gold])
+		check(chamber_air > 20, "the pyramid room is hollow (%d air)" % chamber_air)
+
+
+## Finds a chunk centre in `biome` that is above sea level, or Vector2i.ZERO.
+func _biome_spot(gen: WorldGen, biome: int) -> Vector2i:
+	# Biomes follow wide noise fields, so the search widens until it lands in one.
+	for radius in [16, 64, 192, 512, 1024]:
+		var found: Vector2i = _scan_for_biome(gen, biome, radius)
+		if found != Vector2i.ZERO:
+			return found
+	return Vector2i.ZERO
+
+
+func _scan_for_biome(gen: WorldGen, biome: int, radius: int) -> Vector2i:
+	var step: int = maxi(2, radius / 8)
+	for cell_x in range(-radius, radius + 1, step):
+		for cell_z in range(-radius, radius + 1, step):
+			var center := Vector2i(cell_x * Chunk.SIZE + 8, cell_z * Chunk.SIZE + 8)
+			if gen.biome_at(center.x, center.y) != biome:
+				continue
+			if gen.height_at(center.x, center.y) <= WorldGen.SEA_LEVEL + 2:
+				continue
+			return center
+	return Vector2i.ZERO
+
+
+# ---------------------------------------------------------------------------
+# Achievements
+# ---------------------------------------------------------------------------
+
+
+func _test_achievements() -> void:
+	print("- achievements")
+	Achievements.reset()
+	check(Achievements.all().size() >= 12, "the goal list has some length (%d)" % Achievements.all().size())
+	check(Achievements.unlocked_count() == 0, "a fresh list starts empty")
+
+	var ids: Dictionary = {}
+	var broken: Array = []
+	for entry in Achievements.all():
+		var id: String = str(entry.get("id", ""))
+		check(id != "", "every goal has an id")
+		check(not ids.has(id), "goal id '%s' is unique" % id)
+		ids[id] = true
+		check(str(entry.get("title", "")) != "", "goal '%s' has a title" % id)
+		var kind: String = str(entry.get("kind", ""))
+		check(kind != "", "goal '%s' says what fires it" % id)
+		if kind == "block":
+			for name in entry.get("names", []):
+				if Blocks.id(str(name)) <= 0:
+					broken.append("%s -> block '%s'" % [id, name])
+		elif kind == "item":
+			for name in entry.get("names", []):
+				if Items.id(str(name)) < 0:
+					broken.append("%s -> item '%s'" % [id, name])
+		elif kind == "event":
+			check(str(entry.get("event", "")) != "", "goal '%s' names its event" % id)
+	check(broken.is_empty(), "every goal points at something real (%s)"
+		% ", ".join(PackedStringArray(broken)))
+
+	check(Achievements.unlock("getting_wood"), "breaking a log unlocks its goal")
+	check(not Achievements.unlock("getting_wood"), "a goal only unlocks once")
+	check(Achievements.is_unlocked("getting_wood"), "the goal is remembered")
+	check(not Achievements.unlock("no_such_goal"), "unknown goals are ignored")
+	var mined: Array = Achievements.unlock_for_block(Blocks.id("stone"))
+	check(mined.has("time_to_mine"), "block triggers fire from a block id")
+	check(Achievements.unlock_for_block(Blocks.id("stone")).is_empty(),
+		"the same block does not fire twice")
+	check(Achievements.unlock_for_block(Blocks.id("diamond_ore")).has("diamonds"),
+		"finding diamond ore reports the DIAMONDS! goal")
+	check(Achievements.unlock_for_item(Items.id("crafting_table")).has("benchmarking"),
+		"crafting a table reports its goal")
+	check(Achievements.unlock_for_item(Items.id("iron_ingot")).has("acquire_hardware"),
+		"a smelted iron ingot reports its goal")
+	check(Achievements.unlock_for_event("sleep").has("sweet_dreams"),
+		"sleeping reports its goal")
+	check(Achievements.unlock_for_event("nonsense").is_empty(), "unknown events unlock nothing")
+
+	var saved: Array = Achievements.serialize()
+	check(saved.size() == Achievements.unlocked_count(), "saving keeps every unlocked goal")
+	Achievements.reset()
+	check(Achievements.unlocked_count() == 0, "reset clears the list")
+	Achievements.deserialize(saved)
+	check(Achievements.unlocked_count() == saved.size(), "loading restores the list")
+	check(Achievements.title_of("diamonds") == "DIAMONDS!", "titles resolve by id")
+	Achievements.reset()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Startup configuration
+# ---------------------------------------------------------------------------
+
+
+## The settings a build can get wrong without any script ever failing: a worker
+## pool with no threads (threading/worker_pool/max_threads = 0) runs every chunk
+## generation, mesh and shader compilation on the main thread, which froze the
+## game on a phone until Android killed it as "not responding"; a Vulkan-only
+## renderer on a phone with a half-implemented Vulkan driver; and .json files
+## left out of the pack, because "export all resources" does not classify them
+## as resources.
+func _test_startup_config() -> void:
+	print("- startup configuration")
+	var requested: int = int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1))
+	check(requested != 0, "worker_pool/max_threads is not 0 (0 means no worker threads)")
+	var log_script: GDScript = load("res://scripts/core/game_log.gd")
+	check(log_script != null, "the log helper loads")
+	if log_script != null:
+		check(log_script.worker_thread_count() > 0, "the worker pool really has threads")
+	var method: String = str(ProjectSettings.get_setting("rendering/renderer/rendering_method", ""))
+	var mobile_method: String = str(ProjectSettings.get_setting("rendering/renderer/rendering_method.mobile", ""))
+	check(method == "gl_compatibility" and mobile_method == "gl_compatibility",
+		"both renderer overrides are gl_compatibility, so no Vulkan driver is needed")
+	var presets := ConfigFile.new()
+	var preset_error: Error = presets.load("res://export_presets.cfg")
+	check(preset_error == OK, "the export presets can be read")
+	if preset_error == OK:
+		var missing := PackedStringArray()
+		for index in range(8):
+			var section := "preset.%d" % index
+			if not presets.has_section(section):
+				continue
+			if not str(presets.get_value(section, "include_filter", "")).contains("json"):
+				missing.append(str(presets.get_value(section, "name", section)))
+		check(missing.is_empty(),
+			"every export preset packs the .json manifests (missing: %s)" % ", ".join(missing))
+
+
+func check(condition: bool, label: String) -> void:
+	checks += 1
+	if condition:
+		print("  ok   %s" % label)
+	else:
+		failures += 1
+		print("  FAIL %s" % label)
+
+
+func read_json(path: String) -> Variant:
+	if not FileAccess.file_exists(path):
+		return null
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return null
+	return JSON.parse_string(file.get_as_text())
+
+
+# ---------------------------------------------------------------------------
+# Content
+# ---------------------------------------------------------------------------
+
+
+func _test_registries() -> void:
+	print("- registries")
+	Blocks.build()
+	Items.build()
+	Recipes.build()
+	check(Blocks.defs.size() > 100, "more than 100 block types (%d)" % Blocks.defs.size())
+	check(Items.defs.size() > 200, "more than 200 items (%d)" % Items.defs.size())
+	for block_name in ["stone", "grass_block", "dirt", "sand", "oak_log", "oak_planks", "chest",
+			"furnace", "torch", "water", "lava", "bedrock", "diamond_ore", "piston", "piston_arm",
+			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed", "rail", "hopper", "sign", "oak_door_open",
+			"gold_block"]:
+		check(Blocks.id(block_name) > 0, "block '%s' registered" % block_name)
+	for item_name in ["stick", "coal", "charcoal", "iron_ingot", "raw_iron", "diamond", "emerald",
+			"stone_pickaxe", "diamond_sword", "iron_chestplate", "bread", "apple", "wheat_seeds",
+			"gunpowder", "flint_and_steel", "bucket", "bow", "arrow", "bookshelf", "paper"]:
+		check(Items.def_by_name(item_name) != null, "item '%s' registered" % item_name)
+
+	var stone_pickaxe: int = Items.id("stone_pickaxe")
+	check(Items.tool_kind(stone_pickaxe) == "pickaxe", "a stone pickaxe is a pickaxe")
+	check(Items.tool_tier(stone_pickaxe) == Blocks.TIER_STONE, "a stone pickaxe is stone tier")
+	check(Items.durability(stone_pickaxe) > 0, "tools have durability")
+	check(Items.max_stack(stone_pickaxe) == 1, "tools do not stack")
+	check(Items.max_stack(Items.id("stick")) == 64, "resources stack to 64")
+	check(Items.places_block(Blocks.id("stone")) == Blocks.id("stone"), "stone places stone")
+	check(Items.def_of(Items.id("iron_chestplate")).armor_points > 0, "armour has points")
+	check(Items.def_of(Items.id("bread")).is_food(), "bread is food")
+	check(Items.attack_damage(Items.id("diamond_sword"))
+		> Items.attack_damage(Items.id("wood_sword")), "diamond hits harder than wood")
+
+	check(Blocks.break_time(Blocks.id("stone"), "pickaxe", Blocks.TIER_DIAMOND)
+		< Blocks.break_time(Blocks.id("stone"), "", Blocks.TIER_NONE),
+		"a diamond pickaxe mines stone faster than a bare hand")
+	check(Blocks.break_time(Blocks.id("bedrock"), "pickaxe", Blocks.TIER_DIAMOND) == INF,
+		"bedrock cannot be mined")
+	check(Blocks.def(Blocks.id("water")).liquid, "water is a liquid")
+	check(Blocks.is_replaceable(Blocks.id("tall_grass")), "grass is replaceable")
+	check(Blocks.light_emission(Blocks.id("torch")) > 0, "torches emit light")
+	var ore_drops: Array = Blocks.drops_for(Blocks.id("diamond_ore"), "pickaxe",
+		Blocks.TIER_DIAMOND)
+	check(not ore_drops.is_empty(), "diamond ore drops with a diamond pickaxe")
+	var bare_drops: Array = Blocks.drops_for(Blocks.id("diamond_ore"), "", Blocks.TIER_NONE)
+	check(bare_drops.is_empty(), "diamond ore drops nothing to a bare hand")
+	check(Blocks.drops_for(Blocks.id("bedrock"), "pickaxe", Blocks.TIER_DIAMOND).is_empty(),
+		"bedrock never drops anything")
+
+
+## Every tile a block asks for must exist in the packed atlas, every mob skin must
+## exist as a sheet, and the sounds the game plays must be on disk.
+func _test_assets() -> void:
+	print("- assets")
+	var atlas: Variant = read_json("res://assets/generated/atlas.json")
+	check(typeof(atlas) == TYPE_DICTIONARY, "atlas.json parses")
+	var tiles: Dictionary = {}
+	if typeof(atlas) == TYPE_DICTIONARY:
+		tiles = atlas.get("tiles", {})
+	check(tiles.size() > 100, "the atlas packs %d tiles" % tiles.size())
+	var missing_tiles: Array = []
+	for definition in Blocks.defs:
+		for spec_value in definition.tile_names.values():
+			var tile_name: String = str(spec_value)
+			if not tiles.has(tile_name):
+				missing_tiles.append("%s -> %s" % [definition.name, tile_name])
+	var used_cells: Dictionary = {}
+	for block_id in Blocks.defs.size():
+		for face in 6:
+			var cell: Vector2i = Blocks.face_tile(block_id, face, 0)
+			used_cells[cell] = true
+	check(used_cells.size() > 40, "the blocks use %d distinct atlas cells" % used_cells.size())
+	check(missing_tiles.is_empty(), "every block tile exists in the atlas %s"
+		% ("" if missing_tiles.is_empty() else str(missing_tiles.slice(0, 4))))
+
+	var entities: Variant = read_json("res://assets/generated/entities.json")
+	var skins: Dictionary = entities if typeof(entities) == TYPE_DICTIONARY else {}
+	check(skins.size() >= 8, "%d mob skins are described" % skins.size())
+	var missing_skins: Array = []
+	for mob_type in MobTypes.all().keys():
+		var skin: String = str(MobTypes.get_stats(mob_type).get("skin", ""))
+		if not skins.has(skin):
+			missing_skins.append(str(mob_type))
+		elif not FileAccess.file_exists("res://assets/generated/entities/%s.png" % skin):
+			missing_skins.append(str(mob_type))
+	check(missing_skins.is_empty(), "every mob has a skin sheet %s"
+		% ("" if missing_skins.is_empty() else str(missing_skins)))
+	var hud_icons: Array = ["heart_full", "heart_half", "heart_empty", "hunger_full", "bubble",
+		"crosshair", "logo"]
+	var missing_icons: Array = []
+	for icon in hud_icons:
+		if not FileAccess.file_exists("res://assets/generated/ui/%s.png" % icon):
+			missing_icons.append(icon)
+	check(missing_icons.is_empty(), "the HUD icons are generated %s"
+		% ("" if missing_icons.is_empty() else str(missing_icons)))
+	var sounds: Array = ["step_stone", "step_grass", "dig_glass", "click", "explode", "thunder",
+		"piston", "lever", "splash", "hurt", "eat", "level_up", "item_pickup"]
+	var missing_sounds: Array = []
+	for sound_name in sounds:
+		if not FileAccess.file_exists("res://assets/audio/%s.wav" % sound_name):
+			missing_sounds.append(sound_name)
+	check(missing_sounds.is_empty(), "the sound effects are generated %s"
+		% ("" if missing_sounds.is_empty() else str(missing_sounds)))
+	check(FileAccess.file_exists("res://assets/audio/music_menu.wav"), "menu music exists")
+
+
+# ---------------------------------------------------------------------------
+# Crafting
+# ---------------------------------------------------------------------------
+
+
+func _test_recipes() -> void:
+	print("- recipes")
+	check(Recipes.shaped.size() > 40, "%d shaped recipes" % Recipes.shaped.size())
+	check(Recipes.shapeless.size() >= 4, "%d shapeless recipes" % Recipes.shapeless.size())
+	check(Recipes.smelting.size() > 10, "%d smelting recipes" % Recipes.smelting.size())
+
+	var planks: int = Items.id("oak_planks")
+	var log_id: int = Items.id("oak_log")
+	var recipe: Recipes.Recipe = Recipes.match([log_id, -1, -1, -1], 2, 2)
+	check(recipe != null, "a lone log matches a recipe")
+	if recipe != null:
+		check(Items.id(str(recipe.results[0]["item"])) == planks, "a log crafts into planks")
+		check(int(recipe.results[0]["count"]) == 4, "a log gives four planks")
+
+	var grid_2x2: Array = [planks, planks, -1, planks, planks, -1, -1, -1, -1]
+	var table_recipe: Recipes.Recipe = Recipes.match(grid_2x2, 3, 3)
+	check(table_recipe != null, "four planks match the crafting table recipe")
+	if table_recipe != null:
+		check(Items.id(str(table_recipe.results[0]["item"])) == Blocks.id("crafting_table"),
+			"planks craft into a crafting table")
+	check(Recipes.match([planks, planks, planks, planks], 2, 2) != null,
+		"the crafting table also fits a 2x2 grid")
+
+	var stick_recipe: Recipes.Recipe = Recipes.match([planks, -1, planks, -1], 2, 2)
+	check(stick_recipe != null, "two planks match the stick recipe")
+	if stick_recipe != null:
+		check(Items.id(str(stick_recipe.results[0]["item"])) == Items.id("stick"),
+			"planks craft into sticks")
+
+	# Beds: wool over planks, and low enough to sleep in.
+	var white_wool: int = Items.id("white_wool")
+	var bed_grid: Array = [white_wool, white_wool, white_wool, planks, planks, planks, -1, -1, -1]
+	var bed_recipe: Recipes.Recipe = Recipes.match(bed_grid, 3, 3)
+	check(bed_recipe != null, "wool over planks matches the bed recipe")
+	if bed_recipe != null:
+		check(Items.id(str(bed_recipe.results[0]["item"])) == Blocks.id("bed"),
+			"the bed recipe makes a bed")
+	var bed_block: BlockDef = Blocks.def(Blocks.id("bed"))
+	check(bed_block.shape == Blocks.SHAPE_SLAB, "beds sit low like a slab")
+	check(Blocks.tile_cell("bed_top").x >= 0 and Blocks.tile_cell("bed_side").x >= 0,
+		"the bed has both atlas tiles")
+
+	# Hopper: five iron and a chest, and it shuffles items between containers.
+	var iron: int = Items.id("iron_ingot")
+	var chest_item: int = Blocks.id("chest")
+	var hopper_grid: Array = [iron, -1, iron, iron, chest_item, iron]
+	var hopper_recipe: Recipes.Recipe = Recipes.match(hopper_grid, 3, 2)
+	check(hopper_recipe != null, "iron and a chest match the hopper recipe")
+	if hopper_recipe != null:
+		check(Items.id(str(hopper_recipe.results[0]["item"])) == Blocks.id("hopper"),
+			"the hopper recipe makes a hopper")
+	var hopper: BlockContainer = BlockContainer.new(BlockContainer.KIND_HOPPER)
+	var chest_box: BlockContainer = BlockContainer.new(BlockContainer.KIND_CHEST)
+	check(hopper.size() == 5, "a hopper holds five slots")
+	chest_box.add(Items.id("coal"), 3)
+	check(BlockContainer.transfer_one(chest_box, hopper), "a hopper pulls an item")
+	check(hopper.count_of(Items.id("coal")) == 1, "exactly one item moves per transfer")
+	check(chest_box.count_of(Items.id("coal")) == 2, "the source container loses that item")
+	check(BlockContainer.transfer_one(hopper, chest_box), "a hopper pushes into a chest")
+	check(hopper.is_empty(), "the hopper is empty after pushing")
+	var full_box: BlockContainer = BlockContainer.new(BlockContainer.KIND_CHEST)
+	for index in full_box.size():
+		full_box.add(Items.id("stone"), Items.max_stack(Items.id("stone")))
+	check(not BlockContainer.transfer_one(chest_box, full_box),
+		"a full container refuses hopper transfers")
+	check(Blocks.facing_offset(2) == Vector3i(0, 0, 1), "hopper facing maps to an offset")
+	check(Blocks.facing_offset(4) == Vector3i(0, 1, 0), "a downward-facing hopper points down")
+
+	# Sign: six planks over a stick, three blocks at a time.
+	var plank: int = Items.id("oak_planks")
+	var stick: int = Items.id("stick")
+	var sign_grid: Array = [plank, plank, plank, plank, plank, plank, -1, stick, -1]
+	var sign_recipe: Recipes.Recipe = Recipes.match(sign_grid, 3, 3)
+	check(sign_recipe != null, "planks and a stick match the sign recipe")
+	if sign_recipe != null:
+		check(Items.id(str(sign_recipe.results[0]["item"])) == Blocks.id("sign"),
+			"the sign recipe makes a sign")
+		check(int(sign_recipe.results[0]["count"]) == 3, "one recipe gives three signs")
+	var sign_def: BlockDef = Blocks.def(Blocks.id("sign"))
+	check(sign_def.shape == Blocks.SHAPE_TORCH, "signs stand on a post like a torch")
+	check(not sign_def.solid and not sign_def.opaque, "players can walk through a sign")
+	check(sign_def.drops.size() == 1, "a broken sign gives itself back")
+
+	# Doors open and close between two block states that share the planks tile.
+	var closed_door: BlockDef = Blocks.def(Blocks.id("oak_door"))
+	var open_door: BlockDef = Blocks.def(Blocks.id("oak_door_open"))
+	check(closed_door.solid and closed_door.shape == Blocks.SHAPE_CUBE, "a closed door is solid")
+	check(open_door.shape == Blocks.SHAPE_LADDER, "an open door is a flat panel")
+	check(not open_door.solid and not open_door.collides, "players can walk through an open door")
+	check(closed_door.tile_names.has("all") and open_door.tile_names.has("all")
+		and str(closed_door.tile_names["all"]) == str(open_door.tile_names["all"]),
+		"both door states use the same texture")
+	check(open_door.drops.size() == 1 and str(open_door.drops[0]["item"]) == "oak_door",
+		"an open door drops a door")
+	check(Blocks.has_facing(Blocks.id("oak_door_open")), "doors keep their facing")
+
+	# Gold: nine ingots into a block, and back again.
+	var gold: int = Items.id("gold_ingot")
+	var gold_grid: Array = [gold, gold, gold, gold, gold, gold, gold, gold, gold]
+	var block_recipe: Recipes.Recipe = Recipes.match(gold_grid, 3, 3)
+	check(block_recipe != null, "nine gold ingots match the gold block recipe")
+	if block_recipe != null:
+		check(Items.id(str(block_recipe.results[0]["item"])) == Blocks.id("gold_block"),
+			"nine ingots make a gold block")
+	var ingot_recipe: Recipes.Recipe = Recipes.match([Blocks.id("gold_block")], 1, 1)
+	check(ingot_recipe != null, "a gold block can be broken back into ingots")
+	if ingot_recipe != null:
+		check(int(ingot_recipe.results[0]["count"]) == 9, "a gold block gives nine ingots")
+
+	var smelt: Dictionary = Recipes.smelting_for(Items.id("iron_ore"))
+	check(not smelt.is_empty(), "iron ore can be smelted")
+	if not smelt.is_empty():
+		check(int(smelt["item"]) == Items.id("iron_ingot"), "iron ore smelts into iron ingots")
+		check(float(smelt["time"]) > 0.0, "smelting takes time")
+	check(Recipes.can_smelt(Items.id("sand")), "sand can be smelted")
+	check(not Recipes.can_smelt(Items.id("diamond")), "diamonds cannot be smelted")
+	check(Recipes.fuel_seconds(Items.id("coal")) > 0.0, "coal burns as fuel")
+	check(Recipes.fuel_seconds(Items.id("diamond")) == 0.0, "diamonds do not burn")
+	check(not Recipes.options_for("#planks").is_empty(), "the '#planks' tag resolves to items")
+	check(Recipes.options_for("#planks").size() >= 4, "every wood type is in '#planks'")
+	check(Recipes.options_for("no_such_item").is_empty(), "unknown specs resolve to nothing")
+
+
+# ---------------------------------------------------------------------------
+# Terrain
+# ---------------------------------------------------------------------------
+
+
+func _test_world_generation() -> void:
+	print("- world generation")
+	var generator := WorldGen.new(1337)
+	var chunk := Chunk.new(Vector2i(0, 0))
+	generator.generate_chunk(chunk)
+	var air: int = 0
+	var solid: int = 0
+	var bedrock: int = 0
+	var above_sea: int = 0
+	var leaves: int = 0
+	var ores: int = 0
+	var ore_names: Array = ["coal_ore", "iron_ore", "copper_ore", "diamond_ore", "redstone_ore",
+		"lapis_lazuli_ore", "gold_ore", "emerald_ore"]
+	for x in Chunk.SIZE:
+		for z in Chunk.SIZE:
+			var top: int = 0
+			for y in Chunk.HEIGHT:
+				var block_id: int = chunk.get_block(x, y, z)
+				if block_id == Blocks.AIR:
+					air += 1
+				else:
+					solid += 1
+					top = y
+				if ore_names.has(Blocks.name_of(block_id)):
+					ores += 1
+			if chunk.get_block(x, 0, z) == Blocks.BEDROCK:
+				bedrock += 1
+			if top > WorldGen.SEA_LEVEL:
+				above_sea += 1
+			for y in range(Chunk.HEIGHT - 1, 0, -1):
+				if Blocks.name_of(chunk.get_block(x, y, z)).ends_with("_leaves"):
+					leaves += 1
+					break
+	# A handful of extra chunks so the ore count is not a coin flip.
+	for extra in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 2), Vector2i(-1, 1)]:
+		var extra_chunk := Chunk.new(extra)
+		generator.generate_chunk(extra_chunk)
+		for x in Chunk.SIZE:
+			for z in Chunk.SIZE:
+				for y in Chunk.HEIGHT:
+					if ore_names.has(Blocks.name_of(extra_chunk.get_block(x, y, z))):
+						ores += 1
+	check(solid > 0 and air > 0, "the chunk has both air and blocks")
+	check(bedrock == Chunk.SIZE * Chunk.SIZE, "bedrock seals the bottom of the world")
+	check(above_sea > 0, "some columns rise above sea level (%d)" % above_sea)
+	check(ores > 0, "the world contains ore (%d blocks in six chunks)" % ores)
+	check(leaves >= 0, "leaf scan completed (%d leaf columns)" % leaves)
+
+	var height_a: int = generator.height_at(0, 0)
+	check(height_a == generator.height_at(0, 0), "terrain height is deterministic")
+	check(WorldGen.new(1337).height_at(40, 40) == generator.height_at(40, 40),
+		"the same seed produces the same terrain")
+	var other := WorldGen.new(4242)
+	check(other.height_at(40, 40) != height_a or other.height_at(80, 80) != generator.height_at(80, 80),
+		"a different seed changes the terrain")
+	check(height_a > 0 and height_a < Chunk.HEIGHT, "the surface height is inside the world")
+	var biome: int = generator.biome_at(0, 0)
+	check(biome >= 0 and biome < WorldGen.BIOME_NAMES.size(), "the biome lookup is in range (%s)"
+		% WorldGen.BIOME_NAMES[biome])
+
+	var village_a: Vector2i = StructureGen.village_center_near(generator, 0, 0, 900)
+	var village_b: Vector2i = StructureGen.village_center_near(generator, 0, 0, 900)
+	check(village_a == village_b, "village placement is deterministic")
+	check(StructureGen.village_center_near(generator, 0, 0, 0) == StructureGen.NO_VILLAGE,
+		"a zero-radius village search finds nothing")
+
+	LightEngine.relight_chunk(chunk, {})
+	check(chunk.get_sky_light(8, Chunk.HEIGHT - 1, 8) == 15, "the sky is fully lit")
+	var dark_point := Vector3i(8, 6, 8)
+	check(chunk.get_sky_light(dark_point.x, dark_point.y, dark_point.z) == 0
+		or Blocks.is_opaque(chunk.get_block(dark_point.x, dark_point.y, dark_point.z)) == false,
+		"lighting ran over the chunk")
+
+
+# ---------------------------------------------------------------------------
+# Mobs and villagers
+# ---------------------------------------------------------------------------
+
+
+func _test_mobs_and_trades() -> void:
+	print("- mobs and trades")
+	var types: Dictionary = MobTypes.all()
+	check(types.size() >= 8, "%d mob types" % types.size())
+	for mob_type in types.keys():
+		var stats: Dictionary = MobTypes.get_stats(mob_type)
+		check(float(stats.get("health", 0.0)) > 0.0, "%s has health" % mob_type)
+		check(str(stats.get("model", "")) != "", "%s has a model kind" % mob_type)
+		check(str(stats.get("skin", "")) != "", "%s has a skin" % mob_type)
+		for drop in stats.get("drops", []):
+			check(Items.def_by_name(str(drop[0])) != null, "%s drops a real item (%s)"
+				% [mob_type, str(drop[0])])
+	check(MobTypes.hostile_types().size() >= 4, "%d hostile mob types"
+		% MobTypes.hostile_types().size())
+	check(not MobTypes.wild_passive_types().has("villager"), "villagers never spawn in the wild")
+	check(MobTypes.village_types().has("villager"), "villagers spawn in villages")
+	check(MobTypes.exists("creeper"), "creepers exist")
+	check(not MobTypes.exists("dragon"), "an unknown mob type reports false")
+
+	check(Trades.PROFESSION_NAMES.size() >= 4, "%d villager professions"
+		% Trades.PROFESSION_NAMES.size())
+	for profession in Trades.PROFESSION_NAMES:
+		var offers: Array = Trades.offers(str(profession))
+		check(not offers.is_empty(), "'%s' has offers" % profession)
+		check(str(Trades.title(str(profession))) != "", "'%s' has a title" % profession)
+		for offer in offers:
+			var give_name: String = str(offer.get("give", ""))
+			var get_name: String = str(offer.get("get", ""))
+			check(Items.def_by_name(give_name) != null and Items.def_by_name(get_name) != null,
+				"'%s' trades real items (%s)" % [profession, Trades.describe(offer)])
+			check(int(offer.get("give_count", 0)) > 0 and int(offer.get("get_count", 0)) > 0,
+				"'%s' trade counts are positive" % profession)
+
+
+# ---------------------------------------------------------------------------
+# Containers
+# ---------------------------------------------------------------------------
+
+
+func _test_containers() -> void:
+	print("- containers")
+	var chest := BlockContainer.new(BlockContainer.KIND_CHEST)
+	check(chest.size() == 27, "chests have 27 slots")
+	check(BlockContainer.new(BlockContainer.KIND_DISPENSER).size() == 9, "dispensers have 9 slots")
+	var iron: int = Items.id("iron_ingot")
+	check(chest.add(iron, 40) == 0, "40 ingots fit in a fresh chest")
+	check(chest.count_of(iron) == 40, "the chest counts its ingots")
+	check(chest.add(iron, 100) == 0, "100 more ingots fit")
+	check(chest.count_of(iron) == 140, "the chest holds 140 ingots")
+	check(chest.add(iron, 2000) > 0, "the chest refuses to overflow and reports the leftover")
+	var stored: int = chest.count_of(iron)
+	check(stored > 140, "the chest keeps filling up to its capacity (%d ingots)" % stored)
+	var emptied: int = chest.remove(iron, stored)
+	check(emptied == stored and chest.is_empty(), "the chest empties again")
+
+	var furnace := BlockContainer.new(BlockContainer.KIND_FURNACE)
+	furnace.set_slot(0, BlockContainer.make_stack(Items.id("iron_ore"), 3))
+	furnace.set_slot(1, BlockContainer.make_stack(Items.id("coal"), 1))
+	var encoded: Array = furnace.serialize()
+	check(encoded.size() == 3, "a furnace serialises to three slots")
+	var restored := BlockContainer.new(BlockContainer.KIND_FURNACE)
+	restored.deserialize(encoded)
+	check(restored.get_slot(0) != null and int(restored.get_slot(0)["count"]) == 3,
+		"furnace contents survive a save round trip")
+	var smelted: bool = false
+	for _step in 60:
+		if restored.tick_furnace(1.0):
+			smelted = true
+			break
+	check(smelted, "the restored furnace smelts")
+	var output: Variant = restored.get_slot(2)
+	check(output != null, "smelting produced output")
+	if output != null:
+		check(int(output["id"]) == Items.id("iron_ingot"), "the output is an iron ingot")
+	check(restored.burn_time > 0.0 or restored.lit, "the furnace consumed its fuel")
+
+
+# ---------------------------------------------------------------------------
+# Touch controls
+# ---------------------------------------------------------------------------
+
+
+func _has_action(actions: Array, action: String, pressed: bool) -> bool:
+	for entry in actions:
+		if str(entry[0]) == action and bool(entry[1]) == pressed:
+			return true
+	return false
+
+
+## The on-screen controls must keep every finger apart: holding *Mine* while
+## walking and dragging the camera is the whole point of the layout, and the old
+## single-finger code dropped the stick as soon as any finger was lifted.
+func _test_touch_controls() -> void:
+	print("- touch controls")
+	var view := Vector2(1280, 720)
+	check(TouchControls.safe_rect(view, Rect2()) == Rect2(Vector2.ZERO, view),
+		"the safe rect is the whole screen without insets")
+	check(TouchControls.safe_rect(view, Rect2(40, 10, 50, 20)) == Rect2(40, 10, 1190, 690),
+		"notch and rounded-corner insets shrink the safe rect")
+	var mine_rect: Rect2 = TouchControls.button_rect(view, Rect2(), Vector2(-140, -226), 100.0)
+	check(mine_rect == Rect2(1090, 444, 100, 100), "bottom-right buttons sit at their offset")
+	var bag_rect: Rect2 = TouchControls.button_rect(view, Rect2(), Vector2(-58, 62), 62.0, true)
+	check(bag_rect == Rect2(1191, 31, 62, 62), "top-right buttons hang from the top corner")
+
+	var touch := TouchControls.new()
+	touch.size = view
+	touch.enabled = true
+	var actions: Array = []
+	var moves: Array = []
+	var looks: Array = []
+	touch.action_changed.connect(func(action: String, pressed: bool) -> void:
+		actions.append([action, pressed]))
+	touch.move_changed.connect(func(move: Vector2) -> void:
+		moves.append(move))
+	touch.look_delta.connect(func(delta: Vector2) -> void:
+		looks.append(delta))
+
+	var stick: Vector2 = touch.move_zone().get_center()
+	check(touch.handle_press(0, (touch.button_rects()["attack"] as Rect2).get_center()),
+		"a tap on Mine is claimed by the control")
+	check(_has_action(actions, "attack", true), "Mine presses the attack action")
+	check(touch.handle_press(1, stick), "a second finger takes the stick")
+	touch.handle_drag(1, stick + Vector2(0, -70))
+	check(touch.move_vector().y < -0.5, "pushing the stick forward walks forward")
+	# Clear of the buttons and of the left half, so this is a look drag.
+	var look_start := Vector2(900, 150)
+	check(touch.handle_press(2, look_start), "a third finger is free to look around")
+	touch.handle_drag(2, look_start + Vector2(30, 12))
+	check(looks.size() == 1, "dragging the look finger reports one delta")
+	if looks.size() == 1:
+		check((looks[0] as Vector2).is_equal_approx(Vector2(30, 12)),
+			"the look delta matches the finger movement")
+	touch.handle_release(2)
+	check(touch.move_vector().y < -0.5, "lifting the look finger keeps the stick held")
+	check(not touch.held_roles().has("look"), "the look finger is forgotten")
+	touch.handle_release(0)
+	check(_has_action(actions, "attack", false), "releasing Mine stops mining")
+	touch.handle_release(1)
+	check(touch.move_vector() == Vector2.ZERO, "letting the stick go stops movement")
+	check(not touch.held_roles().has("move"), "no finger is left on the stick")
+
+	# Stick dead zone and clamping
+	touch.handle_press(0, stick)
+	touch.handle_drag(0, stick + Vector2(6, 0))
+	check(touch.move_vector() == Vector2.ZERO, "a small wobble stays inside the dead zone")
+	touch.handle_drag(0, stick + Vector2(0, 400))
+	check(touch.move_vector().length() <= 1.0 and touch.move_vector().y > 0.9,
+		"the stick clamps to a unit vector when dragged past its edge")
+	touch.handle_release(0)
+	check(touch.move_vector() == Vector2.ZERO, "the stick recentres on release")
+
+	# Toggles latch on a tap: Sneak and Run stay on until tapped again.
+	var sneak: Vector2 = (touch.button_rects()["sneak"] as Rect2).get_center()
+	touch.handle_press(0, sneak)
+	touch.handle_release(0)
+	check(touch.is_toggled("sneak") and _has_action(actions, "sneak", true),
+		"the Sneak button latches on")
+	check(not _has_action(actions, "sneak", false), "tapping Sneak does not release it")
+	touch.handle_press(0, sneak)
+	touch.handle_release(0)
+	check(not touch.is_toggled("sneak") and _has_action(actions, "sneak", false),
+		"tapping Sneak again turns it off")
+
+	# The hotbar keeps its taps: the reserved rect wins over the look area.
+	touch.set_reserved_rects([Rect2(440, 640, 400, 60)])
+	check(not touch.handle_press(0, Vector2(500, 660)), "a hotbar tap is left to the HUD")
+	check(not touch.held_roles().has("look"), "a hotbar tap does not drag the camera")
+
+	# Screens switch the controls off (or make them inert) rather than leaving
+	# fingers holding actions on a paused game.
+	touch.enabled = false
+	check(not touch.handle_press(0, mine_rect.get_center()), "disabled controls claim nothing")
+	touch.enabled = true
+	touch.handle_press(0, mine_rect.get_center())
+	touch.interactive = false
+	check(touch.held_roles().is_empty(), "closing a screen drops every held finger")
+	check(not touch.handle_press(0, mine_rect.get_center()),
+		"screen-open controls ignore new presses")
+	check(touch.held_roles().is_empty(), "and no finger sneaks back in")
+	touch.interactive = true
+	check(touch.handle_press(0, mine_rect.get_center()), "closing the screen re-arms the controls")
+	touch.handle_release(0)

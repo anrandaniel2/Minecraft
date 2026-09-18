@@ -1,0 +1,25 @@
+# Godot's import cache and generated metadata
+.godot/
+*.import
+export_presets.cfg.bak
+# Build output
+build/
+export/
+exports/
+*.apk
+*.aab
+*.pck
+*.zip
+# Local editor state
+.import/
+*.translation
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Python bytecode from the asset tools
+__pycache__/
+*.pyc
+# Texture packs imported from disk (see docs/texture-packs.md). These are
+# third-party art - Mojang's or someone else's - so they never get committed.
+assets/pack/
