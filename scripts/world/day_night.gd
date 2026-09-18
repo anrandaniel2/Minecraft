@@ -157,7 +157,6 @@ func _build_stars() -> void:
 	stars.name = "Stars"
 	stars.mesh = sphere
 	stars.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	stars.flip_faces = true
 	stars.visible = false
 	add_child(stars)
 

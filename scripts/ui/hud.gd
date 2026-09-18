@@ -39,6 +39,7 @@ var _toast_box: VBoxContainer
 var _vignette: ColorRect
 var _water_overlay: ColorRect
 var _hotbar_items_label: Label
+var _clock_label: Label
 var _pickup_label: Label
 var _touch_root: Control
 var _touch_joystick: Control
@@ -212,13 +213,13 @@ func _build_status_bars() -> void:
 	_hunger = HBoxContainer.new()
 	_hunger.add_theme_constant_override("separation", 0)
 	_right_stack.add_child(_hunger)
-	var clock := Label.new()
-	clock.name = "Clock"
-	clock.add_theme_font_size_override("font_size", 14)
-	clock.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
-	clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	clock.text = ""
-	_right_stack.add_child(clock)
+	_clock_label = Label.new()
+	_clock_label.name = "Clock"
+	_clock_label.add_theme_font_size_override("font_size", 14)
+	_clock_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
+	_clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_clock_label.text = ""
+	_right_stack.add_child(_clock_label)
 
 
 func _build_overlays() -> void:
@@ -711,6 +712,18 @@ func toast(text: String) -> void:
 		var oldest: Dictionary = _toasts.pop_front()
 		if is_instance_valid(oldest["label"]):
 			oldest["label"].queue_free()
+
+
+## In-game clock, weather and biome in the bottom-right corner.
+func _update_clock() -> void:
+	if _clock_label == null or world == null or world.day_night == null:
+		return
+	var hours: float = fposmod(world.day_night.time_of_day, 1.0) * 24.0
+	var minutes: int = int((hours - floorf(hours)) * 60.0)
+	var weather_name: String = world.weather.state.capitalize() if world.weather != null else ""
+	var biome: String = world.biome_name(floori(player.global_position.x),
+		floori(player.global_position.z)) if player != null else ""
+	_clock_label.text = "%02d:%02d  %s  %s" % [int(hours), minutes, biome, weather_name]
 
 
 func _update_toasts(delta: float) -> void:
