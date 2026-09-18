@@ -52,7 +52,7 @@ func get_block(x: int, y: int, z: int) -> int:
 	return blocks[index(x, y, z)]
 
 
-func get_meta(x: int, y: int, z: int) -> int:
+func get_block_meta(x: int, y: int, z: int) -> int:
 	if not in_bounds(x, y, z):
 		return 0
 	return meta[index(x, y, z)]

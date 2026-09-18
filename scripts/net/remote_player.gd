@@ -30,8 +30,6 @@ func setup(id: int, name_text: String) -> void:
 
 func _ready() -> void:
 	add_to_group("remote_player")
-	collision_layer = 0
-	collision_mask = 0
 	_build_model()
 	_build_label()
 	global_position = target_position

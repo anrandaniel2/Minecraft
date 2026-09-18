@@ -641,7 +641,7 @@ func _mine(delta: float) -> void:
 	_crack.position = Vector3(position) + Vector3(0.5, 0.5, 0.5)
 	_crack.visible = true
 	if fmod(_mining_progress, 0.24) < delta:
-		AudioManager.play_3d(Registry.dig_sound(block_id), Vector3(position) + Vector3(0.5, 0.5, 0.5),
+		AudioManager.play_3d(Registry.dig_sound_name(block_id), Vector3(position) + Vector3(0.5, 0.5, 0.5),
 			self, -12.0, randf_range(0.85, 1.15))
 	if Settings.get_value("particles") and fmod(_mining_progress, 0.4) < delta:
 		world.spawn_particles(Vector3(position) + Vector3(0.5, 0.5, 0.5), "block_break", 4)
@@ -650,7 +650,7 @@ func _mine(delta: float) -> void:
 		_crack.visible = false
 		var broken: bool = world.break_block(position, held_item(), true)
 		if broken:
-			AudioManager.play_3d(Registry.dig_sound(block_id), Vector3(position) + Vector3(0.5, 0.5, 0.5),
+			AudioManager.play_3d(Registry.dig_sound_name(block_id), Vector3(position) + Vector3(0.5, 0.5, 0.5),
 				self, -3.0, randf_range(0.9, 1.1))
 			_damage_tool()
 

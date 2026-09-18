@@ -542,7 +542,7 @@ func get_block_meta(pos: Vector3i) -> int:
 	var chunk: Chunk = chunks.get(Vector2i(pos.x >> 4, pos.z >> 4))
 	if chunk == null or pos.y < 0 or pos.y >= Chunk.HEIGHT:
 		return 0
-	return chunk.get_meta(pos.x & 15, pos.y, pos.z & 15)
+	return chunk.get_block_meta(pos.x & 15, pos.y, pos.z & 15)
 
 
 func is_loaded(pos: Vector3i) -> bool:
@@ -592,7 +592,7 @@ func set_block(pos: Vector3i, block_id: int, block_meta: int = 0,
 		_record_edit(coord, pos.x & 15, pos.y, pos.z & 15, block_id, block_meta)
 		return true
 	var old_id: int = chunk.get_block(pos.x & 15, pos.y, pos.z & 15)
-	var old_meta: int = chunk.get_meta(pos.x & 15, pos.y, pos.z & 15)
+	var old_meta: int = chunk.get_block_meta(pos.x & 15, pos.y, pos.z & 15)
 	if old_id == block_id and old_meta == block_meta:
 		return true
 	chunk.set_block(pos.x & 15, pos.y, pos.z & 15, block_id, block_meta)
@@ -688,7 +688,7 @@ func break_block(pos: Vector3i, tool_item: int = -1, by_player: bool = false,
 	# Neighbouring plants fall away.
 	for offset in [Vector3i(0, 1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1),
 			Vector3i(1, 0, 0), Vector3i(-1, 0, 0)]:
-		var neighbour := pos + offset
+		var neighbour: Vector3i = pos + offset
 		var neighbour_id: int = get_block(neighbour)
 		if Blocks.shape(neighbour_id) == Blocks.SHAPE_CROSS and offset.y != 0:
 			break_block(neighbour, -1, by_player, drop_items)

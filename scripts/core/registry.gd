@@ -188,11 +188,16 @@ func step_sound(block_id: int) -> AudioStream:
 	return sound(STEP_SOUNDS.get(group, "step_stone"))
 
 
-func dig_sound(block_id: int) -> AudioStream:
+## Sound *name* for breaking a block (AudioManager is driven by names).
+func dig_sound_name(block_id: int) -> String:
 	var group: int = Blocks.sound_of[block_id] if block_id < Blocks.sound_of.size() else Blocks.SOUND_STONE
 	if group == Blocks.SOUND_GLASS or block_id == Blocks.ICE:
-		return sound("dig_glass")
-	return step_sound(block_id)
+		return "dig_glass"
+	return str(STEP_SOUNDS.get(group, "step_stone"))
+
+
+func dig_sound(block_id: int) -> AudioStream:
+	return sound(dig_sound_name(block_id))
 
 
 ## Text shown for a block/item in the UI.

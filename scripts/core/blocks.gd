@@ -86,6 +86,20 @@ static var BEDROCK: int = 0
 static var FARMLAND: int = 0
 static var WHEAT: int = 0
 static var ICE: int = 0
+static var SNOWY_GRASS_BLOCK: int = 0
+static var SANDSTONE: int = 0
+static var COARSE_DIRT: int = 0
+static var CLAY: int = 0
+static var GRAVEL: int = 0
+static var COBBLESTONE: int = 0
+static var OAK_LOG: int = 0
+static var OAK_LEAVES: int = 0
+static var CACTUS: int = 0
+static var SUGAR_CANE: int = 0
+static var GLOWSTONE: int = 0
+static var TNT: int = 0
+static var OBSIDIAN: int = 0
+static var SNOW_LAYER: int = 0
 
 
 static func id(block_name: String) -> int:
@@ -620,6 +634,20 @@ static func _cache_hot_ids() -> void:
 	FARMLAND = id("farmland")
 	WHEAT = id("wheat")
 	ICE = id("ice")
+	SNOWY_GRASS_BLOCK = id("snowy_grass_block")
+	SANDSTONE = id("sandstone")
+	COARSE_DIRT = id("coarse_dirt")
+	CLAY = id("clay")
+	GRAVEL = id("gravel")
+	COBBLESTONE = id("cobblestone")
+	OAK_LOG = id("oak_log")
+	OAK_LEAVES = id("oak_leaves")
+	CACTUS = id("cactus")
+	SUGAR_CANE = id("sugar_cane")
+	GLOWSTONE = id("glowstone")
+	TNT = id("tnt")
+	OBSIDIAN = id("obsidian")
+	SNOW_LAYER = id("snow_layer")
 
 
 # ---------------------------------------------------------------------------
