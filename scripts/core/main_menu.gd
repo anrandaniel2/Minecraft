@@ -40,6 +40,21 @@ func _ready() -> void:
 	get_tree().paused = false
 	if MpManager.is_active():
 		MpManager.close()
+	# Printed as well as shown: on a phone the log is the only channel a bug
+	# report can quote, and "menu ready" is the marker the export smoke test
+	# waits for to prove the packed build actually boots.
+	print("Blockcraft: renderer=%s - menu ready" % renderer_label())
+
+
+## The rendering backend and GPU this build actually came up on. Phones have no
+## console, so the menu shows it: it is the quickest way to tell which driver a
+## device picked when something looks or behaves wrong.
+static func renderer_label() -> String:
+	var method: String = str(ProjectSettings.get_setting("rendering/renderer/rendering_method", "?"))
+	var version: String = RenderingServer.get_video_adapter_api_version()
+	if version.is_empty():
+		return method
+	return "%s (%s)" % [version, method]
 
 
 func _build_background() -> void:
@@ -137,9 +152,9 @@ func _build_foreground() -> void:
 	_version.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_version.position = Vector2(14, -26)
 	add_child(_version)
-	_version.text = "Godot %s - %d blocks, %d items, %d recipes" % [
-		Engine.get_version_info()["string"], Blocks.defs.size(), Items.defs.size(),
-		Recipes.shaped.size() + Recipes.shapeless.size()]
+	_version.text = "Godot %s - %s - %d blocks, %d items, %d recipes" % [
+		Engine.get_version_info()["string"], renderer_label(), Blocks.defs.size(),
+		Items.defs.size(), Recipes.shaped.size() + Recipes.shapeless.size()]
 
 
 func _menu_button(text: String, callback: Callable) -> Button:

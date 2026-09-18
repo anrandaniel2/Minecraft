@@ -174,6 +174,62 @@ jobs:
           unzip -l "$APK" | head -20
           "$ANDROID_SDK_ROOT/build-tools/${BUILD_TOOLS}/aapt2" dump badging "$APK" \
             | grep -E "package:|launchable-activity:|native-code:" || true
+          # The packed settings decide which backend the app asks for. A
+          # Vulkan-only method (mobile/forward_plus) force-closes on a device
+          # whose Vulkan driver cannot start, so the shipped preset must name the
+          # OpenGL path.
+          unzip -p "$APK" assets/project.binary > /tmp/apk-project.binary
+          if ! grep -a -q "gl_compatibility" /tmp/apk-project.binary; then
+            echo "::error::The APK does not request the gl_compatibility renderer"
+            exit 1
+          fi
+          # JSON manifests are not resources, so "export all resources" drops
+          # them unless the preset's include filter names them.
+          for required in assets/assets/generated/atlas.json assets/assets/generated/entities.json; do
+            if ! unzip -l "$APK" | grep -q "$required"; then
+              echo "::error::$required is missing from the APK (export include filter)"
+              exit 1
+            fi
+          done
+          echo "::notice::APK requests gl_compatibility and ships both data manifests"
+
+      - name: Boot the exported build headlessly
+        run: |
+          set -euo pipefail
+          # A packaged build boots through a different path than the editor:
+          # binary-tokenised scripts, packed resources, no .godot cache. A runner
+          # has no Android emulator, so the Linux export of the same project is
+          # the closest thing to the APK that can actually be started here.
+          sudo apt-get update -qq > /dev/null 2>&1 || true
+          sudo apt-get install -y -qq libx11-6 libgl1 libfontconfig1 libasound2 libpulse0 \
+            > /dev/null 2>&1 || true
+          mkdir -p build/linux
+          godot --headless --path . --export-release "Linux" "build/linux/${APK_BASENAME}.x86_64" \
+            2>&1 | tail -n 8
+          BIN="build/linux/${APK_BASENAME}.x86_64"
+          test -s "$BIN" || { echo "::error::the Linux export produced no binary"; exit 1; }
+          chmod +x "$BIN"
+          set +e
+          timeout 180 "$BIN" --headless --quit-after 240 2>&1 | tee /tmp/boot.log
+          status=${PIPESTATUS[0]}
+          set -e
+          grep -E "Blockcraft: renderer" /tmp/boot.log | head -2 | while IFS= read -r line; do
+            echo "::notice::$line"
+          done
+          if grep -q "atlas.json is missing" /tmp/boot.log; then
+            echo "::error::the exported build has no atlas manifest"
+            exit 1
+          fi
+          if grep -qE "SCRIPT ERROR" /tmp/boot.log; then
+            echo "::error::the exported build reported script errors"
+            exit 1
+          fi
+          if ! grep -q "Blockcraft: renderer=.*menu ready" /tmp/boot.log; then
+            echo "::error::the exported build never reached the main menu (exit status $status)"
+            tail -n 40 /tmp/boot.log
+            exit 1
+          fi
+          echo "::notice::the packaged build booted to the main menu"
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4

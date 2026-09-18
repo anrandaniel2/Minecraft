@@ -305,6 +305,16 @@ godot --headless --path . --export-release "Linux" build/blockcraft.x86_64
 Press **Install Export Templates** once in the editor (or let CI do it) before
 exporting.
 
+One gotcha both presets work around: `export_filter = "all_resources"` walks the
+project, but it *skips* anything the editor classifies as a plain text file -
+and `.json` is in that list by default, because JSON files have no resource
+loader. The world's manifests are read at runtime with `FileAccess`, so without
+`include_filter = "*.json"` an exported build silently loses
+`assets/generated/atlas.json` (every tile would land on cell `(-1, -1)`) and
+`assets/generated/entities.json`. Both presets set the filter, `Blocks` shouts
+through `push_error` when the manifest is missing, and CI opens the finished APK
+to prove the two files are really inside it.
+
 ## Android APK from CI
 
 `.github/workflows/android.yml` builds a signed-with-debug-keys `.apk` on every
@@ -322,12 +332,19 @@ What the job does:
    check — then exports the debug APK, attempts a release APK, verifies the
    archive with `aapt2 dump badging` and uploads `build/*.apk` as the
    `blockcraft-android` artifact.
+5. Verifies the APK really is launchable: the packed `project.binary` has to
+   request `gl_compatibility`, both JSON manifests have to be inside the
+   archive, and a Linux export of the same project is started headlessly and
+   has to reach the main menu. That last check is the closest CI can get to
+   installing the APK — a runner has no Android emulator — and it catches the
+   class of bugs where the project works in the editor but the packed build
+   does not.
 
 To install it: download the artifact from the workflow run, copy it to an
 Android device and open it (allow "install unknown apps" for your file manager
-or browser). The APK targets `arm64-v8a`, needs Android 6.0+ and enables the
-`internet`, `access_network_state`, `access_wifi_state`, `vibrate` and
-`wake_lock` permissions for multiplayer.
+or browser). The APK targets `arm64-v8a`, needs Android 7.0+ (min SDK 24) and
+enables the `internet`, `access_network_state`, `access_wifi_state`, `vibrate`
+and `wake_lock` permissions for multiplayer.
 
 Change `package/unique_name` in `export_presets.cfg` (or pass a version through
 the workflow input) if you fork this and want your own package id.
@@ -335,9 +352,16 @@ the workflow input) if you fork this and want your own package id.
 ## Playing on a phone
 
 The APK is a full-build, not a demo: landscape, immersive (no status or
-navigation bar), `Mobile` renderer with ETC2/ASTC compression, and the touch
-controls described in [Controls](#controls) are on by default on Android/iOS
-(`touch_controls = auto`).
+navigation bar), **OpenGL ES 3 (`gl_compatibility`) with ETC2/ASTC
+compression**, and the touch controls described in [Controls](#controls) are on
+by default on Android/iOS (`touch_controls = auto`).
+
+The game never asks a device for Vulkan on purpose. The `mobile` and
+`forward_plus` rendering methods both need a Vulkan driver, and when a phone
+cannot create one the engine aborts during start-up — Godot only falls back to
+OpenGL when a Vulkan *context* fails, not when the project asked for a
+Vulkan-only method. Every shader here is a plain spatial shader, so
+`gl_compatibility` runs the identical art on desktop and on phones.
 
 **First run on a phone** writes a mobile preset to `user://settings.cfg`:
 render distance 5, 60 FPS cap, V-Sync off, particles and clouds off, UI scale
@@ -359,6 +383,39 @@ Handy when tuning: `gui_scale` (UI scale) can go up to 2.0, `render_distance`
 down to 2, and the **Touch Button Size** slider (0.7–1.6) resizes the on-screen
 controls live. If a device reports a soft keyboard, the chat line opens it as
 usual with the **Chat** button.
+
+### If the app will not start
+
+The main menu prints one line of launch diagnostics and the menu shows the same
+thing in its bottom-left corner, so a screenshot says which backend a device
+picked:
+
+```
+Blockcraft: renderer=OpenGL ES 3.0 (gl_compatibility) - menu ready
+```
+
+If the app closes before that line can appear, the fault is below the game
+scripts and the Android log is the only place that knows where:
+
+```bash
+adb logcat -d -s godot | tail -60          # engine messages
+adb logcat -d | grep -A 30 "FATAL EXCEPTION"   # Java-side crash
+```
+
+A `FATAL EXCEPTION` means the Godot Android activity itself died (usually the
+packaged project or its manifest); a `DEBUG`/`SIGSEGV` crash with a driver name
+next to it is a graphics driver problem — which is why the renderer is pinned to
+`gl_compatibility` in `project.godot`.
+
+Three things that are worth re-checking when a build only misbehaves on a
+device:
+
+- the APK has to be built by the Godot version that matches the installed export
+  templates — the workflow pins `GODOT_VERSION` for exactly this reason;
+- a 32-bit-only phone needs `architectures/armeabi-v7a=true` in
+  `export_presets.cfg`, since the shipped preset is `arm64-v8a` only;
+- sideloading a differently signed build over an old install fails silently on
+  some launchers, so uninstall the previous copy first.
 
 ## How the code is organised
 
@@ -461,11 +518,15 @@ Full details, including the name-matching rules and the PNG formats accepted:
   imports a synthetic texture pack and checks the HD atlas it produces, imports
   the project headlessly, compiles **every** script with
   `tests/compile_check.tscn` (so a helper nothing references cannot rot
-  unnoticed), loads the main scene looking for script errors and runs
-  `tests/smoke_test.gd` (403 checks over the registries, the atlas manifests,
-  recipe matching, terrain generation, structures, achievements, mob/trade
-  tables, container serialisation and the touch-control logic).
-- `.github/workflows/android.yml` — the APK build described above.
+  unnoticed), loads the main scene until it reports `renderer=... - menu ready`
+  and runs `tests/smoke_test.gd` (403 checks over the registries, the atlas
+  manifests, recipe matching, terrain generation, structures, achievements,
+  mob/trade tables, container serialisation and the touch-control logic).
+- `.github/workflows/android.yml` — the APK build described above, plus its
+  launch checks: the packed settings have to request `gl_compatibility`, both
+  JSON manifests have to be inside the APK, and a Linux export of the project is
+  started headlessly and has to reach `menu ready` (a runner has no Android
+  emulator, so this is the closest CI can get to opening the APK).
 - Locally, `godot --headless --path . --import` catches the same script errors,
   `godot --headless --path . res://tests/compile_check.tscn` compiles every
   script, `godot --headless --path . --script res://tests/smoke_test.gd` runs

@@ -601,7 +601,12 @@ static func _merge(base: Dictionary, extra: Dictionary) -> Dictionary:
 static func _load_atlas_manifest() -> void:
 	var file := FileAccess.open("res://assets/generated/atlas.json", FileAccess.READ)
 	if file == null:
-		push_warning("atlas.json missing - run tools/gen_assets.py")
+		# Exported builds pack a flat file list, so a manifest that is missing
+		# here means the preset dropped it (see include_filter in
+		# export_presets.cfg). Without it every tile resolves to (-1, -1) and
+		# the world renders with the wrong texture cells, so shout about it.
+		push_error("atlas.json is missing from this build - run tools/gen_assets.py, "
+			+ "and keep *.json in the export preset's include filter")
 		return
 	var parsed = JSON.parse_string(file.get_as_text())
 	if typeof(parsed) != TYPE_DICTIONARY:

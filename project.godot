@@ -45,10 +45,20 @@ locale/fallback="en"
 
 [rendering]
 
-renderer/rendering_method="mobile"
+; OpenGL ES 3 / OpenGL 3.3 everywhere, on purpose.
+;
+; The "mobile" and "forward_plus" methods both require Vulkan, and a phone with
+; no working Vulkan driver force-closes the moment the engine tries to bring up
+; its rendering device: the engine only falls back to OpenGL when a Vulkan
+; *context* fails to initialise, never when a project asked for a Vulkan-only
+; method. gl_compatibility is the one backend that comes up on every device this
+; game targets, and nothing here needs a Forward+/Mobile-only feature (SSAO,
+; volumetric fog, SDFGI and compute are all unused; the custom shaders are plain
+; spatial shaders).
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
 ; Android needs ETC2/ASTC; desktop keeps its smaller formats.
 textures/vram_compression/import_etc2_astc=true
-renderer/rendering_method.mobile="mobile"
 textures/canvas_textures/default_texture_filter=0
 anti_aliasing/quality/msaa_3d=0
 lights_and_shadows/directional_shadow/size=2048
