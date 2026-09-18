@@ -455,14 +455,17 @@ Full details, including the name-matching rules and the PNG formats accepted:
 - `.github/workflows/checks.yml` — parses every `.gd` file with `gdparse`,
   re-runs the whole asset pipeline to prove it is byte-for-byte reproducible,
   imports a synthetic texture pack and checks the HD atlas it produces, imports
-  the project headlessly, loads the main scene looking for script errors and
-  runs `tests/smoke_test.gd` (the headless suite over the registries, the atlas
+  the project headlessly, compiles **every** script with
+  `tests/compile_check.tscn` (so a helper nothing references cannot rot
+  unnoticed), loads the main scene looking for script errors and runs
+  `tests/smoke_test.gd` (the headless suite over the registries, the atlas
   manifests, recipe matching, terrain generation, structures, achievements,
   mob/trade tables, container serialisation and the touch-control logic).
 - `.github/workflows/android.yml` — the APK build described above.
 - Locally, `godot --headless --path . --import` catches the same script errors,
-  `godot --headless --path . --script res://tests/smoke_test.gd` runs the smoke
-  test, and `godot --path .` is the fastest way to play-test a change.
+  `godot --headless --path . res://tests/compile_check.tscn` compiles every
+  script, `godot --headless --path . --script res://tests/smoke_test.gd` runs
+  the smoke test, and `godot --path .` is the fastest way to play-test a change.
 
 ## Credits and licence
 

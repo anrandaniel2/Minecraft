@@ -156,21 +156,18 @@ jobs:
           fi
       - name: Compile every script
         run: |
-          set -euo pipefail
-          # godot --import only compiles the scripts it has to load, so a file
-          # nothing references (the input map, for instance) can hide a typo for
-          # ever. --check-only parses one script and reports whether it is valid.
-          fail=0
-          count=0
-          for file in $(find scripts tests -name '*.gd' | sort); do
-            count=$((count + 1))
-            if ! godot --headless --path . --check-only --script "res://$file" > /tmp/check.txt 2>&1; then
-              echo "::error file=$file::$(grep -m 3 -E 'Parse Error|Compile Error|error' /tmp/check.txt | tr '\n' ' ')"
-              fail=1
-            fi
+          set +e
+          timeout 300 godot --headless --path . res://tests/compile_check.tscn \
+            2>&1 | tee /tmp/compile.log
+          status=${PIPESTATUS[0]}
+          set -e
+          grep -E "Blockcraft: compiled|BROKEN" /tmp/compile.log | head -40 | while read -r line; do
+            echo "::notice::$line"
           done
-          echo "compiled $count scripts"
-          exit $fail
+          if [ "$status" -ne 0 ]; then
+            echo "::error::At least one script failed to compile (see the log above)"
+            exit 1
+          fi
 
       - name: Upload the import log
         if: always()
