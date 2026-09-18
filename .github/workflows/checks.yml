@@ -134,7 +134,7 @@ jobs:
           index = 0
           while index < len(lines) and shown < 20:
               line = lines[index]
-              if "FAIL" in line or "SCRIPT ERROR" in line or "Parse Error" in line or "SMOKE" in line:
+              if "FAIL" in line or "SCRIPT ERROR" in line or "Parse Error" in line:
                   joined = " | ".join(part.strip() for part in lines[index:index + 3])
                   print("::error::%s" % joined)
                   shown += 1

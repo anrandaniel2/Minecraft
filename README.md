@@ -12,8 +12,8 @@ registries are data-driven, and every script is plain GDScript with no external
 addons.
 
 <p align="center">
-  <em>110+ block types, 200+ items, 60+ crafting recipes, 11 biomes, 10 mob types,
-  villages, dungeons, mineshafts, ENet multiplayer.</em>
+  <em>120 block types, 356 items, 94 recipes, 11 biomes, 10 mob types, 39 sounds,
+  villages, dungeons, mineshafts and ENet multiplayer.</em>
 </p>
 
 ---
@@ -102,7 +102,7 @@ Ten mob types, all driven by one AI with per-type stats:
 
 ### Building and sandbox
 
-- **110+ block types** — stone family, dirt/grass/sand/gravel/clay, ores and
+- **120 block types** — stone family, dirt/grass/sand/gravel/clay, ores and
   metal blocks, four wood types (logs, planks, leaves, saplings), 16 wool
   colours, glass and panes, bricks, sandstone, quartz, prismarine, nether-ish
   blocks, workstations (crafting table, furnace, chest, dispenser, lever,
@@ -253,11 +253,11 @@ workflow**, where you can also pass a version name).
 
 What the job does:
 
-1. Installs JDK 17, the Android SDK (platform-tools, build-tools 34, Android 34)
-   and NDK r23c.
+1. Installs JDK 17 and the Android SDK (platform-tools, build-tools 34,
+   Android 34) straight from Google's download servers.
 2. Downloads Godot 4.7.2 and the matching export templates.
-3. Generates a debug keystore and points Godot's editor settings at the SDK,
-   NDK and keystore.
+3. Generates a debug keystore and points Godot's editor settings at the SDK and
+   keystore.
 4. Imports the project headlessly — which also acts as a full GDScript parse
    check — then exports the debug APK, attempts a release APK, verifies the
    archive with `aapt2 dump badging` and uploads `build/*.apk` as the
@@ -297,7 +297,7 @@ scripts/
 shaders/                 terrain, water, clouds and stars shaders
 tools/                   the Python asset pipeline
 assets/generated/         block tiles, item icons, HUD art, mob skins, atlas
-assets/audio/             38 sound effects + 4 music loops (22 kHz mono WAV)
+assets/audio/             39 sound effects + 4 music loops (22 kHz mono WAV)
 ```
 
 Data flow at a glance:
@@ -322,7 +322,7 @@ numpy — it writes PNG and WAV bytes directly).
 cd tools
 python3 gen_assets.py textures   # blocks, item icons, HUD art, mob skins
 python3 gen_assets.py atlas      # pack the block tiles into one atlas
-python3 gen_assets.py sounds     # 38 effects + 4 music loops
+python3 gen_assets.py sounds     # 39 effects + 4 music loops
 python3 gen_assets.py all        # everything above
 ```
 
@@ -342,11 +342,15 @@ effects are 22 kHz mono WAVs for a small repository.
 ## Testing and CI checks
 
 - `.github/workflows/checks.yml` — parses every `.gd` file with `gdparse`,
-  re-runs the whole asset pipeline to prove it is reproducible, imports the
-  project headlessly and loads the main scene looking for script errors.
+  re-runs the whole asset pipeline to prove it is byte-for-byte reproducible,
+  imports the project headlessly, loads the main scene looking for script
+  errors and runs `tests/smoke_test.gd` (239 checks over the registries, the
+  atlas manifests, recipe matching, terrain generation, mob/trade tables, the
+  light engine and container serialisation).
 - `.github/workflows/android.yml` — the APK build described above.
 - Locally, `godot --headless --path . --import` catches the same script errors,
-  and `godot --path .` is the fastest way to play-test a change.
+  `godot --headless --path . --script res://tests/smoke_test.gd` runs the smoke
+  test, and `godot --path .` is the fastest way to play-test a change.
 
 ## Credits and licence
 

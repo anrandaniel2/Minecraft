@@ -238,6 +238,23 @@ def sfx_fuse() -> Sound:
     return burst.fade_out(0.2).normalize(0.7)
 
 
+def sfx_furnace() -> Sound:
+    """A furnace at work: low fire rumble with sparse crackles."""
+    rng = random.Random(61)
+    bed = noise_burst(1.2, 62)
+    bed.lowpass(900.0, passes=2)
+    bed.envelope(0.08, 1.0, curve=2.0)
+    crackles = noise_burst(1.2, 63)
+    crackles.highpass(2400.0)
+    for i in range(len(crackles.samples)):
+        if rng.random() > 0.004:
+            crackles.samples[i] *= 0.07
+    out = Sound(1.2)
+    out.mix_into(bed, 0.0, 0.5)
+    out.mix_into(crackles, 0.0, 0.85)
+    return out.fade_out(0.25).normalize(0.55)
+
+
 def sfx_bow_shoot() -> Sound:
     twang = tone(420.0, 0.22, "saw", freq_end=120.0)
     twang.lowpass(2400.0)
@@ -564,6 +581,7 @@ SOUNDS = {
     "swim": sfx_swim,
     "explode": sfx_explode,
     "fuse": sfx_fuse,
+    "furnace": sfx_furnace,
     "bow_shoot": sfx_bow_shoot,
     "arrow_hit": sfx_arrow_hit,
     "rain_loop": sfx_rain_loop,
