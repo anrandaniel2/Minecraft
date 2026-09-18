@@ -775,7 +775,7 @@ static func container_kind(block_id: int) -> String:
 ## Blocks that remember which way they were placed.
 const _FACING_BLOCKS: PackedStringArray = [
 	"jack_o_lantern", "piston", "sticky_piston", "piston_arm", "furnace", "furnace_lit", "chest",
-	"dispenser", "ladder", "oak_door",
+	"dispenser", "ladder", "oak_door", "oak_door_open",
 ]
 
 
