@@ -103,6 +103,7 @@ static var SNOW_LAYER: int = 0
 static var GRANITE: int = 0
 static var DIORITE: int = 0
 static var ANDESITE: int = 0
+static var RAIL: int = 0
 
 
 static func id(block_name: String) -> int:
@@ -553,6 +554,9 @@ static func _register_furniture() -> void:
 	_register("bed", {"top": "bed_top", "bottom": "oak_planks", "side": "bed_side"},
 		{"hardness": 0.2, "sound": SOUND_WOOD, "shape": SHAPE_SLAB, "opaque": false,
 		 "burning": true, "drops": [{"item": "bed", "count": 1}]})
+	_register("rail", {"all": "rail"}, {"hardness": 0.7, "sound": SOUND_STONE,
+		"shape": SHAPE_LAYER, "opaque": false, "solid": false, "cutout": true,
+		"drops": [{"item": "rail", "count": 1}]})
 
 
 static func _register_wool() -> void:
@@ -664,6 +668,7 @@ static func _cache_hot_ids() -> void:
 	GRANITE = id("granite")
 	DIORITE = id("diorite")
 	ANDESITE = id("andesite")
+	RAIL = id("rail")
 
 
 # ---------------------------------------------------------------------------

@@ -138,6 +138,7 @@ def build_block_tiles() -> dict[str, Canvas]:
     add("ladder", gt.tex_workstation("ladder"))
     add("bed_top", gt.tex_bed("top"))
     add("bed_side", gt.tex_bed("side"))
+    add("rail", gt.tex_rail())
     return tiles
 
 

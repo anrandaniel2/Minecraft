@@ -321,6 +321,9 @@ static func _try_mineshaft(gen: WorldGen, chunk: Chunk, origin: Vector2i,
 		var cx: int = start.x + (step * direction if along_x else 0)
 		var cz: int = start.y + (0 if along_x else step * direction)
 		_corridor_slice(chunk, cx, cz, base_y, along_x, rng)
+		# A worn cart track along the corridor floor.
+		if step % 5 != 4:
+			_put(chunk, cx, base_y + 1, cz, Blocks.RAIL)
 		if step % 8 == 0:
 			# support beams
 			_put(chunk, cx, base_y, cz, Blocks.id("oak_log"))

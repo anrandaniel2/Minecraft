@@ -12,7 +12,7 @@ registries are data-driven, and every script is plain GDScript with no external
 addons.
 
 <p align="center">
-  <em>121 block types, 353 items, 95 recipes, 11 biomes, 10 mob types, 39 sounds,
+  <em>122 block types, 353 items, 96 recipes, 11 biomes, 10 mob types, 39 sounds,
   villages, dungeons, mineshafts and ENet multiplayer.</em>
 </p>
 

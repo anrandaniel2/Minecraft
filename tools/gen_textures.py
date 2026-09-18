@@ -653,6 +653,19 @@ def tex_workstation(kind: str, seed: int = 40) -> Canvas:
     raise ValueError(f"unknown workstation texture: {kind}")
 
 
+def tex_rail() -> Canvas:
+    """Minecart track: two metal rails over wooden sleepers."""
+    canvas = Canvas(TILE)
+    for y in range(0, TILE, 4):                     # sleepers
+        canvas.rect(1, y + 1, TILE - 2, 2, "#7c5426")
+        canvas.rect(1, y + 2, TILE - 2, 1, "#5f3f1c")
+    canvas.rect(2, 0, 2, TILE, "#9aa0a6")           # rails
+    canvas.rect(12, 0, 2, TILE, "#9aa0a6")
+    canvas.rect(2, 0, 1, TILE, "#c8ccd0")
+    canvas.rect(12, 0, 1, TILE, "#c8ccd0")
+    return canvas
+
+
 def tex_bed(kind: str) -> Canvas:
     """Bed block: red blanket with a pillow band (top) and a wooden frame (side)."""
     if kind == "top":

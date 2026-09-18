@@ -66,7 +66,7 @@ func _test_registries() -> void:
 	check(Items.defs.size() > 200, "more than 200 items (%d)" % Items.defs.size())
 	for block_name in ["stone", "grass_block", "dirt", "sand", "oak_log", "oak_planks", "chest",
 			"furnace", "torch", "water", "lava", "bedrock", "diamond_ore", "piston", "piston_arm",
-			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed"]:
+			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed", "rail"]:
 		check(Blocks.id(block_name) > 0, "block '%s' registered" % block_name)
 	for item_name in ["stick", "coal", "charcoal", "iron_ingot", "raw_iron", "diamond", "emerald",
 			"stone_pickaxe", "diamond_sword", "iron_chestplate", "bread", "apple", "wheat_seeds",
