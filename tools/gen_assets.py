@@ -143,6 +143,7 @@ def build_block_tiles() -> dict[str, Canvas]:
     add("hopper_side", gt.tex_hopper("side"))
     add("sign_side", gt.tex_sign("side"))
     add("sign_top", gt.tex_sign("top"))
+    add("gold_block", gt.tex_gold_block())
     return tiles
 
 

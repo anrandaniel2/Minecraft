@@ -563,6 +563,8 @@ static func _register_furniture() -> void:
 	# The open door is the same block in another state: a flat panel filling the
 	# frame, so the doorway can be walked through. Placement writes the facing
 	# meta, and using the closed door swaps between the two.
+	_register("gold_block", {"all": "gold_block"}, {"hardness": 3.0, "tool": "pickaxe",
+		"tier": TIER_IRON, "sound": SOUND_STONE, "drops": [{"item": "gold_block", "count": 1}]})
 	_register("oak_door_open", {"all": "oak_planks"}, {"title": "Oak Door", "hardness": 3.0,
 		"tool": "axe", "sound": SOUND_WOOD, "burning": true, "facing": true,
 		"shape": SHAPE_LADDER, "opaque": false, "solid": false, "cutout": true,

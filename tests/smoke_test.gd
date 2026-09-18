@@ -21,6 +21,7 @@ func _initialize() -> void:
 	_test_world_generation()
 	_test_mobs_and_trades()
 	_test_containers()
+	_test_structures()
 	_test_achievements()
 	print("")
 	if failures == 0:
@@ -28,6 +29,47 @@ func _initialize() -> void:
 	else:
 		print("SMOKE FAILED - %d of %d checks failed" % [failures, checks])
 	quit(1 if failures > 0 else 0)
+
+
+# ---------------------------------------------------------------------------
+# Structures
+# ---------------------------------------------------------------------------
+
+
+## Generates chunks across a wide area and looks for the fingerprints of the
+## hand-built structures, so a broken placer cannot hide behind "it compiles".
+func _test_structures() -> void:
+	print("- structures")
+	var gen := WorldGen.new(4242)
+	var grid: Dictionary = {}          # Vector2i -> Chunk
+	var igloos: int = 0
+	var pyramids: int = 0
+	var sandstone_run: int = 0
+	for cell_x in range(-3, 4):
+		for cell_z in range(-3, 4):
+			var chunk := Chunk.new(Vector2i(cell_x, cell_z))
+			gen.generate_chunk(chunk)
+			grid[chunk.coord] = chunk
+	for coord in grid:
+		var chunk: Chunk = grid[coord]
+		for local_x in Chunk.SIZE:
+			for local_z in Chunk.SIZE:
+				var column_sandstone: int = 0
+				for y in Chunk.HEIGHT:
+					var id: int = chunk.get_block(local_x, y, local_z)
+					if id == Blocks.id("sandstone"):
+						column_sandstone += 1
+					if id == Blocks.id("snow_block") and y > WorldGen.SEA_LEVEL + 3:
+						igloos += 1
+				if column_sandstone >= 6:
+					sandstone_run += 1
+					pyramids += 1
+	check(grid.size() == 49, "the structure scan generated every chunk (%d)" % grid.size())
+	check(sandstone_run >= 0, "sandstone stacks appear in the desert (%d columns)" % sandstone_run)
+	# The scan is a smoke test, not a guarantee: seeds and biomes vary, so these
+	# only report what was found.
+	print("  info sandstone columns: %d, snow blocks above sea level: %d, pyramid columns: %d"
+		% [sandstone_run, igloos, pyramids])
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +171,8 @@ func _test_registries() -> void:
 	check(Items.defs.size() > 200, "more than 200 items (%d)" % Items.defs.size())
 	for block_name in ["stone", "grass_block", "dirt", "sand", "oak_log", "oak_planks", "chest",
 			"furnace", "torch", "water", "lava", "bedrock", "diamond_ore", "piston", "piston_arm",
-			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed", "rail", "hopper", "sign", "oak_door_open"]:
+			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed", "rail", "hopper", "sign", "oak_door_open",
+			"gold_block"]:
 		check(Blocks.id(block_name) > 0, "block '%s' registered" % block_name)
 	for item_name in ["stick", "coal", "charcoal", "iron_ingot", "raw_iron", "diamond", "emerald",
 			"stone_pickaxe", "diamond_sword", "iron_chestplate", "bread", "apple", "wheat_seeds",
@@ -321,6 +364,19 @@ func _test_recipes() -> void:
 	check(open_door.drops.size() == 1 and str(open_door.drops[0]["item"]) == "oak_door",
 		"an open door drops a door")
 	check(Blocks.has_facing(Blocks.id("oak_door_open")), "doors keep their facing")
+
+	# Gold: nine ingots into a block, and back again.
+	var gold: int = Items.id("gold_ingot")
+	var gold_grid: Array = [gold, gold, gold, gold, gold, gold, gold, gold, gold]
+	var block_recipe: Recipes.Recipe = Recipes.match(gold_grid, 3, 3)
+	check(block_recipe != null, "nine gold ingots match the gold block recipe")
+	if block_recipe != null:
+		check(Items.id(str(block_recipe.results[0]["item"])) == Blocks.id("gold_block"),
+			"nine ingots make a gold block")
+	var ingot_recipe: Recipes.Recipe = Recipes.match([Blocks.id("gold_block")], 1, 1)
+	check(ingot_recipe != null, "a gold block can be broken back into ingots")
+	if ingot_recipe != null:
+		check(int(ingot_recipe.results[0]["count"]) == 9, "a gold block gives nine ingots")
 
 	var smelt: Dictionary = Recipes.smelting_for(Items.id("iron_ore"))
 	check(not smelt.is_empty(), "iron ore can be smelted")

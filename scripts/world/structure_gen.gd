@@ -26,6 +26,8 @@ static func generate(gen: WorldGen, chunk: Chunk, heights: PackedInt32Array,
 	_structure_grid(gen, chunk, bounds, heights, 224, 4, _try_desert_well)
 	_structure_grid(gen, chunk, bounds, heights, 176, 5, _try_hut)
 	_structure_grid(gen, chunk, bounds, heights, 96, 6, _try_boulder)
+	_structure_grid(gen, chunk, bounds, heights, 208, 7, _try_igloo)
+	_structure_grid(gen, chunk, bounds, heights, 256, 8, _try_pyramid)
 
 
 ## Closest village centre to (x, z) within `radius`, or NO_VILLAGE.
@@ -423,6 +425,140 @@ static func _try_hut(gen: WorldGen, chunk: Chunk, origin: Vector2i,
 		_put(chunk, origin.x + 1, ground + 1, origin.y + 1, Blocks.CHEST, 0)
 	if rng.randf() < 0.5:
 		_put(chunk, origin.x - 1, ground + 2, origin.y - 1, Blocks.id("web"))
+
+
+## A snow-block igloo in the frozen biomes, with a ladder down to a small
+## basement and a chest - the classic "there is more under the snow" moment.
+static func _try_igloo(gen: WorldGen, chunk: Chunk, origin: Vector2i,
+		heights: PackedInt32Array, hash_value: int) -> void:
+	var biome: int = gen.biome_at(origin.x, origin.y)
+	if biome != WorldGen.BIOME_SNOWY:
+		return
+	if not _intersects(chunk, origin.x, origin.y, 14):
+		return
+	var ground: int = gen.height_at(origin.x, origin.y)
+	if ground <= WorldGen.SEA_LEVEL:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash_value
+	var snow: int = Blocks.id("snow_block")
+	var ice: int = Blocks.id("packed_ice")
+	var half: int = 3
+	var height: int = 4
+	# Shell first: floor, walls and a domed roof.
+	for x in range(-half, half + 1):
+		for z in range(-half, half + 1):
+			_clear_column(chunk, origin.x + x, ground + 1, origin.y + z)
+			_put(chunk, origin.x + x, ground, origin.y + z, snow)
+			var edge: bool = absi(x) == half or absi(z) == half
+			if edge:
+				for y in range(1, height):
+					_put(chunk, origin.x + x, ground + y, origin.y + z, snow)
+	# The doorway, always on the south face, with an ice frame.
+	_clear_column(chunk, origin.x, ground + 1, origin.y + half)
+	for y in range(1, 3):
+		_put(chunk, origin.x, ground + y, origin.y + half, Blocks.AIR)
+	_put(chunk, origin.x - 1, ground + 3, origin.y + half, ice)
+	_put(chunk, origin.x + 1, ground + 3, origin.y + half, ice)
+	# Low dome: shrink the roof ring by ring.
+	for layer in range(2):
+		var inner: int = half - layer
+		if inner <= 0:
+			break
+		var roof_y: int = ground + height + layer - 1
+		for x in range(-inner, inner + 1):
+			for z in range(-inner, inner + 1):
+				if absi(x) == inner or absi(z) == inner or layer == 1:
+					_put(chunk, origin.x + x, roof_y, origin.y + z, snow)
+	# Basement: a 5x5 room two blocks under the floor, reached by a ladder.
+	var basement_y: int = ground - 4
+	for x in range(-2, 3):
+		for z in range(-2, 3):
+			for y in range(basement_y, basement_y + 4):
+				_put(chunk, origin.x + x, y, origin.y + z, Blocks.AIR)
+			_put(chunk, origin.x + x, basement_y - 1, origin.y + z, Blocks.id("cobblestone"))
+			_put(chunk, origin.x + x, basement_y + 3, origin.y + z, snow)
+	for x in range(-2, 3):
+		for z in range(-2, 3):
+			if absi(x) != 2 and absi(z) != 2:
+				continue
+			for y in range(basement_y, basement_y + 3):
+				_put(chunk, origin.x + x, y, origin.y + z, Blocks.id("stone_bricks"))
+	# Ladder shaft from the hut floor down into the basement.
+	for y in range(basement_y + 1, ground):
+		_put(chunk, origin.x + 2, y, origin.y + 2, Blocks.AIR)
+	_put(chunk, origin.x + 2, basement_y + 1, origin.y + 2, Blocks.id("ladder"), 0)
+	_put(chunk, origin.x + 2, basement_y + 2, origin.y + 2, Blocks.id("ladder"), 0)
+	_put(chunk, origin.x + 2, ground, origin.y + 2, Blocks.AIR)
+	if rng.randf() < 0.8:
+		_put(chunk, origin.x - 1, basement_y + 1, origin.y - 1, Blocks.CHEST, 0)
+	if rng.randf() < 0.5:
+		_put(chunk, origin.x - 1, basement_y + 1, origin.y + 1, Blocks.id("bookshelf"))
+
+
+## A desert pyramid: a stepped sandstone shell around a sealed treasure room
+## with a slit on the south face as the way in.
+static func _try_pyramid(gen: WorldGen, chunk: Chunk, origin: Vector2i,
+		heights: PackedInt32Array, hash_value: int) -> void:
+	var biome: int = gen.biome_at(origin.x, origin.y)
+	if biome != WorldGen.BIOME_DESERT:
+		return
+	if not _intersects(chunk, origin.x, origin.y, 26):
+		return
+	var ground: int = gen.height_at(origin.x, origin.y)
+	if ground <= WorldGen.SEA_LEVEL:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash_value
+	var sandstone: int = Blocks.id("sandstone")
+	var stone_bricks: int = Blocks.id("stone_bricks")
+	var base: int = 8
+	for step in 4:
+		var radius: int = base - step * 2
+		var y: int = ground + step * 2
+		for x in range(-radius, radius + 1):
+			for z in range(-radius, radius + 1):
+				var on_edge: bool = absi(x) == radius or absi(z) == radius
+				if absi(x) > radius or absi(z) > radius:
+					continue
+				if step == 0:
+					# Solid base ring and a floor for the whole footprint.
+					_put(chunk, origin.x + x, ground, origin.y + z, sandstone)
+					if on_edge:
+						_put(chunk, origin.x + x, ground + 1, origin.y + z, sandstone)
+				elif on_edge:
+					_put(chunk, origin.x + x, y, origin.y + z, sandstone)
+					_put(chunk, origin.x + x, y + 1, origin.y + z, sandstone)
+	# Flat cap on top of the last step.
+	for x in range(-1, 2):
+		for z in range(-1, 2):
+			_put(chunk, origin.x + x, ground + 6, origin.y + z, sandstone)
+	# Sealed treasure room: a 7x7 stone-brick box two blocks tall.
+	for x in range(-3, 4):
+		for z in range(-3, 4):
+			var shell: bool = absi(x) == 3 or absi(z) == 3
+			for y in range(ground + 1, ground + 5):
+				var floor_or_ceiling: bool = y == ground + 1 or y == ground + 4
+				if shell or floor_or_ceiling:
+					_put(chunk, origin.x + x, y, origin.y + z, stone_bricks)
+	for x in range(-2, 3):
+		for z in range(-2, 3):
+			for y in range(ground + 2, ground + 4):
+				_put(chunk, origin.x + x, y, origin.y + z, Blocks.AIR)
+	# Doorway through the room's south wall, and a matching slit in the pyramid.
+	for y in range(ground + 2, ground + 4):
+		_put(chunk, origin.x, y, origin.y + 3, Blocks.AIR)
+		_put(chunk, origin.x, y, origin.y + 4, Blocks.AIR)
+	_put(chunk, origin.x, ground + 2, origin.y + base, Blocks.AIR)
+	_put(chunk, origin.x, ground + 3, origin.y + base, Blocks.AIR)
+	# Loot, and a torch on the room floor so it is not pitch black inside.
+	_put(chunk, origin.x, ground + 2, origin.y - 2, Blocks.TORCH, 2)
+	if rng.randf() < 0.9:
+		_put(chunk, origin.x - 1, ground + 2, origin.y + 1, Blocks.CHEST, 0)
+	if rng.randf() < 0.7:
+		_put(chunk, origin.x + 1, ground + 2, origin.y + 1, Blocks.id("gold_block"))
+	if rng.randf() < 0.4:
+		_put(chunk, origin.x + 1, ground + 2, origin.y - 1, Blocks.id("gold_block"))
 
 
 static func _try_boulder(gen: WorldGen, chunk: Chunk, origin: Vector2i,

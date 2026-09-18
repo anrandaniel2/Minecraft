@@ -653,6 +653,19 @@ def tex_workstation(kind: str, seed: int = 40) -> Canvas:
     raise ValueError(f"unknown workstation texture: {kind}")
 
 
+def tex_gold_block() -> Canvas:
+    """Polished gold: bright metal with a darker bevel."""
+    canvas = noise_canvas(41, "#e8c33a", contrast=0.10, scale=4.0)
+    canvas.rect(0, 0, TILE, 1, "#f6df7a")
+    canvas.rect(0, 0, 1, TILE, "#f6df7a")
+    canvas.rect(0, TILE - 1, TILE, 1, "#a8842a")
+    canvas.rect(TILE - 1, 0, 1, TILE, "#a8842a")
+    for x in range(3, 13, 4):                       # highlights
+        canvas.set(x, 4, "#fff3b0")
+        canvas.set(x + 1, 11, "#c9a12f")
+    return canvas
+
+
 def tex_sign(kind: str) -> Canvas:
     """Sign: a board on a post (side) and the board seen from above (top)."""
     if kind == "top":

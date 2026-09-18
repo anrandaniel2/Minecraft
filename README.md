@@ -12,7 +12,7 @@ registries are data-driven, and every script is plain GDScript with no external
 addons.
 
 <p align="center">
-  <em>125 block types, 353 items, 98 recipes, 11 biomes, 10 mob types, 39 sounds,
+  <em>127 block types, 354 items, 100 recipes, 11 biomes, 10 mob types, 39 sounds,
   villages, dungeons, mineshafts and ENet multiplayer.</em>
 </p>
 
@@ -49,8 +49,9 @@ addons.
   copper, gold, redstone, lapis, diamond and emerald, oceans, rivers and caves
   that open to the surface.
 - **Structures** — villages (plaza, lamps, ring of houses, farms), dungeons with
-  chests, mineshafts with supports and rails, desert wells, huts and boulders,
-  all deterministic from the world seed.
+  chests, mineshafts with supports and rails, desert wells, huts, boulders,
+  **desert pyramids** with a sealed treasure room and **snow igloos** with a
+  basement under the floor, all deterministic from the world seed.
 - **Day/night cycle** — 20-minute days with sunrise/sunset palettes, moving sun
   and moon, a star dome at night, drifting clouds, and lighting that changes
   what spawns.
