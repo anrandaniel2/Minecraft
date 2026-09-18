@@ -162,6 +162,10 @@ Ten mob types, all driven by one AI with per-type stats:
 - **Debug overlay (F3)** and **player list (Tab)**, chat with history, toasts,
   damage vignette, underwater tint, screenshots (F2) and multi-touch controls
   for phones (see [Playing on a phone](#playing-on-a-phone)).
+- **Minecraft texture packs** — import a Bedrock (or Java) pack you own and the
+  world renders with its art at 16/32/64/128 px, without a Mojang asset ever
+  entering the repository (see
+  [Custom textures](#custom-textures-minecraft-packs)).
 
 ### Multiplayer
 
@@ -458,9 +462,9 @@ Full details, including the name-matching rules and the PNG formats accepted:
   the project headlessly, compiles **every** script with
   `tests/compile_check.tscn` (so a helper nothing references cannot rot
   unnoticed), loads the main scene looking for script errors and runs
-  `tests/smoke_test.gd` (the headless suite over the registries, the atlas
-  manifests, recipe matching, terrain generation, structures, achievements,
-  mob/trade tables, container serialisation and the touch-control logic).
+  `tests/smoke_test.gd` (403 checks over the registries, the atlas manifests,
+  recipe matching, terrain generation, structures, achievements, mob/trade
+  tables, container serialisation and the touch-control logic).
 - `.github/workflows/android.yml` — the APK build described above.
 - Locally, `godot --headless --path . --import` catches the same script errors,
   `godot --headless --path . res://tests/compile_check.tscn` compiles every
