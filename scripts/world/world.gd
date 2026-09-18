@@ -50,6 +50,7 @@ var _collision_shapes: Dictionary = {}    # Vector2i → CollisionShape3D
 var _materials: Dictionary = {}           # material slot → ShaderMaterial
 var _terrain_shader: Shader
 var _container_tick: float = 0.0
+var _hopper_phase: bool = false
 
 var render_distance: int = 7
 
@@ -223,10 +224,20 @@ func _tick_containers(delta: float) -> void:
 	var origin: Vector3 = player.global_position
 	for position in _containers.keys():
 		var container: BlockContainer = _containers[position]
-		if container == null or container.kind != BlockContainer.KIND_FURNACE:
+		if container == null:
 			continue
 		var center: Vector3 = Vector3(position) + Vector3(0.5, 0.5, 0.5)
 		if center.distance_to(origin) > CONTAINER_TICK_DISTANCE:
+			continue
+		if container.kind == BlockContainer.KIND_HOPPER:
+		# Hoppers move one item every other container tick, which works out at
+		# roughly two items a second - fast enough to feel busy, slow enough to
+		# see and to keep a long line of them from eating the frame budget.
+		_hopper_phase = not _hopper_phase
+		if _hopper_phase and _tick_hopper(position, container):
+			container_changed.emit(position)
+		continue
+		if container.kind != BlockContainer.KIND_FURNACE:
 			continue
 		var was_lit: bool = container.lit
 		var smelted: bool = container.tick_furnace(step)
@@ -887,6 +898,39 @@ func spawn_mob(mob_type: String, position: Vector3, persistent: bool = false) ->
 
 
 signal container_changed(pos: Vector3i)
+
+
+## One hopper tick: push an item into the container it points at, or otherwise
+## pull one out of the container sitting on top of it.
+func _tick_hopper(position: Vector3i, container: BlockContainer) -> bool:
+	var direction: Vector3i = facing_offset(get_block_meta(position))
+	var target: BlockContainer = get_container(position + direction)
+	if target != null and BlockContainer.transfer_one(container, target):
+		return true
+	if not container.is_empty():
+		# Still holding something: wait for the target to drain instead of
+		# hoarding a second load on top of what it cannot pass on.
+		return false
+	var source: BlockContainer = get_container(position + Vector3i(0, 1, 0))
+	if source != null and BlockContainer.transfer_one(source, container):
+		return true
+	return false
+
+
+## The facing meta written by placement, as a world offset.
+static func facing_offset(meta: int) -> Vector3i:
+	match meta & 0x7:
+		0:
+			return Vector3i(1, 0, 0)
+		1:
+			return Vector3i(-1, 0, 0)
+		2:
+			return Vector3i(0, 0, 1)
+		3:
+			return Vector3i(0, 0, -1)
+		4:
+			return Vector3i(0, 1, 0)
+	return Vector3i(0, -1, 0)
 
 
 func get_container(pos: Vector3i) -> BlockContainer:

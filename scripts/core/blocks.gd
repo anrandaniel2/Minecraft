@@ -557,6 +557,9 @@ static func _register_furniture() -> void:
 	_register("rail", {"all": "rail"}, {"hardness": 0.7, "sound": SOUND_STONE,
 		"shape": SHAPE_LAYER, "opaque": false, "solid": false, "cutout": true,
 		"drops": [{"item": "rail", "count": 1}]})
+	_register("hopper", {"top": "hopper_top", "bottom": "hopper_side", "side": "hopper_side",
+		"front": "hopper_side"}, {"hardness": 3.0, "tool": "pickaxe", "tier": TIER_WOOD,
+		"facing": true, "container": "hopper"})
 
 
 static func _register_wool() -> void:

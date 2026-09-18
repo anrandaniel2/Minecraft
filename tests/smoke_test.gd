@@ -66,7 +66,7 @@ func _test_registries() -> void:
 	check(Items.defs.size() > 200, "more than 200 items (%d)" % Items.defs.size())
 	for block_name in ["stone", "grass_block", "dirt", "sand", "oak_log", "oak_planks", "chest",
 			"furnace", "torch", "water", "lava", "bedrock", "diamond_ore", "piston", "piston_arm",
-			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed", "rail"]:
+			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed", "rail", "hopper"]:
 		check(Blocks.id(block_name) > 0, "block '%s' registered" % block_name)
 	for item_name in ["stick", "coal", "charcoal", "iron_ingot", "raw_iron", "diamond", "emerald",
 			"stone_pickaxe", "diamond_sword", "iron_chestplate", "bread", "apple", "wheat_seeds",
@@ -204,6 +204,31 @@ func _test_recipes() -> void:
 	check(bed_block.shape == Blocks.SHAPE_SLAB, "beds sit low like a slab")
 	check(Blocks.tile_cell("bed_top").x >= 0 and Blocks.tile_cell("bed_side").x >= 0,
 		"the bed has both atlas tiles")
+
+	# Hopper: five iron and a chest, and it shuffles items between containers.
+	var iron: int = Items.id("iron_ingot")
+	var chest_item: int = Blocks.id("chest")
+	var hopper_grid: Array = [iron, -1, iron, iron, chest_item, iron, -1, iron, -1]
+	var hopper_recipe: Recipes.Recipe = Recipes.match(hopper_grid, 3, 3)
+	check(hopper_recipe != null, "iron and a chest match the hopper recipe")
+	if hopper_recipe != null:
+		check(Items.id(str(hopper_recipe.results[0]["item"])) == Blocks.id("hopper"),
+			"the hopper recipe makes a hopper")
+	var hopper: BlockContainer = BlockContainer.new(BlockContainer.KIND_HOPPER)
+	var chest_box: BlockContainer = BlockContainer.new(BlockContainer.KIND_CHEST)
+	check(hopper.size() == 5, "a hopper holds five slots")
+	chest_box.add(Items.id("coal"), 3)
+	check(BlockContainer.transfer_one(chest_box, hopper), "a hopper pulls an item")
+	check(hopper.count_of(Items.id("coal")) == 1, "exactly one item moves per transfer")
+	check(chest_box.count_of(Items.id("coal")) == 2, "the source container loses that item")
+	check(BlockContainer.transfer_one(hopper, chest_box), "a hopper pushes into a chest")
+	check(hopper.is_empty(), "the hopper is empty after pushing")
+	var full_box: BlockContainer = BlockContainer.new(BlockContainer.KIND_CHEST)
+	for index in full_box.size():
+		full_box.add(Items.id("stone"), Items.max_stack(Items.id("stone")))
+	check(not BlockContainer.transfer_one(chest_box, full_box),
+		"a full container refuses hopper transfers")
+	check(World.facing_offset(2) == Vector3i(0, 0, 1), "hopper facing maps to an offset")
 
 	var smelt: Dictionary = Recipes.smelting_for(Items.id("iron_ore"))
 	check(not smelt.is_empty(), "iron ore can be smelted")

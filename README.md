@@ -12,7 +12,7 @@ registries are data-driven, and every script is plain GDScript with no external
 addons.
 
 <p align="center">
-  <em>122 block types, 353 items, 96 recipes, 11 biomes, 10 mob types, 39 sounds,
+  <em>123 block types, 353 items, 97 recipes, 11 biomes, 10 mob types, 39 sounds,
   villages, dungeons, mineshafts and ENet multiplayer.</em>
 </p>
 
@@ -80,6 +80,9 @@ addons.
   into ingots and raw meat into cooked meat.
 - **Death and respawn** — inventory drops (unless "keep inventory" is on) and the
   player respawns at the world spawn three seconds later.
+- **Hoppers** — five iron and a chest. A hopper pushes an item into whatever
+  container it faces, and pulls one out of the container sitting on top of it,
+  so a line of them moves a mine's worth of ore into your chests on its own.
 - **Beds** — three wool over three planks. Right-click one at night to sleep
   through to dawn and move your respawn point to the bed; it refuses while
   monsters are within eight blocks, so night is not a free pass.

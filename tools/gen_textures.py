@@ -653,6 +653,25 @@ def tex_workstation(kind: str, seed: int = 40) -> Canvas:
     raise ValueError(f"unknown workstation texture: {kind}")
 
 
+def tex_hopper(kind: str) -> Canvas:
+    """Hopper: a metal funnel (top) and a bucket-shaped body (sides)."""
+    canvas = noise_canvas(50, "#6f7276", contrast=0.12, scale=4.0)
+    if kind == "top":
+        canvas.rect(1, 1, TILE - 2, TILE - 2, "#4a4d50")      # funnel mouth
+        canvas.rect(2, 2, TILE - 4, TILE - 4, "#2f3133")
+        canvas.rect(0, 0, TILE, 1, "#8f9397")
+        canvas.rect(0, TILE - 1, TILE, 1, "#5c5f63")
+        return canvas
+    canvas.rect(0, 0, TILE, 1, "#8f9397")
+    canvas.rect(0, 1, TILE, 3, "#5c5f63")                       # rim
+    for y in range(4, 11):
+        canvas.rect(1, y, 1, 1, "#8f9397")                      # tapered body
+        canvas.rect(TILE - 2, y, 1, 1, "#8f9397")
+    canvas.rect(4, 11, 8, 4, "#7c8085")                         # spout
+    canvas.rect(5, 12, 6, 2, "#3f4245")
+    return canvas
+
+
 def tex_rail() -> Canvas:
     """Minecart track: two metal rails over wooden sleepers."""
     canvas = Canvas(TILE)

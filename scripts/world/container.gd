@@ -9,6 +9,7 @@ extends RefCounted
 const KIND_CHEST: String = "chest"
 const KIND_FURNACE: String = "furnace"
 const KIND_DISPENSER: String = "dispenser"
+const KIND_HOPPER: String = "hopper"
 
 var kind: String = KIND_CHEST
 var position: Vector3i = Vector3i.ZERO
@@ -35,6 +36,9 @@ func _init(container_kind: String = KIND_CHEST) -> void:
 		KIND_DISPENSER:
 			title = "Dispenser"
 			_resize(9)
+		KIND_HOPPER:
+			title = "Hopper"
+			_resize(5)
 		_:
 			title = "Chest"
 			_resize(27)
@@ -152,6 +156,32 @@ func remove(item_id: int, count: int) -> int:
 		remaining -= taken
 		set_slot(index, stack)
 	return count - remaining
+
+
+## Moves a single item from one container into another; used by hoppers, which
+## call this once per tick so a line of them shuffles items along. Returns true
+## when something actually moved.
+static func transfer_one(from: BlockContainer, to: BlockContainer) -> bool:
+	if from == null or to == null:
+		return false
+	for index in from.size():
+		var stack: Variant = from.get_slot(index)
+		if stack == null:
+			continue
+		var item_id: int = int(stack["id"])
+		if not to.has_room_for(item_id, 1):
+			continue
+		var taken: Variant = from.take_from_slot(index, 1)
+		if taken == null:
+			continue
+		var durability: int = int(taken.get("durability", 0))
+		var leftover: int = to.add(int(taken["id"]), int(taken["count"]), durability)
+		if leftover > 0:
+			# Put it back where it came from: the target filled up mid-tick.
+			from.add(int(taken["id"]), leftover, durability)
+			continue
+		return true
+	return false
 
 
 func is_empty() -> bool:
