@@ -28,8 +28,6 @@ var _floating: bool = false
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	if blocks_gameplay:
-		add_to_group("ui_blocking")
 	visible = false
 	_build_cursor()
 
@@ -323,6 +321,8 @@ func _notify_contents_changed() -> void:
 
 func open() -> void:
 	visible = true
+	if blocks_gameplay:
+		add_to_group("ui_blocking")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().paused = auto_pause
 	refresh()
@@ -331,6 +331,7 @@ func open() -> void:
 func close() -> void:
 	_return_cursor()
 	visible = false
+	remove_from_group("ui_blocking")
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	get_tree().paused = false
 	closed.emit()

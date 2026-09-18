@@ -12,7 +12,7 @@ registries are data-driven, and every script is plain GDScript with no external
 addons.
 
 <p align="center">
-  <em>123 block types, 353 items, 97 recipes, 11 biomes, 10 mob types, 39 sounds,
+  <em>124 block types, 353 items, 98 recipes, 11 biomes, 10 mob types, 39 sounds,
   villages, dungeons, mineshafts and ENet multiplayer.</em>
 </p>
 
@@ -80,6 +80,9 @@ addons.
   into ingots and raw meat into cooked meat.
 - **Death and respawn** — inventory drops (unless "keep inventory" is on) and the
   player respawns at the world spawn three seconds later.
+- **Signs** — six planks and a stick. Right-click a sign empty-handed to write
+  on it; the text floats above the post for everyone nearby and is saved with
+  the world, so you can label a base, a mine or a chest room.
 - **Hoppers** — five iron and a chest. A hopper pushes an item into whatever
   container it faces, and pulls one out of the container sitting on top of it,
   so a line of them moves a mine's worth of ore into your chests on its own.

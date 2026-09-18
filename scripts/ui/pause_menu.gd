@@ -24,7 +24,6 @@ var _port_field: LineEdit
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	add_to_group("ui_blocking")
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build()
@@ -189,6 +188,7 @@ func _rebuild_mp() -> void:
 
 func open() -> void:
 	visible = true
+	add_to_group("ui_blocking")
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_update_info()
@@ -197,6 +197,7 @@ func open() -> void:
 
 func close() -> void:
 	visible = false
+	remove_from_group("ui_blocking")
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	resumed.emit()

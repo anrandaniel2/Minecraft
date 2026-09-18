@@ -170,8 +170,14 @@ jobs:
           lines = open("/tmp/smoke.log", errors="replace").read().splitlines()
           shown = 0
           index = 0
+          # --script runs do not register the autoloads, so anything that needs
+          # Settings fails to compile here; the boot step covers that properly.
+          noise = ("Identifier not found: Settings", "Failed to compile depended scripts")
           while index < len(lines) and shown < 20:
               line = lines[index]
+              if any(marker in line for marker in noise):
+                  index += 1
+                  continue
               if "FAIL" in line or "SCRIPT ERROR" in line or "Parse Error" in line:
                   joined = " | ".join(part.strip() for part in lines[index:index + 3])
                   print("::error::%s" % joined)

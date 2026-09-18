@@ -16,6 +16,7 @@ var world: World
 var inventory_screen: InventoryScreen
 var container_screen: ContainerScreen
 var trade_screen: TradeScreen
+var sign_screen: SignScreen
 var pause_menu: Control
 
 var _root: Control
@@ -306,6 +307,9 @@ func _build_screens() -> void:
 	trade_screen = TradeScreen.new()
 	trade_screen.name = "TradeScreen"
 	add_child(trade_screen)
+	sign_screen = SignScreen.new()
+	sign_screen.name = "SignScreen"
+	add_child(sign_screen)
 
 
 # ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@ signal inventory_changed()
 signal open_container_screen(container: BlockContainer, position: Vector3i)
 signal open_crafting_screen(kind: String)
 signal open_trade_screen(mob: Node)
+signal open_sign_editor(position: Vector3i)
 
 const WALK_SPEED: float = 4.4
 const SPRINT_SPEED: float = 6.1
@@ -207,7 +208,7 @@ func _build_nodes() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if is_dead:
 		return
-	var ui_blocking: bool = get_tree().get_first_node_in_group("ui_blocking") != null
+	var ui_blocking: bool = _ui_blocking()
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not ui_blocking:
 		var motion := event as InputEventMouseMotion
 		var sensitivity: float = float(Settings.get_value("sensitivity")) * 1.6
@@ -523,10 +524,21 @@ func _handle_hotbar_input() -> void:
 			AudioManager.play_ui()
 
 
+## True while an open screen owns the mouse and keyboard. Screens join the
+## "ui_blocking" group only while they are visible, and hidden leftovers are
+## ignored, so a stale group entry can never lock out mining or mouse look.
+func _ui_blocking() -> bool:
+	for node in get_tree().get_nodes_in_group("ui_blocking"):
+		var item := node as CanvasItem
+		if item != null and item.is_visible_in_tree():
+			return true
+	return false
+
+
 func _handle_actions(delta: float) -> void:
 	if world == null:
 		return
-	var ui_blocking: bool = get_tree().get_first_node_in_group("ui_blocking") != null
+	var ui_blocking: bool = _ui_blocking()
 	if ui_blocking:
 		_attack_held = false
 		_use_held = false
@@ -734,6 +746,11 @@ func _use(delta: float) -> void:
 		return
 	var position: Vector3i = target["position"]
 	var block_id: int = int(target["block"])
+	# Empty-handed use edits a sign; holding anything still places it.
+	if Blocks.name_of(block_id) == "sign" and item_id < 0 and _use_cooldown <= 0.0:
+		_use_cooldown = 0.3
+		open_sign_editor.emit(position)
+		return
 	if Blocks.name_of(block_id) == "bed" and _use_cooldown <= 0.0:
 		_use_cooldown = 0.3
 		_try_sleep(position)

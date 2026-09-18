@@ -66,7 +66,7 @@ func _test_registries() -> void:
 	check(Items.defs.size() > 200, "more than 200 items (%d)" % Items.defs.size())
 	for block_name in ["stone", "grass_block", "dirt", "sand", "oak_log", "oak_planks", "chest",
 			"furnace", "torch", "water", "lava", "bedrock", "diamond_ore", "piston", "piston_arm",
-			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed", "rail", "hopper"]:
+			"tnt", "obsidian", "glowstone", "crafting_table", "flower_poppy", "red_wool", "bed", "rail", "hopper", "sign"]:
 		check(Blocks.id(block_name) > 0, "block '%s' registered" % block_name)
 	for item_name in ["stick", "coal", "charcoal", "iron_ingot", "raw_iron", "diamond", "emerald",
 			"stone_pickaxe", "diamond_sword", "iron_chestplate", "bread", "apple", "wheat_seeds",
@@ -230,6 +230,21 @@ func _test_recipes() -> void:
 		"a full container refuses hopper transfers")
 	check(Blocks.facing_offset(2) == Vector3i(0, 0, 1), "hopper facing maps to an offset")
 	check(Blocks.facing_offset(4) == Vector3i(0, 1, 0), "a downward-facing hopper points down")
+
+	# Sign: six planks over a stick, three blocks at a time.
+	var plank: int = Items.id("oak_planks")
+	var stick: int = Items.id("stick")
+	var sign_grid: Array = [plank, plank, plank, plank, plank, plank, -1, stick, -1]
+	var sign_recipe: Recipes.Recipe = Recipes.match(sign_grid, 3, 3)
+	check(sign_recipe != null, "planks and a stick match the sign recipe")
+	if sign_recipe != null:
+		check(Items.id(str(sign_recipe.results[0]["item"])) == Blocks.id("sign"),
+			"the sign recipe makes a sign")
+		check(int(sign_recipe.results[0]["count"]) == 3, "one recipe gives three signs")
+	var sign_def: BlockDef = Blocks.def(Blocks.id("sign"))
+	check(sign_def.shape == Blocks.SHAPE_TORCH, "signs stand on a post like a torch")
+	check(not sign_def.solid and not sign_def.opaque, "players can walk through a sign")
+	check(sign_def.drops.size() == 1, "a broken sign gives itself back")
 
 	var smelt: Dictionary = Recipes.smelting_for(Items.id("iron_ore"))
 	check(not smelt.is_empty(), "iron ore can be smelted")

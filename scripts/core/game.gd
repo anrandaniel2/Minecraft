@@ -86,6 +86,7 @@ func _build_hud() -> void:
 	player.open_container_screen.connect(_on_open_container)
 	player.open_crafting_screen.connect(_on_open_crafting)
 	player.open_trade_screen.connect(_on_open_trade)
+	player.open_sign_editor.connect(_on_open_sign_editor)
 
 
 func _build_loading_overlay() -> void:
@@ -276,6 +277,12 @@ func _on_open_trade(mob: Node) -> void:
 	var trade_ui: TradeScreen = hud.trade_screen
 	if trade_ui != null:
 		trade_ui.open_with(player, mob)
+
+
+func _on_open_sign_editor(position: Vector3i) -> void:
+	if hud == null:
+		return
+	hud.sign_screen.open_with(world, position)
 
 
 func _on_open_container(container: BlockContainer, position: Vector3i) -> void:

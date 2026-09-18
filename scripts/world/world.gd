@@ -44,6 +44,9 @@ var _gen_queue: Array = []                # coords waiting for a generator slot
 var _dirty: Dictionary = {}               # Vector2i → true (needs a remesh)
 var _edits: Dictionary = {}               # Vector2i → {local index: [id, meta]}
 var _containers: Dictionary = {}          # Vector3i → BlockContainer
+var _signs: Dictionary = {}               # Vector3i → sign text
+var _sign_labels: Dictionary = {}         # Vector3i → Label3D
+var _sign_timer: float = 0.0
 var _chunk_meshes: Dictionary = {}        # Vector2i → MeshInstance3D
 var _collision_body: StaticBody3D
 var _collision_shapes: Dictionary = {}    # Vector2i → CollisionShape3D
@@ -53,6 +56,7 @@ var _container_tick: float = 0.0
 var _hopper_phase: bool = false
 
 var render_distance: int = 7
+const SIGN_LABEL_DISTANCE: float = 48.0
 
 var player: Node3D
 var _last_player_chunk: Vector2i = Vector2i(9999, 9999)
@@ -212,6 +216,7 @@ func _process(delta: float) -> void:
 		_generate_now(player_chunk)
 	_pump_streaming()
 	_tick_containers(delta)
+	_tick_sign_labels(delta)
 
 
 ## Furnaces near the player keep smelting while the world is loaded.
@@ -917,6 +922,88 @@ func _tick_hopper(position: Vector3i, container: BlockContainer) -> bool:
 	return false
 
 
+# ---------------------------------------------------------------------------
+# Signs
+# ---------------------------------------------------------------------------
+
+
+## Stores the text written on a sign, or clears it when the text is empty.
+func set_sign_text(pos: Vector3i, text: String) -> void:
+	var trimmed: String = text.strip_edges()
+	if trimmed == "":
+		_signs.erase(pos)
+	else:
+		_signs[pos] = trimmed
+	_refresh_sign_label(pos)
+
+
+func sign_text(pos: Vector3i) -> String:
+	return str(_signs.get(pos, ""))
+
+
+func sign_count() -> int:
+	return _signs.size()
+
+
+## Drops sign text when the block is no longer a sign, so a broken sign never
+## leaves a floating label behind.
+func _forget_sign(pos: Vector3i) -> void:
+	if not _signs.has(pos) and not _sign_labels.has(pos):
+		return
+	_signs.erase(pos)
+	var label: Label3D = _sign_labels.get(pos)
+	if label != null and is_instance_valid(label):
+		label.queue_free()
+	_sign_labels.erase(pos)
+
+
+## Keeps billboarded text alive for the signs around the player. Creating and
+## destroying labels on a slow timer is cheaper than tracking chunk streaming.
+func _tick_sign_labels(delta: float) -> void:
+	if _signs.is_empty() and _sign_labels.is_empty():
+		return
+	_sign_timer += delta
+	if _sign_timer < 0.4:
+		return
+	_sign_timer = 0.0
+	var origin: Vector3 = player.global_position if player != null else _spawn_position
+	for position in _signs.keys():
+		var text: String = str(_signs[position])
+		if player != null and Vector3(position).distance_to(origin) > SIGN_LABEL_DISTANCE:
+			var away: Label3D = _sign_labels.get(position)
+			if away != null and is_instance_valid(away):
+				away.visible = false
+			continue
+		_create_sign_label(position, text)
+
+
+func _create_sign_label(pos: Vector3i, text: String) -> void:
+	var label: Label3D = _sign_labels.get(pos)
+	if label == null or not is_instance_valid(label):
+		label = Label3D.new()
+		label.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+		label.pixel_size = 0.0055
+		label.font_size = 48
+		label.outline_size = 12
+		label.modulate = Color(1, 1, 1)
+		label.no_depth_test = false
+		label.name = "SignLabel"
+		add_child(label)
+		_sign_labels[pos] = label
+	label.text = text
+	label.visible = true
+	label.global_position = Vector3(pos) + Vector3(0.5, 1.15, 0.5)
+
+
+## Called by the sign editor when a label should appear or change right away.
+func _refresh_sign_label(pos: Vector3i) -> void:
+	var text: String = sign_text(pos)
+	if text == "":
+		_forget_sign(pos)
+		return
+	_create_sign_label(pos, text)
+
+
 func get_container(pos: Vector3i) -> BlockContainer:
 	var existing: BlockContainer = _containers.get(pos)
 	if existing != null:
@@ -1071,6 +1158,23 @@ func apply_entities(data: Array) -> void:
 
 
 ## Everything the save file needs about the world state.
+func serialize_signs() -> Array:
+	var out: Array = []
+	for pos in _signs:
+		out.append({"x": pos.x, "y": pos.y, "z": pos.z, "text": _signs[pos]})
+	return out
+
+
+func apply_signs(data: Array) -> void:
+	for entry in data:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var pos := Vector3i(int(entry.get("x", 0)), int(entry.get("y", 0)), int(entry.get("z", 0)))
+		var text: String = str(entry.get("text", ""))
+		if text != "":
+			_signs[pos] = text
+
+
 func save_state() -> Dictionary:
 	return {
 		"day_time": day_night.time_of_day,
@@ -1078,6 +1182,7 @@ func save_state() -> Dictionary:
 		"weather_timer": weather.time_left,
 		"played_seconds": played_seconds,
 		"spawn": {"x": _spawn_position.x, "y": _spawn_position.y, "z": _spawn_position.z},
+		"signs": serialize_signs(),
 	}
 
 
@@ -1086,6 +1191,7 @@ func apply_state(state: Dictionary) -> void:
 	weather.set_weather(str(state.get("weather", "clear")))
 	weather.time_left = float(state.get("weather_timer", 120.0))
 	played_seconds = float(state.get("played_seconds", 0.0))
+	apply_signs(state.get("signs", []))
 	var spawn = state.get("spawn")
 	if typeof(spawn) == TYPE_DICTIONARY:
 		_spawn_position = Vector3(float(spawn.get("x", 0.5)), float(spawn.get("y", 80.0)),

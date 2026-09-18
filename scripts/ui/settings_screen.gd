@@ -14,7 +14,6 @@ var _status: Label
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	add_to_group("ui_blocking")
 	visible = false
 	_build()
 
@@ -81,11 +80,13 @@ func _build() -> void:
 
 func open() -> void:
 	visible = true
+	add_to_group("ui_blocking")
 	_rebuild()
 
 
 func close() -> void:
 	visible = false
+	remove_from_group("ui_blocking")
 	Settings.save_settings()
 	closed.emit()
 

@@ -653,6 +653,24 @@ def tex_workstation(kind: str, seed: int = 40) -> Canvas:
     raise ValueError(f"unknown workstation texture: {kind}")
 
 
+def tex_sign(kind: str) -> Canvas:
+    """Sign: a board on a post (side) and the board seen from above (top)."""
+    if kind == "top":
+        canvas = tex_planks("oak", "#b38547")
+        canvas.rect(0, 0, TILE, 1, "#8a5f2c")
+        canvas.rect(0, TILE - 1, TILE, 1, "#6f4a1f")
+        return canvas
+    canvas = Canvas(TILE)
+    canvas.rect(6, 5, 4, 11, "#7c5426")                     # post
+    canvas.rect(6, 5, 1, 11, "#8f6531")
+    canvas.rect(1, 1, 14, 5, "#b38547")                     # board
+    canvas.rect(1, 1, 14, 1, "#c99a58")
+    canvas.rect(1, 5, 14, 1, "#8a5f2c")
+    for x in range(3, 14, 4):                               # faint grain
+        canvas.set(x, 3, "#a0763f")
+    return canvas
+
+
 def tex_hopper(kind: str) -> Canvas:
     """Hopper: a metal funnel (top) and a bucket-shaped body (sides)."""
     canvas = noise_canvas(50, "#6f7276", contrast=0.12, scale=4.0)
