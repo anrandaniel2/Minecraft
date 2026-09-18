@@ -17,7 +17,7 @@ signal died()
 signal respawned()
 signal item_dropped(item_id: int, count: int)
 signal inventory_changed()
-signal open_container_screen(container: Container, position: Vector3i)
+signal open_container_screen(container: BlockContainer, position: Vector3i)
 signal open_crafting_screen(kind: String)
 signal open_trade_screen(mob: Node)
 
@@ -41,8 +41,8 @@ const RESPAWN_DELAY: float = 3.0
 
 # --- state ---
 var world: World
-var inventory: Container
-var armor: Container                     # 4 slots: head, chest, legs, feet
+var inventory: BlockContainer
+var armor: BlockContainer                     # 4 slots: head, chest, legs, feet
 var hotbar_index: int = 0
 var health: float = MAX_HEALTH
 var hunger: float = MAX_HUNGER
@@ -106,10 +106,10 @@ func _ready() -> void:
 	floor_max_angle = deg_to_rad(50.0)
 	floor_snap_length = 0.35
 	gamemode = str(Settings.get_value("gamemode"))
-	inventory = Container.new(Container.KIND_CHEST)
+	inventory = BlockContainer.new(BlockContainer.KIND_CHEST)
 	inventory._resize(INVENTORY_SIZE)
 	inventory.title = "Inventory"
-	armor = Container.new(Container.KIND_CHEST)
+	armor = BlockContainer.new(BlockContainer.KIND_CHEST)
 	armor._resize(ARMOR_SLOTS)
 	armor.title = "Armour"
 	_build_nodes()
@@ -831,7 +831,7 @@ static func _facing_from_normal(normal: Vector3i, from_block: bool) -> int:
 
 
 func _open_container(position: Vector3i) -> void:
-	var container: Container = world.get_container(position)
+	var container: BlockContainer = world.get_container(position)
 	if container == null:
 		return
 	open_container_screen.emit(container, position)
@@ -1252,7 +1252,7 @@ func apply_state(state: Dictionary) -> void:
 	stats_changed.emit()
 
 
-func _restore_items(data: Array, target: Container) -> void:
+func _restore_items(data: Array, target: BlockContainer) -> void:
 	for index in mini(data.size(), target.size()):
 		var entry = data[index]
 		if typeof(entry) != TYPE_DICTIONARY or entry.is_empty():
@@ -1260,5 +1260,5 @@ func _restore_items(data: Array, target: Container) -> void:
 		var item_id: int = Items.id(str(entry.get("item", "")))
 		if item_id < 0:
 			continue
-		target.set_slot(index, Container.make_stack(item_id, int(entry.get("count", 1)),
+		target.set_slot(index, BlockContainer.make_stack(item_id, int(entry.get("count", 1)),
 			int(entry.get("durability", 0))))

@@ -1,4 +1,4 @@
-class_name Container
+class_name BlockContainer
 extends RefCounted
 
 ## An inventory block's storage: chests, furnaces, dispensers and the player's
@@ -179,7 +179,7 @@ func clear() -> void:
 
 
 ## Moves a whole stack or as much as fits between two containers.
-static func transfer(from: Container, from_index: int, to: Container) -> bool:
+static func transfer(from: BlockContainer, from_index: int, to: BlockContainer) -> bool:
 	var stack: Variant = from.get_slot(from_index)
 	if stack == null:
 		return false
@@ -195,7 +195,7 @@ static func transfer(from: Container, from_index: int, to: Container) -> bool:
 
 
 ## Merges two stacks of the same item (used when dropping onto an occupied slot).
-static func merge(from: Container, from_index: int, to: Container, to_index: int) -> bool:
+static func merge(from: BlockContainer, from_index: int, to: BlockContainer, to_index: int) -> bool:
 	var source: Variant = from.get_slot(from_index)
 	var target: Variant = to.get_slot(to_index)
 	if source == null:

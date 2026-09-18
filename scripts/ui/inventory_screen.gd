@@ -205,7 +205,7 @@ func _update_result() -> void:
 		_result_slot.set_stack(null)
 		return
 	_result_preview_item = item_id
-	_result_slot.set_stack(Container.make_stack(item_id, int(first.get("count", 1))))
+	_result_slot.set_stack(BlockContainer.make_stack(item_id, int(first.get("count", 1))))
 
 
 func _consume_crafting_grid() -> void:
@@ -340,7 +340,7 @@ func _try_autofill(recipe: Recipes.Recipe) -> void:
 		var item_id: int = int(entry[1])
 		if player.inventory.remove(item_id, 1) <= 0:
 			break
-		_craft_stacks[slot_index] = Container.make_stack(item_id, 1)
+		_craft_stacks[slot_index] = BlockContainer.make_stack(item_id, 1)
 	_sync_craft_slots()
 	_update_result()
 	_notify_contents_changed()
@@ -421,7 +421,7 @@ func _build_palette() -> void:
 		slot.custom_minimum_size = Vector2(44, 44)
 		slot.manual = true
 		slot.infinite = true
-		slot.manual_stack = Container.make_stack(int(item_id), Items.max_stack(int(item_id)))
+		slot.manual_stack = BlockContainer.make_stack(int(item_id), Items.max_stack(int(item_id)))
 		slot.clicked.connect(_on_slot_clicked)
 		slot.tooltip_text = Items.display_name(int(item_id))
 		grid.add_child(slot)

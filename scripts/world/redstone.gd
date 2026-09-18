@@ -367,7 +367,7 @@ static func _facing_direction(facing: int) -> Vector3i:
 
 ## Dispensers shoot the item in slot 0 of their container.
 func fire_dispenser(pos: Vector3i) -> void:
-	var container: Container = world.get_container(pos)
+	var container: BlockContainer = world.get_container(pos)
 	if container == null:
 		return
 	var stack: Variant = container.get_slot(0)

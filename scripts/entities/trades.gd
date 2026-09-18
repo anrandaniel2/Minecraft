@@ -89,7 +89,7 @@ static func offers(profession: String) -> Array:
 
 
 ## Checks whether a trade can be made and how many times in a row.
-static func affordable(offer: Dictionary, inventory: Container) -> int:
+static func affordable(offer: Dictionary, inventory: BlockContainer) -> int:
 	var give_id: int = Items.id(str(offer.get("give", "")))
 	if give_id < 0:
 		return 0
@@ -97,7 +97,7 @@ static func affordable(offer: Dictionary, inventory: Container) -> int:
 	return inventory.count_of(give_id) / needed
 
 
-static func apply_offer(offer: Dictionary, inventory: Container) -> bool:
+static func apply_offer(offer: Dictionary, inventory: BlockContainer) -> bool:
 	var give_id: int = Items.id(str(offer.get("give", "")))
 	var get_id: int = Items.id(str(offer.get("get", "")))
 	if give_id < 0 or get_id < 0:

@@ -306,7 +306,7 @@ func request_container(pos: Vector3i) -> void:
 func _request_container_rpc(pos: Vector3i) -> void:
 	if not is_host or _world == null:
 		return
-	var container: Container = _world.get_container(pos)
+	var container: BlockContainer = _world.get_container(pos)
 	if container == null:
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
@@ -317,13 +317,13 @@ func _request_container_rpc(pos: Vector3i) -> void:
 func _send_container(pos: Vector3i, data: Array) -> void:
 	if _world == null:
 		return
-	var container: Container = _world.get_container(pos)
+	var container: BlockContainer = _world.get_container(pos)
 	if container == null:
 		return
 	container.deserialize(data)
 
 
-func broadcast_container(pos: Vector3i, container: Container) -> void:
+func broadcast_container(pos: Vector3i, container: BlockContainer) -> void:
 	if not is_active() or not is_host or container == null:
 		return
 	_send_container.rpc(pos, container.serialize())

@@ -7,7 +7,7 @@ extends SlotScreen
 ## dispensers are plain grids. Shift-click moves stacks both ways, and every
 ## change is mirrored to other players by MpManager.
 
-var container: Container = null
+var container: BlockContainer = null
 var container_position: Vector3i = Vector3i.ZERO
 
 var _title_label: Label
@@ -98,14 +98,14 @@ func setup(player_ref: Player) -> void:
 		_hotbar_slots[index].index = 27 + index
 
 
-func open_with(player_ref: Player, target: Container, position: Vector3i) -> void:
+func open_with(player_ref: Player, target: BlockContainer, position: Vector3i) -> void:
 	setup(player_ref)
 	container = target
 	container_position = position
 	if _title_label != null:
 		_title_label.text = container.title
 	_rebuild_container_slots()
-	var is_furnace: bool = container.kind == Container.KIND_FURNACE
+	var is_furnace: bool = container.kind == BlockContainer.KIND_FURNACE
 	_furnace_box.visible = is_furnace
 	open()
 
@@ -116,7 +116,7 @@ func _rebuild_container_slots() -> void:
 	_container_slots.clear()
 	if container == null:
 		return
-	if container.kind == Container.KIND_FURNACE:
+	if container.kind == BlockContainer.KIND_FURNACE:
 		# Input → flame → output, with the fuel slot underneath.
 		var row := add_row(_container_holder)
 		_container_slots.append(_spawn_slot(row, 0))
@@ -158,7 +158,7 @@ func _process(delta: float) -> void:
 	super._process(delta)
 	if not visible or container == null:
 		return
-	if container.kind != Container.KIND_FURNACE:
+	if container.kind != BlockContainer.KIND_FURNACE:
 		return
 	_cook_bar.value = container.furnace_progress()
 	_fuel_bar.value = container.fuel_progress()
@@ -176,7 +176,7 @@ func _process(delta: float) -> void:
 		_status_label.text = "Out of fuel - add coal or wood"
 
 
-func _transfer_target(slot: ItemSlot) -> Container:
+func _transfer_target(slot: ItemSlot) -> BlockContainer:
 	if player == null or container == null:
 		return null
 	if _container_slots.has(slot):

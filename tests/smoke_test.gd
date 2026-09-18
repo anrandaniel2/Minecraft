@@ -168,12 +168,12 @@ func _test_mobs_and_trades() -> void:
 
 func _test_save_format() -> void:
 	print("- saves")
-	var container := Container.new(Container.KIND_FURNACE)
-	container.set_slot(0, Container.make_stack(Items.id("iron_ore"), 3))
-	container.set_slot(1, Container.make_stack(Items.id("coal"), 1))
+	var container := BlockContainer.new(BlockContainer.KIND_FURNACE)
+	container.set_slot(0, BlockContainer.make_stack(Items.id("iron_ore"), 3))
+	container.set_slot(1, BlockContainer.make_stack(Items.id("coal"), 1))
 	var encoded: Array = container.serialize()
 	check(encoded.size() == 3, "a furnace serialises to three slots")
-	var restored := Container.new(Container.KIND_FURNACE)
+	var restored := BlockContainer.new(BlockContainer.KIND_FURNACE)
 	restored.deserialize(encoded)
 	check(restored.get_slot(0) != null and int(restored.get_slot(0)["count"]) == 3,
 		"furnace contents survive a save round trip")
@@ -186,7 +186,7 @@ func _test_save_format() -> void:
 	check(smelted, "the restored furnace actually smelts")
 	check(restored.get_slot(2) != null, "smelting produced output")
 	check(before > 0.0, "sanity: the input stack was there")
-	var chest := Container.new(Container.KIND_CHEST)
+	var chest := BlockContainer.new(BlockContainer.KIND_CHEST)
 	check(chest.size() == 27, "chests have 27 slots")
-	var dispenser := Container.new(Container.KIND_DISPENSER)
+	var dispenser := BlockContainer.new(BlockContainer.KIND_DISPENSER)
 	check(dispenser.size() == 9, "dispensers have 9 slots")

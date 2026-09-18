@@ -89,7 +89,7 @@ func add_label(parent: Node, text: String, size: int = 14) -> Label:
 
 ## Creates a grid of slots bound to a container (or free-floating when
 ## `container` is null, as used by crafting grids).
-func add_slot_grid(parent: Node, container: Container, start_index: int, count: int,
+func add_slot_grid(parent: Node, container: BlockContainer, start_index: int, count: int,
 		columns: int, manual: bool = false, readonly: bool = false) -> Array:
 	var grid := GridContainer.new()
 	grid.columns = columns
@@ -188,7 +188,7 @@ func _on_slot_clicked(slot: ItemSlot, button: int) -> void:
 		elif button == MOUSE_BUTTON_RIGHT and cursor_stack == null:
 			var single: Variant = slot.get_stack()
 			if single != null:
-				set_cursor(Container.make_stack(int(single["id"]), 1))
+				set_cursor(BlockContainer.make_stack(int(single["id"]), 1))
 		return
 	if slot.readonly:
 		# Crafting results can only be taken, never inserted.
@@ -200,7 +200,7 @@ func _on_slot_clicked(slot: ItemSlot, button: int) -> void:
 		elif button == MOUSE_BUTTON_RIGHT and cursor_stack == null:
 			var one: Variant = slot.get_stack()
 			if one != null:
-				set_cursor(Container.make_stack(int(one["id"]), 1))
+				set_cursor(BlockContainer.make_stack(int(one["id"]), 1))
 				_consume_crafting_grid()
 		return
 	if button == 3:
@@ -234,13 +234,13 @@ func _on_slot_clicked(slot: ItemSlot, button: int) -> void:
 		if cursor_stack == null:
 			if stack != null:
 				var half: int = int(ceil(float(stack["count"]) / 2.0))
-				var taken := Container.make_stack(int(stack["id"]), half,
+				var taken := BlockContainer.make_stack(int(stack["id"]), half,
 					int(stack.get("durability", 0)))
 				stack["count"] = int(stack["count"]) - half
 				slot.set_stack(stack if int(stack["count"]) > 0 else null)
 				set_cursor(taken)
 		elif stack == null:
-			slot.set_stack(Container.make_stack(int(cursor_stack["id"]), 1,
+			slot.set_stack(BlockContainer.make_stack(int(cursor_stack["id"]), 1,
 				int(cursor_stack.get("durability", 0))))
 			cursor_stack["count"] = int(cursor_stack["count"]) - 1
 			set_cursor(cursor_stack if int(cursor_stack["count"]) > 0 else null)
@@ -253,7 +253,7 @@ func _on_slot_clicked(slot: ItemSlot, button: int) -> void:
 				set_cursor(cursor_stack if int(cursor_stack["count"]) > 0 else null)
 		else:
 			var swap: Variant = _copy_stack(stack)
-			slot.set_stack(Container.make_stack(int(cursor_stack["id"]), 1,
+			slot.set_stack(BlockContainer.make_stack(int(cursor_stack["id"]), 1,
 				int(cursor_stack.get("durability", 0))))
 			cursor_stack["count"] = int(cursor_stack["count"]) - 1
 			set_cursor(cursor_stack if int(cursor_stack["count"]) > 0 else swap)
@@ -266,13 +266,13 @@ func _quick_move(slot: ItemSlot) -> void:
 	var stack: Variant = slot.get_stack()
 	if stack == null or player == null:
 		return
-	var target: Container = _transfer_target(slot)
+	var target: BlockContainer = _transfer_target(slot)
 	if target == null:
 		return
 	var leftover: int = target.add(int(stack["id"]), int(stack["count"]),
 		int(stack.get("durability", 0)))
 	if leftover < int(stack["count"]):
-		slot.set_stack(null if leftover <= 0 else Container.make_stack(int(stack["id"]),
+		slot.set_stack(null if leftover <= 0 else BlockContainer.make_stack(int(stack["id"]),
 			leftover, int(stack.get("durability", 0))))
 		AudioManager.play_ui()
 		refresh()
@@ -291,18 +291,18 @@ func _handle_double_click(slot: ItemSlot) -> void:
 			total += int(stack["count"])
 			player.inventory.set_slot(index, null)
 	if total > 0:
-		set_cursor(Container.make_stack(item_id, total))
+		set_cursor(BlockContainer.make_stack(item_id, total))
 		refresh()
 		_notify_contents_changed()
 
 
 func _copy_stack(stack: Variant) -> Dictionary:
-	return Container.make_stack(int(stack["id"]), int(stack["count"]),
+	return BlockContainer.make_stack(int(stack["id"]), int(stack["count"]),
 		int(stack.get("durability", 0)))
 
 
 ## Screens with a transferable container override this.
-func _transfer_target(_slot: ItemSlot) -> Container:
+func _transfer_target(_slot: ItemSlot) -> BlockContainer:
 	return null
 
 

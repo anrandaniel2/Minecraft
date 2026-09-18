@@ -2,7 +2,7 @@ class_name ItemSlot
 extends Control
 
 ## One inventory square: draws the item icon, stack count and durability bar,
-## and reports clicks to its screen. Backed either by a `Container` slot or by
+## and reports clicks to its screen. Backed either by a `BlockContainer` slot or by
 ## a plain stack (crafting grids, results, the creative palette).
 
 signal clicked(slot: ItemSlot, button: int)
@@ -10,7 +10,7 @@ signal hover_changed(slot: ItemSlot, entered: bool)
 
 const PADDING: float = 3.0
 
-var container: Container = null      # backing container, when not `manual`
+var container: BlockContainer = null      # backing container, when not `manual`
 var index: int = -1
 var manual: bool = false
 var manual_stack: Variant = null

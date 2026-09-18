@@ -43,7 +43,7 @@ var _mesh_queue: Array = []               # coords waiting for a mesh slot
 var _gen_queue: Array = []                # coords waiting for a generator slot
 var _dirty: Dictionary = {}               # Vector2i → true (needs a remesh)
 var _edits: Dictionary = {}               # Vector2i → {local index: [id, meta]}
-var _containers: Dictionary = {}          # Vector3i → Container
+var _containers: Dictionary = {}          # Vector3i → BlockContainer
 var _chunk_meshes: Dictionary = {}        # Vector2i → MeshInstance3D
 var _collision_body: StaticBody3D
 var _collision_shapes: Dictionary = {}    # Vector2i → CollisionShape3D
@@ -222,8 +222,8 @@ func _tick_containers(delta: float) -> void:
 	_container_tick = 0.0
 	var origin: Vector3 = player.global_position
 	for position in _containers.keys():
-		var container: Container = _containers[position]
-		if container == null or container.kind != Container.KIND_FURNACE:
+		var container: BlockContainer = _containers[position]
+		if container == null or container.kind != BlockContainer.KIND_FURNACE:
 			continue
 		var center: Vector3 = Vector3(position) + Vector3(0.5, 0.5, 0.5)
 		if center.distance_to(origin) > CONTAINER_TICK_DISTANCE:
@@ -658,7 +658,7 @@ func break_block(pos: Vector3i, tool_item: int = -1, by_player: bool = false,
 	var tool_kind: String = Items.tool_kind(tool_item)
 	var tool_tier: int = Items.tool_tier(tool_item)
 	# Containers spill their contents.
-	var container: Container = _containers.get(pos)
+	var container: BlockContainer = _containers.get(pos)
 	if container != null:
 		for stack in container.serialize():
 			if int(stack.get("count", 0)) > 0:
@@ -882,15 +882,15 @@ func spawn_mob(mob_type: String, position: Vector3, persistent: bool = false) ->
 signal container_changed(pos: Vector3i)
 
 
-func get_container(pos: Vector3i) -> Container:
-	var existing: Container = _containers.get(pos)
+func get_container(pos: Vector3i) -> BlockContainer:
+	var existing: BlockContainer = _containers.get(pos)
 	if existing != null:
 		return existing
 	var block_id: int = get_block(pos)
 	var kind: String = Blocks.container_kind(block_id)
 	if kind == "":
 		return null
-	var container := Container.new(kind)
+	var container := BlockContainer.new(kind)
 	container.position = pos
 	containers_created += 1
 	_containers[pos] = container
@@ -1005,7 +1005,7 @@ static func read_var(data: PackedByteArray, cursor: Dictionary) -> int:
 func serialize_containers() -> Array:
 	var out: Array = []
 	for pos in _containers:
-		var container: Container = _containers[pos]
+		var container: BlockContainer = _containers[pos]
 		out.append({
 			"x": pos.x, "y": pos.y, "z": pos.z, "kind": container.kind,
 			"slots": container.serialize(),
@@ -1018,7 +1018,7 @@ func apply_containers(data: Array) -> void:
 		if typeof(entry) != TYPE_DICTIONARY:
 			continue
 		var pos := Vector3i(int(entry.get("x", 0)), int(entry.get("y", 0)), int(entry.get("z", 0)))
-		var container := Container.new(str(entry.get("kind", "chest")))
+		var container := BlockContainer.new(str(entry.get("kind", "chest")))
 		container.position = pos
 		container.deserialize(entry.get("slots", []))
 		_containers[pos] = container

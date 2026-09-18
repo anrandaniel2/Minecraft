@@ -265,7 +265,7 @@ func _take_screenshot() -> void:
 # ---------------------------------------------------------------------------
 
 
-func _on_open_container(container: Container, position: Vector3i) -> void:
+func _on_open_container(container: BlockContainer, position: Vector3i) -> void:
 	hud.container_screen.open_with(player, container, position)
 	if MpManager.is_active() and not MpManager.is_host:
 		MpManager.request_container(position)
