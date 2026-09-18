@@ -95,8 +95,18 @@ func _test_structures() -> void:
 
 ## Finds a chunk centre in `biome` that is above sea level, or Vector2i.ZERO.
 func _biome_spot(gen: WorldGen, biome: int) -> Vector2i:
-	for cell_x in range(-24, 25):
-		for cell_z in range(-24, 25):
+	# Biomes follow wide noise fields, so the search widens until it lands in one.
+	for radius in [16, 64, 192, 512, 1024]:
+		var found: Vector2i = _scan_for_biome(gen, biome, radius)
+		if found != Vector2i.ZERO:
+			return found
+	return Vector2i.ZERO
+
+
+func _scan_for_biome(gen: WorldGen, biome: int, radius: int) -> Vector2i:
+	var step: int = maxi(2, radius / 8)
+	for cell_x in range(-radius, radius + 1, step):
+		for cell_z in range(-radius, radius + 1, step):
 			var center := Vector2i(cell_x * Chunk.SIZE + 8, cell_z * Chunk.SIZE + 8)
 			if gen.biome_at(center.x, center.y) != biome:
 				continue

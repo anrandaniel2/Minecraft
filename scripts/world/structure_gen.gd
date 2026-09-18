@@ -490,8 +490,7 @@ static func _try_igloo(gen: WorldGen, chunk: Chunk, origin: Vector2i,
 	_put(chunk, origin.x + 2, basement_y + 1, origin.y + 2, Blocks.id("ladder"), 0)
 	_put(chunk, origin.x + 2, basement_y + 2, origin.y + 2, Blocks.id("ladder"), 0)
 	_put(chunk, origin.x + 2, ground, origin.y + 2, Blocks.AIR)
-	if rng.randf() < 0.8:
-		_put(chunk, origin.x - 1, basement_y + 1, origin.y - 1, Blocks.CHEST, 0)
+	_put(chunk, origin.x - 1, basement_y + 1, origin.y - 1, Blocks.CHEST, 0)
 	if rng.randf() < 0.5:
 		_put(chunk, origin.x - 1, basement_y + 1, origin.y + 1, Blocks.id("bookshelf"))
 
@@ -553,8 +552,7 @@ static func _try_pyramid(gen: WorldGen, chunk: Chunk, origin: Vector2i,
 	_put(chunk, origin.x, ground + 3, origin.y + base, Blocks.AIR)
 	# Loot, and a torch on the room floor so it is not pitch black inside.
 	_put(chunk, origin.x, ground + 2, origin.y - 2, Blocks.TORCH, 2)
-	if rng.randf() < 0.9:
-		_put(chunk, origin.x - 1, ground + 2, origin.y + 1, Blocks.CHEST, 0)
+	_put(chunk, origin.x - 1, ground + 2, origin.y + 1, Blocks.CHEST, 0)
 	if rng.randf() < 0.7:
 		_put(chunk, origin.x + 1, ground + 2, origin.y + 1, Blocks.id("gold_block"))
 	if rng.randf() < 0.4:
