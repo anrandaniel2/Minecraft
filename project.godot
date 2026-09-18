@@ -1,0 +1,59 @@
+; Engine configuration for Blockcraft.
+;
+; Note: the input map is built in code (scripts/core/input_setup.gd) so that
+; keyboard, mouse, gamepad and touch bindings stay in one reviewable place and
+; can be remapped at runtime by the settings menu.
+
+config_version=5
+
+[application]
+
+config/name="Blockcraft"
+config/description="An open-world voxel sandbox: survival, building, redstone and multiplayer."
+config/version="1.0.0"
+run/main_scene="res://scenes/main_menu.tscn"
+config/features=PackedStringArray("4.7", "Mobile")
+config/icon="res://assets/generated/ui/logo.png"
+boot_splash/bg_color=Color(0.09, 0.11, 0.14, 1)
+boot_splash/show_image=false
+
+[autoload]
+
+Settings="*res://scripts/core/settings.gd"
+Registry="*res://scripts/core/registry.gd"
+AudioManager="*res://scripts/audio/audio_manager.gd"
+SceneRouter="*res://scripts/core/scene_router.gd"
+SaveManager="*res://scripts/core/save_manager.gd"
+MpManager="*res://scripts/net/multiplayer_manager.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation="sensor_landscape"
+
+[internationalization]
+
+locale/fallback="en"
+
+[physics]
+
+3d/default_gravity=26.0
+
+[rendering]
+
+renderer/rendering_method="mobile"
+; Android needs ETC2/ASTC; desktop keeps its smaller formats.
+textures/vram_compression/import_etc2_astc=true
+renderer/rendering_method.mobile="mobile"
+textures/canvas_textures/default_texture_filter=0
+anti_aliasing/quality/msaa_3d=0
+lights_and_shadows/directional_shadow/size=2048
+textures/default_filters/use_nearest_mipmap_filter=true
+environment/defaults/default_clear_color=Color(0.35, 0.55, 0.85, 1)
+
+[threading]
+
+worker_pool/max_threads=0

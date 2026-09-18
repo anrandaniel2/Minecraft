@@ -1,0 +1,18 @@
+# Godot's import cache and generated metadata
+.godot/
+*.import
+export_presets.cfg.bak
+# Build output
+build/
+export/
+exports/
+*.apk
+*.aab
+*.pck
+*.zip
+# Local editor state
+.import/
+*.translation
+# OS cruft
+.DS_Store
+Thumbs.db

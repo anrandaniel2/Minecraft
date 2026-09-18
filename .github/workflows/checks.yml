@@ -1,0 +1,90 @@
+name: Project checks
+
+# Fast feedback: every GDScript file is parsed, the asset pipeline is verified
+# against the committed art, and Godot imports the project headlessly.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: 4.7.2
+  GODOT_CHANNEL: stable
+
+jobs:
+  gdscript:
+    name: Parse GDScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install gdtoolkit
+        run: pip install "gdtoolkit==4.*"
+      - name: Parse every script
+        run: |
+          set -euo pipefail
+          fail=0
+          for file in $(find scripts -name '*.gd' | sort); do
+            if ! gdparse "$file" > /tmp/out.txt 2>&1; then
+              echo "::error file=$file::$(cat /tmp/out.txt)"
+              fail=1
+            fi
+          done
+          exit $fail
+
+  assets:
+    name: Regenerate assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Rebuild the art and audio
+        working-directory: tools
+        run: python3 gen_assets.py all
+      - name: Check nothing changed
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- assets; then
+            echo "::warning::Generated assets differ from the committed files"
+            git diff --stat -- assets
+          fi
+          echo "Asset pipeline ran cleanly."
+
+  godot-import:
+    name: Headless import
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_CHANNEL}"
+          curl -sSL -o /tmp/godot.zip "${BASE}/Godot_v${GODOT_VERSION}-${GODOT_CHANNEL}_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          install -m 0755 "/tmp/godot/Godot_v${GODOT_VERSION}-${GODOT_CHANNEL}_linux.x86_64" /usr/local/bin/godot
+          godot --version
+      - name: Import project
+        run: |
+          set -euo pipefail
+          godot --headless --path . --import 2>&1 | tee /tmp/import.log
+          if grep -qE "SCRIPT ERROR|Failed to load script" /tmp/import.log; then
+            echo "::error::The project reported script errors while importing"
+            exit 1
+          fi
+      - name: Load the main scene and quit
+        run: |
+          set -euo pipefail
+          timeout 60 godot --headless --path . --quit-after 30 2>&1 | tee /tmp/run.log || true
+          if grep -qE "SCRIPT ERROR" /tmp/run.log; then
+            echo "::error::Runtime script errors on startup"
+            exit 1
+          fi
