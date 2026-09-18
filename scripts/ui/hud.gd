@@ -9,6 +9,7 @@ const HOTBAR_SLOTS: int = 9
 const CHAT_HISTORY: int = 40
 const TOAST_TIME: float = 3.0
 const ICON_SIZE: float = 20.0
+const MAX_FILL_BLOCKS: int = 8192
 
 var player: Player
 var world: World
@@ -641,6 +642,49 @@ func _rebuild_chat_log() -> void:
 
 
 ## A few useful commands, so the debug and building side feels like a sandbox.
+## Fills an axis-aligned box, `/fill x1 y1 z1 x2 y2 z2 block`, in chunks so the
+## frame budget survives a big selection.
+func _fill_region(parts: PackedStringArray) -> void:
+	var block: int = Blocks.id(parts[7])
+	if block <= 0:
+		_on_chat_message("Server", "Unknown block: %s" % parts[7])
+		return
+	var from := Vector3i(int(parts[1]), int(parts[2]), int(parts[3]))
+	var to := Vector3i(int(parts[4]), int(parts[5]), int(parts[6]))
+	var low := Vector3i(mini(from.x, to.x), mini(from.y, to.y), mini(from.z, to.z))
+	var high := Vector3i(maxi(from.x, to.x), maxi(from.y, to.y), maxi(from.z, to.z))
+	var volume: int = (high.x - low.x + 1) * (high.y - low.y + 1) * (high.z - low.z + 1)
+	if volume > MAX_FILL_BLOCKS:
+		_on_chat_message("Server", "Too big: %d blocks (limit %d)" % [volume, MAX_FILL_BLOCKS])
+		return
+	var changed: int = 0
+	for y in range(low.y, high.y + 1):
+		for z in range(low.z, high.z + 1):
+			for x in range(low.x, high.x + 1):
+				if world.get_block(Vector3i(x, y, z)) == block:
+					continue
+				world.set_block(Vector3i(x, y, z), block)
+				changed += 1
+	_on_chat_message("Server", "Filled %d blocks with %s" % [changed, Registry.display_name(block)])
+	AudioManager.play_ui()
+
+
+func _kill_hostiles(radius: float) -> int:
+	if world == null or world.mobs == null:
+		return 0
+	var removed: int = 0
+	for mob in world.mobs.mobs.duplicate():
+		if mob == null or not is_instance_valid(mob):
+			continue
+		if not MobTypes.is_hostile(mob.mob_type):
+			continue
+		if player != null and mob.global_position.distance_to(player.global_position) > radius:
+			continue
+		mob.take_damage(1000.0, "command", false)
+		removed += 1
+	return removed
+
+
 func _run_command(command: String) -> void:
 	var parts: PackedStringArray = command.substr(1).split(" ", false)
 	if parts.is_empty():
@@ -650,6 +694,8 @@ func _run_command(command: String) -> void:
 		"help":
 			_on_chat_message("Commands", "/tp x y z, /time day|night, /gamemode creative|survival, "
 				+ "/give item [count], /weather clear|rain|thunder, /spawn, /seed, /kill, /fly")
+			_on_chat_message("Editing", "/setblock x y z block, /fill x1 y1 z1 x2 y2 z2 block, "
+				+ "/summon mob [count], /killmobs, /xp n, /share, /clear")
 		"tp":
 			if parts.size() >= 4 and player != null:
 				player.global_position = Vector3(float(parts[1]), float(parts[2]), float(parts[3]))
@@ -690,6 +736,44 @@ func _run_command(command: String) -> void:
 			if player != null and player.gamemode == "creative":
 				player.flying = not player.flying
 				_on_chat_message("Server", "Flying: %s" % ("on" if player.flying else "off"))
+		"setblock":
+			# World-edit: put one block down without needing to reach it.
+			if parts.size() >= 5 and world != null:
+				var block: int = Blocks.id(parts[4])
+				if block <= 0:
+					_on_chat_message("Server", "Unknown block: %s" % parts[4])
+				else:
+					world.set_block(Vector3i(int(parts[1]), int(parts[2]), int(parts[3])), block)
+					_on_chat_message("Server", "Placed %s" % Registry.display_name(block))
+		"fill":
+			# /fill with a hard cap so a typo cannot stall the frame.
+			if parts.size() >= 8 and world != null:
+				_fill_region(parts)
+		"summon":
+			if parts.size() >= 2 and player != null and world != null:
+				var mob_name: String = parts[1].to_lower()
+				if not MobTypes.exists(mob_name):
+					_on_chat_message("Server", "Unknown mob: %s" % mob_name)
+				else:
+					var count: int = clampi(int(parts[2]) if parts.size() >= 3 else 1, 1, 16)
+					for index in count:
+						var offset := Vector3(float(index % 4) * 1.4 - 2.0, 0.0,
+							float(index / 4) * 1.4)
+						world.spawn_mob(mob_name, player.global_position + offset)
+					_on_chat_message("Server", "Summoned %d x %s" % [count, MobTypes.display_name(mob_name)])
+		"killmobs":
+			# Clear the hostiles around the player without touching the animals.
+			var removed: int = _kill_hostiles(30.0)
+			_on_chat_message("Server", "Removed %d hostile mobs" % removed)
+		"xp":
+			if parts.size() >= 2 and player != null:
+				player.give_xp(int(parts[1]))
+				_on_chat_message("Server", "Level %d" % player.level)
+		"share":
+			# Sharing: the string a friend types into the join box.
+			var address: String = MpManager.share_string()
+			_on_chat_message("Share", address if MpManager.is_host else "Not hosting; press Esc and Host to share")
+			toast(address if MpManager.is_host else "Not hosting yet")
 		"clear":
 			if player != null:
 				player.inventory.clear()

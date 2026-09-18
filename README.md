@@ -197,6 +197,13 @@ are set up too — `Settings.touch_controls` selects `auto`, `on` or `off`.
 /fly                               toggle flight in creative
 /clear                             empty the inventory
 /kill                              die (and respawn)
+/setblock <x> <y> <z> <block>      place a single block anywhere
+/fill <x1> <y1> <z1> <x2> <y2> <z2> <block>
+                                   world-edit box fill (8192 blocks max)
+/summon <mob> [count]              spawn mobs next to you
+/killmobs                          remove hostile mobs in a 30 block radius
+/xp <amount>                       add experience
+/share                             print the address friends can join on
 ```
 
 ## Multiplayer

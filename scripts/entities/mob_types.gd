@@ -99,6 +99,11 @@ static func get_stats(mob_type: String) -> Dictionary:
 	return table.get(mob_type, table["pig"])
 
 
+## True for the mobs that attack the player (zombie, skeleton, spider, creeper...).
+static func is_hostile(mob_type: String) -> bool:
+	return bool(get_stats(mob_type).get("hostile", false))
+
+
 static func exists(mob_type: String) -> bool:
 	return all().has(mob_type)
 
