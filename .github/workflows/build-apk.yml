@@ -21,7 +21,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Setup Gradle 8.0
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: 8.0
@@ -29,12 +29,29 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Debug env
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls -lh $ANDROID_HOME || true
+          java -version
+          gradle --version
+          echo "PWD $(pwd)"
+          ls -R | head -n 200
+
       - name: Install build tools
         run: |
           sdkmanager --install "build-tools;34.0.0" "platforms;android-34" "platform-tools"
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "sdk.dir=$ANDROID_HOME" > android-webview/local.properties
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           cat local.properties
+          cat android-webview/local.properties
+          cat android-webview/build.gradle
+          cat android-webview/settings.gradle
+          cat android-webview/app/build.gradle
+          cat android-webview/gradle/wrapper/gradle-wrapper.properties
+          ls -lh android-webview/gradlew
+          cat android-webview/gradle.properties
 
       - name: Create debug keystore
         run: |
@@ -42,6 +59,7 @@ jobs:
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           mkdir -p android-webview/app
           cp debug.keystore android-webview/app/debug.keystore
+          ls -lh android-webview/app/debug.keystore
 
       - name: Create icons
         run: |
@@ -70,43 +88,66 @@ jobs:
           HTML
           ls -lh android-webview/app/src/main/assets/
           cat android-webview/app/src/main/AndroidManifest.xml
-          cat android-webview/app/build.gradle
-          cat android-webview/build.gradle
-          cat android-webview/settings.gradle
 
-      - name: Build WebView APK
+      - name: Build WebView APK with gradle
         run: |
           cd android-webview
-          gradle assembleDebug --stacktrace --info 2>&1 | tee ../webview-build.log
-          echo "=== BUILD LOG TAIL ==="
-          tail -n 100 ../webview-build.log
+          echo "=== Trying gradle ==="
+          gradle --version
+          gradle assembleDebug --stacktrace --info 2>&1 | tee ../webview-build.log || true
+          echo "=== TAIL 300 ==="
+          tail -n 300 ../webview-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
-          find . -name "*.apk" -type f -exec ls -lh {} \;
+          find . -name "*.apk" -type f -exec ls -lh {} \; || true
 
-      - name: Upload logs to file.io
+      - name: Try wrapper if gradle failed
         if: always()
         run: |
-          if [ -f webview-build.log ]; then
-            echo "Uploading log to file.io"
-            curl -F "file=@webview-build.log" https://file.io 2>&1 | tee fileio.log || true
-            cat fileio.log
+          cd android-webview
+          if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            echo "Gradle direct failed, trying ./gradlew"
+            chmod +x gradlew
+            ./gradlew assembleDebug --stacktrace --info 2>&1 | tee -a ../webview-build.log || true
+            tail -n 300 ../webview-build.log || true
+            ls -lh app/build/outputs/apk/debug/ || true
           fi
 
-      - name: Commit logs
+      - name: Upload logs to file.io and transfer.sh
+        if: always()
+        run: |
+          ls -lh webview-build.log || true
+          if [ -f webview-build.log ]; then
+            echo "Uploading to file.io"
+            curl -F "file=@webview-build.log" https://file.io 2>&1 | tee fileio.log || true
+            cat fileio.log || true
+            echo "Uploading to 0x0.st"
+            curl -F "file=@webview-build.log" https://0x0.st 2>&1 | tee 0x0.log || true
+            cat 0x0.log || true
+            echo "Uploading to transfer.sh"
+            curl --upload-file webview-build.log https://transfer.sh/webview-build.log 2>&1 | tee transfer.log || true
+            cat transfer.log || true
+          fi
+
+      - name: Commit logs to repo
         if: always()
         run: |
           mkdir -p build
-          cp webview-build.log build/ || true
-          cp fileio.log build/ || true
-          cat build/webview-build.log | tail -n 200 || true
+          cp webview-build.log build/webview-build.log || true
+          cp fileio.log build/fileio.log || true
+          cp 0x0.log build/0x0.log || true
+          cp transfer.log build/transfer.log || true
+          ls -lh build/
+          echo "=== LOG TAIL ==="
+          tail -n 200 build/webview-build.log || true
           git config user.email "bot@arena.ai"
           git config user.name "arena bot"
-          git pull --rebase origin arena/01a0bb79-minecraft || true
-          git add build/webview-build.log build/fileio.log || true
-          git commit -m "WebView build log $(date -u)" || true
-          git push origin arena/01a0bb79-minecraft || true
+          git status
+          git pull --rebase origin arena/01a0bb79-minecraft || echo "pull failed"
+          git add build/webview-build.log build/fileio.log build/0x0.log build/transfer.log || true
+          git commit -m "WebView build log $(date -u) [skip ci]" || echo "commit failed"
+          git push origin arena/01a0bb79-minecraft || echo "push failed"
 
-      - name: Upload WebView APK
+      - name: Upload WebView APK artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -115,12 +156,13 @@ jobs:
             android-webview/app/build/outputs/apk/debug/*.apk
             webview-build.log
             fileio.log
+            0x0.log
+            transfer.log
           if-no-files-found: warn
 
   build-native-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: build-webview-apk
     steps:
       - uses: actions/checkout@v4
         with:
@@ -132,7 +174,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Setup Gradle 8.0
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: 8.0
@@ -140,13 +182,14 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install NDK
+      - name: Install NDK and tools
         run: |
-          sdkmanager --install "ndk;25.1.8937393" "build-tools;34.0.0" "platforms;android-34"
+          sdkmanager --install "ndk;25.1.8937393" "build-tools;34.0.0" "platforms;android-34" "platform-tools" "cmake;3.22.1"
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          cat local.properties
 
       - name: Create keystore and icons
         run: |
@@ -173,23 +216,34 @@ jobs:
       - name: Build Native APK
         run: |
           cd android
+          gradle --version
           gradle assembleDebug --stacktrace 2>&1 | tee ../native-build.log || true
-          tail -n 200 ../native-build.log || true
+          tail -n 300 ../native-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
+          if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            echo "Trying wrapper"
+            chmod +x gradlew
+            ./gradlew assembleDebug --stacktrace 2>&1 | tee -a ../native-build.log || true
+            tail -n 300 ../native-build.log || true
+          fi
 
       - name: Upload logs
         if: always()
         run: |
-          if [ -f ../native-build.log ]; then
-            curl -F "file=@../native-build.log" https://file.io || true
+          ls -lh native-build.log || true
+          if [ -f native-build.log ]; then
+            curl -F "file=@native-build.log" https://file.io 2>&1 | tee fileio-native.log || true
+            curl -F "file=@native-build.log" https://0x0.st 2>&1 | tee 0x0-native.log || true
           fi
-          mkdir -p ../build
-          cp ../native-build.log ../build/ || true
+          mkdir -p build
+          cp native-build.log build/native-build.log || true
+          cp fileio-native.log build/ || true
+          cp 0x0-native.log build/ || true
           git config user.email "bot@arena.ai"
           git config user.name "arena bot"
           git pull --rebase origin arena/01a0bb79-minecraft || true
-          git add ../build/native-build.log || true
-          git commit -m "Native build log $(date -u)" || true
+          git add build/native-build.log build/fileio-native.log build/0x0-native.log || true
+          git commit -m "Native build log $(date -u) [skip ci]" || true
           git push origin arena/01a0bb79-minecraft || true
 
       - name: Upload Native APK
@@ -200,7 +254,8 @@ jobs:
           path: |
             android/app/build/outputs/apk/debug/*.apk
             native-build.log
-            ../native-build.log
+            fileio-native.log
+            0x0-native.log
           if-no-files-found: warn
 
   combine:
