@@ -142,31 +142,14 @@ jobs:
             echo "Original: 75576620 bytes SHA256 07c8eefe9f7b2dc62e0dbef42cb484d317fa9c1e065e3fdc9f9c2a923daf96ac5" >> decompiled/FULL_LIST.md
             echo "Protocol 775 MC 26.2" >> decompiled/FULL_LIST.md
             echo "" >> decompiled/FULL_LIST.md
-            python3 -c "
-          import json
-          data=json.load(open('decompiled/out/categorized.json'))
-          print(f\"Blocks: {len(data['blocks'])} Items: {len(data['items'])} Entities: {len(data['entities'])} Biomes: {len(data['biomes'])}\")
-          " >> decompiled/FULL_LIST.md || true
-            python3 -c "
-          import json
-          try:
-              data=json.load(open('decompiled/out/ui.json'))
-              print(f\"Screens: {data['counts']['screens']} Settings: {data['counts']['settings']} Controls: {data['counts']['controls']} GUI: {data['counts']['gui']}\")
-          except: print('UI not found')
-          " >> decompiled/FULL_LIST.md || true
+            python3 -c "import json; data=json.load(open('decompiled/out/categorized.json')); print(f\"Blocks: {len(data['blocks'])} Items: {len(data['items'])} Entities: {len(data['entities'])} Biomes: {len(data['biomes'])}\")" >> decompiled/FULL_LIST.md || true
+            python3 -c "import json; data=json.load(open('decompiled/out/ui.json')); print(f\"Screens: {data['counts']['screens']} Settings: {data['counts']['settings']} Controls: {data['counts']['controls']} GUI: {data['counts']['gui']}\")" >> decompiled/FULL_LIST.md || echo "UI not found" >> decompiled/FULL_LIST.md
             git add decompiled/FULL_LIST.md
           fi
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "FULL decompilation EVERYTHING - Blocks 621 Items 959 Entities 82 Biomes 65 Screens 79 Settings 170 - from 75MB HTML Protocol 775
-
-- Decompiled via GitHub Actions using online tools (js-beautify, TeaVM extraction)
-- Original: eaglercraft-26.2-0.6.html 75576620 bytes SHA256 07c8eefe...
-- Includes ALL blocks, items, entities, biomes, UI screens, settings, controls
-- C++ GDExtension with exact values from original
-- UIManager with 79 screens, SettingsManager with 170 settings
-- Native Godot port - no approximation"
+            git commit -m "FULL decompilation EVERYTHING - Blocks 621 Items 959 Entities 82 Biomes 65 Screens 79 Settings 170 - from 75MB HTML Protocol 775 - Decompiled via GitHub Actions online tools"
             git push origin HEAD:${{ github.ref_name }} || echo "push failed"
           fi
           exit 0
