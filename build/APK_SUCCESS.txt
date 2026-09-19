@@ -1,0 +1,1 @@
+APK built: -rw-r--r-- 1 runner runner 26M Sep 19 20:41 build/Eaglercraft26-Android-Direct.apk
