@@ -1,5 +1,9 @@
 #include "FontRenderer.h"
+#ifdef EAGLER_ANDROID
+#include <GLES3/gl3.h>
+#else
 #include <glad/gl.h>
+#endif
 #include <iostream>
 
 namespace Eaglercraft {

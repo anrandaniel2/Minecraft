@@ -1,5 +1,10 @@
 #include "Input.h"
+#ifndef EAGLER_ANDROID
 #include <GLFW/glfw3.h>
+#else
+#define GLFW_PRESS 1
+#define GLFW_RELEASE 0
+#endif
 
 namespace Eaglercraft {
 

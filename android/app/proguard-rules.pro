@@ -1,0 +1,2 @@
+# Keep all
+-keep class ** { *; }

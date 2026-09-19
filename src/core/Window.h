@@ -3,6 +3,38 @@
 #include <functional>
 #include <glm/glm.hpp>
 
+#ifdef EAGLER_ANDROID
+// On Android, Window is replaced by AndroidWindow
+namespace Eaglercraft {
+struct WindowConfig {
+    int width = 1280;
+    int height = 720;
+    std::string title = "Eaglercraft 26.2 - 0.6 Native (C++ Port)";
+    bool resizable = true;
+    bool vsync = true;
+    bool fullscreen = false;
+};
+class Window {
+public:
+    Window(const WindowConfig&) {}
+    ~Window() {}
+    bool shouldClose() const { return false; }
+    void pollEvents() {}
+    void swapBuffers() {}
+    void close() {}
+    int getWidth() const { return 1280; }
+    int getHeight() const { return 720; }
+    float getAspect() const { return 16.0f/9.0f; }
+    void* getHandle() const { return nullptr; }
+    void setTitle(const std::string&) {}
+    void setCursorMode(int) {}
+    glm::vec2 getCursorPos() const { return glm::vec2(0); }
+    static void initGLFW() {}
+    static void terminateGLFW() {}
+};
+}
+#else
+
 struct GLFWwindow;
 
 namespace Eaglercraft {
@@ -71,3 +103,5 @@ private:
 };
 
 }
+
+#endif // EAGLER_ANDROID

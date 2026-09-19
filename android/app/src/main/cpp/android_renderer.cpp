@@ -1,16 +1,18 @@
-#include "Renderer.h"
-#ifdef EAGLER_ANDROID
+#include "android_renderer.h"
 #include <GLES3/gl3.h>
-#else
-#include <glad/gl.h>
-#endif
+#include <android/log.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 
+#define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, "Eaglercraft", __VA_ARGS__))
+
 namespace Eaglercraft {
 
+// GLES3 compatible shaders (same as desktop but with precision qualifiers)
+
 static const char* blockVertSrc = R"(
-#version 330 core
+#version 300 es
+precision mediump float;
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNormal;
 layout(location=2) in vec2 aUV;
@@ -36,7 +38,8 @@ void main() {
 )";
 
 static const char* blockFragSrc = R"(
-#version 330 core
+#version 300 es
+precision mediump float;
 in vec3 vColor;
 in vec3 vNormal;
 in vec2 vUV;
@@ -44,25 +47,23 @@ in float vFog;
 
 out vec4 FragColor;
 
-uniform vec3 uLightDir = vec3(0.5, 1.0, 0.3);
-uniform vec3 uSkyColor = vec3(0.6, 0.8, 1.0);
+uniform vec3 uLightDir;
+uniform vec3 uSkyColor;
 
 void main() {
     vec3 lightDir = normalize(uLightDir);
     float diff = max(dot(normalize(vNormal), lightDir), 0.0);
     float ambient = 0.5;
     vec3 lighting = vec3(ambient + diff * 0.5);
-
     vec3 col = vColor * lighting;
-    // Fog blending
     col = mix(col, uSkyColor, vFog * 0.7);
-
     FragColor = vec4(col, 1.0);
 }
 )";
 
 static const char* uiVertSrc = R"(
-#version 330 core
+#version 300 es
+precision mediump float;
 layout(location=0) in vec2 aPos;
 layout(location=1) in vec2 aUV;
 layout(location=2) in vec4 aColor;
@@ -80,7 +81,8 @@ void main() {
 )";
 
 static const char* uiFragSrc = R"(
-#version 330 core
+#version 300 es
+precision mediump float;
 in vec2 vUV;
 in vec4 vColor;
 
@@ -98,76 +100,73 @@ void main() {
 }
 )";
 
-Renderer::Renderer() = default;
-Renderer::~Renderer() { shutdown(); }
+AndroidRenderer::AndroidRenderer() = default;
+AndroidRenderer::~AndroidRenderer() { shutdown(); }
 
-bool Renderer::init(int width, int height) {
-    createBlockShader();
-    createUIShader();
+bool AndroidRenderer::init(int width, int height) {
+    LOGI("AndroidRenderer init %dx%d", width, height);
+    createShaders();
     initUIQuad();
     setViewport(width, height);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    std::cout << "Renderer initialized\n";
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
     return true;
 }
 
-void Renderer::shutdown() {
+void AndroidRenderer::shutdown() {
     chunkMeshes.clear();
     if (uiVAO) { glDeleteVertexArrays(1, &uiVAO); uiVAO=0; }
     if (uiVBO) { glDeleteBuffers(1, &uiVBO); uiVBO=0; }
 }
 
-void Renderer::createBlockShader() {
+void AndroidRenderer::createShaders() {
     if (!blockShader.loadFromSource(blockVertSrc, blockFragSrc)) {
-        std::cerr << "Failed to create block shader\n";
+        LOGI("Failed to create block shader");
+    } else {
+        LOGI("Block shader created");
     }
-}
-
-void Renderer::createUIShader() {
     if (!uiShader.loadFromSource(uiVertSrc, uiFragSrc)) {
-        std::cerr << "Failed to create UI shader\n";
+        LOGI("Failed to create UI shader");
+    } else {
+        LOGI("UI shader created");
     }
 }
 
-void Renderer::initUIQuad() {
-    // Simple quad for UI rendering will be generated on demand
+void AndroidRenderer::initUIQuad() {
     glGenVertexArrays(1, &uiVAO);
     glGenBuffers(1, &uiVBO);
 }
 
-void Renderer::setViewport(int w, int h) {
+void AndroidRenderer::setViewport(int w, int h) {
     glViewport(0,0,w,h);
 }
 
-void Renderer::beginFrame() {
-    glClearColor(0.6f, 0.8f, 1.0f, 1.0f); // Sky blue
+void AndroidRenderer::beginFrame() {
+    glClearColor(0.6f, 0.8f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void Renderer::endFrame() {
-    // Nothing
-}
+void AndroidRenderer::endFrame() {}
 
-void Renderer::renderWorld(World& world, const Camera& camera) {
+void AndroidRenderer::renderWorld(World& world, const Camera& camera) {
     blockShader.bind();
     glm::mat4 viewProj = camera.getViewProjection();
     blockShader.setUniform("uViewProj", viewProj);
     blockShader.setUniform("uModel", glm::mat4(1.0f));
+    blockShader.setUniform("uLightDir", glm::vec3(0.5f, 1.0f, 0.3f));
     blockShader.setUniform("uSkyColor", glm::vec3(0.6f, 0.8f, 1.0f));
 
     auto chunks = world.getLoadedChunks();
-    // Simple frustum culling could be added
     for (auto* chunk : chunks) {
         if (!chunk) continue;
         const auto& meshData = chunk->getMesh();
         if (!meshData.hasData) continue;
 
-        // Check if mesh exists in cache, if not create
         auto it = chunkMeshes.find(chunk);
         if (it == chunkMeshes.end() || chunk->isDirty()) {
-            // Need to update mesh
             auto mesh = std::make_unique<Mesh>();
             mesh->setData(meshData.vertices, meshData.indices);
             chunkMeshes[chunk] = std::move(mesh);
@@ -176,31 +175,10 @@ void Renderer::renderWorld(World& world, const Camera& camera) {
         auto& mesh = chunkMeshes[chunk];
         if (mesh && mesh->isValid()) {
             glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(chunk->getX()*CHUNK_SIZE_X, 0, chunk->getZ()*CHUNK_SIZE_Z));
-            // Actually chunk mesh already in world coords? Our mesh vertices are local to chunk but we added base x,y,z local. So we need to translate by chunk pos for x,z, but y is already world.
-            // In rebuildMesh we used local x,y,z, so we need to translate by chunk world pos for x and z, but y is 0.
-            // However we included y in vertices as local, so model translation for chunk origin
             blockShader.setUniform("uModel", model);
             mesh->draw();
         }
     }
-    blockShader.unbind();
-}
-
-void Renderer::renderChunk(Chunk* chunk, const glm::mat4& viewProj) {
-    // Single chunk render
-    if (!chunk) return;
-    const auto& md = chunk->getMesh();
-    if (!md.hasData) return;
-    auto it = chunkMeshes.find(chunk);
-    if (it == chunkMeshes.end()) {
-        auto mesh = std::make_unique<Mesh>();
-        mesh->setData(md.vertices, md.indices);
-        chunkMeshes[chunk] = std::move(mesh);
-    }
-    blockShader.bind();
-    blockShader.setUniform("uViewProj", viewProj);
-    blockShader.setUniform("uModel", glm::mat4(1.0f));
-    chunkMeshes[chunk]->draw();
     blockShader.unbind();
 }
 

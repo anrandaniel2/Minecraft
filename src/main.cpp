@@ -17,7 +17,15 @@
 #include "ui/InGameHUD.h"
 #include "ui/FontRenderer.h"
 
+#ifndef EAGLER_ANDROID
 #include <GLFW/glfw3.h>
+#else
+#define GLFW_CURSOR_DISABLED 0
+#define GLFW_CURSOR_NORMAL 1
+#define GLFW_PRESS 1
+#define GLFW_RELEASE 0
+#define GLFW_KEY_ESCAPE 256
+#endif
 
 using namespace Eaglercraft;
 
@@ -28,6 +36,7 @@ enum class GameState {
     Paused
 };
 
+#ifndef EAGLER_ANDROID
 int main() {
     std::cout << "=== Eaglercraft 26.2 - 0.6 Native C++ Port ===\n";
     std::cout << "Original: https://www.mediafire.com/file/vvhydlnhy7cx7ir/eaglercraft-26.2-0.6.html/file\n";
@@ -306,3 +315,4 @@ int main() {
         return -1;
     }
 }
+#endif // EAGLER_ANDROID

@@ -1,7 +1,11 @@
 #pragma once
 #include <vector>
 #include <cstdint>
+#ifdef EAGLER_ANDROID
+#include <GLES3/gl3.h>
+#else
 #include <glad/gl.h>
+#endif
 
 namespace Eaglercraft {
 

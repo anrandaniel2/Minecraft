@@ -1,4 +1,7 @@
 #include "Window.h"
+#ifdef EAGLER_ANDROID
+// Dummy implementation for Android - real window is AndroidWindow
+#else
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -150,3 +153,5 @@ glm::vec2 Window::getCursorPos() const {
 }
 
 }
+
+#endif // EAGLER_ANDROID

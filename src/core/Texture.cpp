@@ -1,5 +1,9 @@
 #include "Texture.h"
+#ifdef EAGLER_ANDROID
+#include <GLES3/gl3.h>
+#else
 #include <glad/gl.h>
+#endif
 #include <iostream>
 
 #define STB_IMAGE_IMPLEMENTATION

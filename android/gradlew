@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+set -e
+# Simplified gradle wrapper that uses system gradle if available, otherwise downloads
+if command -v gradle >/dev/null 2>&1; then
+  exec gradle "$@"
+else
+  echo "Gradle not found, trying to use gradlew via SDK"
+  exec ./gradle/wrapper/gradle-wrapper.jar "$@"
+fi
