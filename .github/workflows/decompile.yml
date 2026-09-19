@@ -10,6 +10,13 @@ on:
   push:
     branches:
       - 'arena/*'
+    paths-ignore:
+      - '.github/workflows/build-apk.yml'
+      - 'export_presets.cfg'
+      - 'build/**'
+      - '**/godot_export.log'
+      - '**/gradle.log'
+      - '**/BUILD_INFO.txt'
   pull_request:
 
 jobs:
