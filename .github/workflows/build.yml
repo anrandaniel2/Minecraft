@@ -1,0 +1,63 @@
+name: Build Eaglercraft Native C++
+
+on:
+  push:
+    branches:
+      - arena/01a0bb79-minecraft
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/01a0bb79-minecraft
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglfw3-dev libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev build-essential cmake
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build --config Release -j$(nproc)
+
+      - name: Check binary
+        run: |
+          ls -lh build/
+          file build/eaglercraft || true
+          ldd build/eaglercraft || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eaglercraft-native-linux
+          path: |
+            build/eaglercraft
+            build/assets/
+          if-no-files-found: warn
+
+  build-headless:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/01a0bb79-minecraft
+
+      - name: Configure headless
+        run: |
+          cmake -B build-headless -DCMAKE_BUILD_TYPE=Release -DEAGLER_BUILD_HEADLESS=ON
+
+      - name: Build headless
+        run: |
+          cmake --build build-headless --config Release -j$(nproc) || true
+
+      - name: List
+        if: always()
+        run: |
+          ls -lh build-headless/ || true

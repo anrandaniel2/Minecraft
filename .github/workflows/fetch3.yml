@@ -19,7 +19,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install deps
-        run: pip install requests beautifulsoup4
+        run: pip install requests beautifulsoup4 lxml
 
       - name: Fetch eymenwsmc 26.2
         run: |
@@ -40,7 +40,7 @@ jobs:
           print(r.text[:5000])
 
           # Try to find wasm and js files
-          soup = BeautifulSoup(r.text, 'lxml')
+          soup = BeautifulSoup(r.text, 'html.parser')
           scripts = []
           for tag in soup.find_all('script'):
               src = tag.get('src')
