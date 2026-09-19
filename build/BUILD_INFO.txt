@@ -1,0 +1,7 @@
+Eaglercraft 26.2 Native - Android APK Build
+Original: eaglercraft-26.2-0.6.html 75,576,620 bytes SHA256 07c8eefe Protocol 775
+Blocks: 602 Items: 921 Entities: 82 Biomes: 65 Screens: 146 Settings: 177 WorldGen: 22 biomes 13 ores 1:1
+Decompiled via GitHub Actions - REAL
+See godot_export.log and gradle.log for details
+To build locally: Godot 4.4.1 -> Export Android -> Gradle -> ./gradlew assembleDebug
+GDScript fallback works without C++ GDExtension
