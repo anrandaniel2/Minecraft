@@ -1,0 +1,85 @@
+name: Decompile Eaglercraft 26.2 and Build Godot C++ Port
+
+on:
+  push:
+    branches:
+      - arena/01a0bb79-minecraft
+  workflow_dispatch:
+
+jobs:
+  decompile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/01a0bb79-minecraft
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          pip install requests beautifulsoup4 lxml
+          sudo apt-get update && sudo apt-get install -y wabt binaryen || true
+
+      - name: Check for original HTML
+        run: |
+          ls -lh original/ || echo "No original folder"
+          find . -name "*.html" -type f | head -n 20
+
+      - name: Run decompiler
+        run: |
+          python tools/decompile.py || true
+          ls -lh decompiled/ || true
+          cat decompiled/summary.json 2>/dev/null || echo "No summary"
+          cat decompiled/README.md 2>/dev/null | head -n 100 || true
+
+      - name: Generate C++ UI from original CSS (if available)
+        run: |
+          cat > tools/extract_ui.py <<'PY'
+          import re, pathlib, json
+          html_files = list(pathlib.Path(".").rglob("eaglercraft*.html"))
+          print(f"Found HTML files: {html_files}")
+          for hf in html_files:
+              try:
+                  content = hf.read_text(encoding="utf-8", errors="ignore")
+                  # Extract CSS
+                  styles = re.findall(r'<style[^>]*>(.*?)</style>', content, re.DOTALL)
+                  print(f"{hf}: {len(styles)} styles, {len(content)} bytes")
+                  for i, css in enumerate(styles):
+                      print(f"  Style {i}: {css[:500]}...")
+                  # Extract JS size
+                  scripts = re.findall(r'<script[^>]*>(.*?)</script>', content, re.DOTALL)
+                  print(f"  Scripts: {len(scripts)}, total chars: {sum(len(s) for s in scripts)}")
+              except Exception as e:
+                  print(f"Error reading {hf}: {e}")
+          PY
+          python tools/extract_ui.py || true
+
+      - name: Build native port after decompile
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j$(nproc)
+
+      - name: Upload decompiled artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: decompiled-eaglercraft
+          path: |
+            decompiled/
+            original/
+            tools/
+          if-no-files-found: warn
+
+      - name: Commit decompiled output
+        if: always()
+        run: |
+          if [ -d decompiled ]; then
+            git config user.email "bot@arena.ai"
+            git config user.name "arena bot"
+            git add decompiled/ || true
+            git commit -m "Update decompiled output" || true
+            git push origin arena/01a0bb79-minecraft || true
+          fi
