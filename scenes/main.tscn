@@ -1,0 +1,76 @@
+[gd_scene load_steps=7 format=3 uid="uid://c0x8w3q1f2d0x8b2y2"]
+
+[ext_resource type="Environment" uid="uid://b2y2d0x8w3q1f2d0x8b2y2" path="res://scenes/default_env.tres" id="1_env"]
+[ext_resource type="Script" path="res://src/main.gd" id="2_main"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_top_color = Color(0.3, 0.6, 1.0, 1)
+sky_horizon_color = Color(0.6, 0.8, 1.0, 1)
+ground_bottom_color = Color(0.2, 0.4, 0.2, 1)
+ground_horizon_color = Color(0.5, 0.7, 0.5, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
+albedo_color = Color(0, 0, 0, 1)
+
+[node name="Main" type="Node3D"]
+script = ExtResource("2_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("1_env")
+
+[node name="World" type="Node3D" parent="." node_paths=PackedStringArray()]
+script = null
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.8660254, -0.4330127, 0.25, 0, 0.5, 0.8660254, -0.5, -0.75, 0.4330127, 0, 10, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Player" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 80, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+shape = SubResource("BoxMesh_1")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Crosshair" type="Label" parent="UI"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -10.0
+offset_top = -10.0
+offset_right = 10.0
+offset_bottom = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "+"
+horizontal_alignment = 1
+
+[node name="Hotbar" type="HBoxContainer" parent="UI"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+offset_top = -60.0
+alignment = 1
+
+[node name="DebugLabel" type="Label" parent="UI"]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 500.0
+offset_bottom = 200.0
+text = "Eaglercraft 26.2 Native Port
+FPS: 0
+Pos: 0,0,0
+Protocol 775"

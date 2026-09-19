@@ -1,0 +1,40 @@
+# Godot
+.godot/
+export.cfg
+export_presets.cfg
+
+# GDExtension builds
+bin/
+godot-cpp/
+*.so
+*.dll
+*.dylib
+*.framework/
+*.a
+*.lib
+
+# Decompiled large files
+decompiled/*.html
+decompiled/*.js
+decompiled/out/combined_raw.js
+decompiled/out/beautified_sample.js
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+/tmp/
+*.tmp

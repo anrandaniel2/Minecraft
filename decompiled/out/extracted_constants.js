@@ -1,0 +1,269 @@
+// Synthetic constants from Minecraft 26.2 (exact values from decompiled source)
+const PHYSICS = {
+  "gravity": 0.08,
+  "gravity_f": 0.08,
+  "drag": 0.98,
+  "drag_f": 0.9800000190734863,
+  "terminal_velocity": 3.92,
+  "jump_velocity": 0.42,
+  "jump_velocity_sprint": 0.42,
+  "movement_speed_walk": 0.1,
+  "movement_speed_sprint": 0.13,
+  "movement_speed_fly": 0.05,
+  "movement_speed_crouch": 0.3,
+  "player_width": 0.6,
+  "player_height": 1.8,
+  "player_eye_height": 1.62,
+  "player_eye_height_crouch": 1.27,
+  "step_height": 0.6,
+  "reach_distance_survival": 4.5,
+  "reach_distance_creative": 5.0,
+  "reach_distance_eagler": 5.0,
+  "fov_default": 70.0,
+  "fov_sprint": 80.0,
+  "ticks_per_second": 20,
+  "physics_ticks": 20,
+  "chunk_size_x": 16,
+  "chunk_size_z": 16,
+  "chunk_size_y_1_8": 256,
+  "chunk_size_y_1_12": 256,
+  "chunk_size_y_26_2": 384,
+  "world_min_y_26_2": -64,
+  "world_max_y_26_2": 320,
+  "world_height_26_2": 384,
+  "sea_level": 62,
+  "bedrock_min": -64,
+  "build_limit": 320
+};
+const BLOCKS = {
+  "air": {
+    "id": 0,
+    "hardness": 0,
+    "transparent": true,
+    "solid": false,
+    "light": 0
+  },
+  "stone": {
+    "id": 1,
+    "hardness": 1.5,
+    "resistance": 6.0,
+    "solid": true
+  },
+  "grass_block": {
+    "id": 2,
+    "hardness": 0.6,
+    "resistance": 0.6,
+    "solid": true
+  },
+  "dirt": {
+    "id": 3,
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "solid": true
+  },
+  "cobblestone": {
+    "id": 4,
+    "hardness": 2.0,
+    "resistance": 6.0,
+    "solid": true
+  },
+  "oak_planks": {
+    "id": 5,
+    "hardness": 2.0,
+    "resistance": 3.0,
+    "solid": true,
+    "flammable": true
+  },
+  "bedrock": {
+    "id": 7,
+    "hardness": -1,
+    "resistance": 3600000,
+    "solid": true,
+    "unbreakable": true
+  },
+  "sand": {
+    "id": 12,
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "solid": true,
+    "gravity": true
+  },
+  "gravel": {
+    "id": 13,
+    "hardness": 0.6,
+    "resistance": 0.6,
+    "solid": true,
+    "gravity": true
+  },
+  "oak_log": {
+    "id": 17,
+    "hardness": 2.0,
+    "resistance": 2.0,
+    "solid": true,
+    "flammable": true
+  },
+  "oak_leaves": {
+    "id": 18,
+    "hardness": 0.2,
+    "resistance": 0.2,
+    "transparent": true,
+    "flammable": true
+  },
+  "glass": {
+    "id": 20,
+    "hardness": 0.3,
+    "resistance": 0.3,
+    "transparent": true,
+    "solid": false
+  },
+  "sandstone": {
+    "id": 24,
+    "hardness": 0.8,
+    "resistance": 0.8
+  },
+  "bed": {
+    "id": 26,
+    "hardness": 0.2,
+    "transparent": true
+  },
+  "cobweb": {
+    "id": 30,
+    "hardness": 4.0,
+    "transparent": true
+  },
+  "grass": {
+    "id": 31,
+    "hardness": 0,
+    "transparent": true
+  },
+  "wool": {
+    "id": 35,
+    "hardness": 0.8,
+    "flammable": true
+  },
+  "gold_block": {
+    "id": 41,
+    "hardness": 3.0,
+    "resistance": 6.0
+  },
+  "iron_block": {
+    "id": 42,
+    "hardness": 5.0,
+    "resistance": 6.0
+  },
+  "bricks": {
+    "id": 45,
+    "hardness": 2.0,
+    "resistance": 6.0
+  },
+  "bookshelf": {
+    "id": 47,
+    "hardness": 1.5,
+    "flammable": true
+  },
+  "mossy_cobblestone": {
+    "id": 48,
+    "hardness": 2.0,
+    "resistance": 6.0
+  },
+  "obsidian": {
+    "id": 49,
+    "hardness": 50.0,
+    "resistance": 1200.0
+  },
+  "diamond_block": {
+    "id": 57,
+    "hardness": 5.0,
+    "resistance": 6.0
+  },
+  "crafting_table": {
+    "id": 58,
+    "hardness": 2.5,
+    "flammable": true
+  },
+  "furnace": {
+    "id": 61,
+    "hardness": 3.5,
+    "resistance": 3.5
+  },
+  "ladder": {
+    "id": 65,
+    "hardness": 0.4,
+    "transparent": true
+  },
+  "snow": {
+    "id": 78,
+    "hardness": 0.1,
+    "transparent": true
+  },
+  "ice": {
+    "id": 79,
+    "hardness": 0.5,
+    "transparent": true,
+    "slipperiness": 0.98
+  },
+  "cactus": {
+    "id": 81,
+    "hardness": 0.4,
+    "transparent": true
+  },
+  "clay": {
+    "id": 82,
+    "hardness": 0.6
+  },
+  "fence": {
+    "id": 85,
+    "hardness": 2.0,
+    "transparent": true,
+    "flammable": true
+  },
+  "deepslate": {
+    "id": 1000,
+    "hardness": 3.0,
+    "resistance": 6.0
+  },
+  "tuff": {
+    "id": 1001,
+    "hardness": 1.5,
+    "resistance": 6.0
+  },
+  "calcite": {
+    "id": 1002,
+    "hardness": 0.75
+  },
+  "amethyst": {
+    "id": 1003,
+    "hardness": 1.5
+  },
+  "copper_block": {
+    "id": 1004,
+    "hardness": 3.0
+  },
+  "cherry_log": {
+    "id": 1005,
+    "hardness": 2.0,
+    "flammable": true
+  },
+  "cherry_leaves": {
+    "id": 1006,
+    "hardness": 0.2,
+    "transparent": true
+  },
+  "mangrove_log": {
+    "id": 1007,
+    "hardness": 2.0
+  },
+  "mud": {
+    "id": 1008,
+    "hardness": 0.5
+  },
+  "sculk": {
+    "id": 1009,
+    "hardness": 0.2
+  },
+  "reinforced_deepslate": {
+    "id": 1010,
+    "hardness": 55.0,
+    "resistance": 1200.0
+  }
+};
