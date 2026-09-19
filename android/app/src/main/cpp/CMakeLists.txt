@@ -16,12 +16,9 @@ if(NOT glm_FOUND)
     FetchContent_MakeAvailable(glm)
 endif()
 
-# Our source root is 5 levels up? Actually android/app/src/main/cpp -> project root is ../../../../../
-# Let's compute: android/app/src/main/cpp/CMakeLists.txt -> up 5 to get to Minecraft root
 get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../.." ABSOLUTE)
 message(STATUS "Project root: ${PROJECT_ROOT}")
 
-# Include directories
 include_directories(
     ${PROJECT_ROOT}/src
     ${PROJECT_ROOT}/third_party
@@ -29,7 +26,6 @@ include_directories(
     $ENV{ANDROID_NDK_ROOT}/sources/android/native_app_glue
 )
 
-# Collect all engine sources
 file(GLOB_RECURSE ENGINE_SOURCES
     ${PROJECT_ROOT}/src/world/*.cpp
     ${PROJECT_ROOT}/src/player/*.cpp
@@ -38,31 +34,27 @@ file(GLOB_RECURSE ENGINE_SOURCES
     ${PROJECT_ROOT}/src/ui/*.cpp
 )
 
-# Core sources - exclude desktop Window, include Android Window
 set(CORE_SOURCES
     ${PROJECT_ROOT}/src/core/Shader.cpp
     ${PROJECT_ROOT}/src/core/Texture.cpp
     ${PROJECT_ROOT}/src/core/Input.cpp
 )
 
-# Android specific
+# Android specific - Vulkan version
 set(ANDROID_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/android_main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/android_window.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/android_renderer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/egl_loader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/vulkan_context.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/vulkan_shader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/vulkan_mesh.cpp
 )
 
-# Android native app glue
 set(ANDROID_NATIVE_APP_GLUE ${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c)
 if(NOT EXISTS ${ANDROID_NATIVE_APP_GLUE})
-    # Try alternative path
     set(ANDROID_NATIVE_APP_GLUE $ENV{ANDROID_NDK_ROOT}/sources/android/native_app_glue/android_native_app_glue.c)
 endif()
 message(STATUS "Native app glue: ${ANDROID_NATIVE_APP_GLUE}")
-
-# For Android we need to use OpenGL ES 3.0, not desktop GL
-# We'll define EAGLER_ANDROID and EAGLER_GLES
 
 add_library(eaglercraft SHARED
     ${ENGINE_SOURCES}
@@ -79,28 +71,27 @@ target_include_directories(eaglercraft PRIVATE
     ${PROJECT_ROOT}/src/rendering
     ${PROJECT_ROOT}/src/ui
     ${PROJECT_ROOT}/src/utils
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders
 )
 
-# GLM
 target_link_libraries(eaglercraft PRIVATE glm)
 
-# Android libs
+# Android libs - Vulkan instead of GLES
+find_library(vulkan-lib vulkan)
 target_link_libraries(eaglercraft PRIVATE
     android
     log
-    EGL
-    GLESv3
+    ${vulkan-lib}
 )
 
 target_compile_definitions(eaglercraft PRIVATE
     EAGLER_ANDROID=1
-    EAGLER_GLES=1
+    EAGLER_VULKAN=1
     GLM_FORCE_PURE=1
+    VK_USE_PLATFORM_ANDROID_KHR=1
 )
 
-# Copy assets
-# Assets will be bundled via Gradle? For now we embed via raw resources
-# We can copy assets to app/src/main/assets
 add_custom_command(TARGET eaglercraft POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${PROJECT_ROOT}/assets

@@ -1,10 +1,13 @@
 #pragma once
 #include <string>
 #include <cstdint>
+#if defined(EAGLER_VULKAN)
+#else
 #ifdef EAGLER_ANDROID
 #include <GLES3/gl3.h>
 #else
 #include <glad/gl.h>
+#endif
 #endif
 
 namespace Eaglercraft {
@@ -24,7 +27,6 @@ public:
     uint32_t getID() const { return id; }
     bool isValid() const { return id != 0; }
 
-    // Procedural textures for fallback
     static Texture createSolidColor(int w, int h, float r, float g, float b, float a = 1.0f);
     static Texture createChecker(int w, int h, int checkerSize = 16);
 

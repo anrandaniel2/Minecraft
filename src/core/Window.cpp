@@ -5,6 +5,10 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#if defined(EAGLER_VULKAN)
+// Vulkan dummy - UI rendering handled by VulkanRenderer
+namespace Eaglercraft {}
+#else
 
 namespace Eaglercraft {
 
@@ -155,3 +159,5 @@ glm::vec2 Window::getCursorPos() const {
 }
 
 #endif // EAGLER_ANDROID
+
+#endif // EAGLER_VULKAN

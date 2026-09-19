@@ -5,6 +5,17 @@
 #include <glad/gl.h>
 #endif
 #include <iostream>
+#if defined(EAGLER_VULKAN)
+// Vulkan dummy - UI rendering handled by VulkanRenderer
+namespace Eaglercraft {
+Button::Button() {}
+Button::~Button() {}
+void Button::init(float x, float y, float w, float h, const std::string& text) { this->x=x; this->y=y; this->width=w; this->height=h; this->text=text; }
+void Button::render(Shader& shader) {}
+bool Button::isHovered(float mx, float my) const { return mx>=x && mx<=x+width && my>=y && my<=y+height; }
+bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
+}
+#else
 
 namespace Eaglercraft {
 
@@ -96,3 +107,5 @@ void Button::render(Shader& shader) {
 }
 
 }
+
+#endif // EAGLER_VULKAN

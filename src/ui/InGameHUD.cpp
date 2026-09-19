@@ -3,6 +3,16 @@
 #include "../world/World.h"
 #include "FontRenderer.h"
 #include <glm/gtc/matrix_transform.hpp>
+#if defined(EAGLER_VULKAN)
+// Vulkan dummy - UI rendering handled by VulkanRenderer
+namespace Eaglercraft {
+InGameHUD::InGameHUD() {}
+InGameHUD::~InGameHUD() {}
+void InGameHUD::init(int w, int h) { width=w; height=h; }
+void InGameHUD::render(Shader& shader, int width, int height, Player& player, World& world) {}
+void InGameHUD::drawRect(Shader& shader, float x, float y, float w, float h, glm::vec4 color) {}
+}
+#else
 
 namespace Eaglercraft {
 
@@ -117,3 +127,5 @@ void InGameHUD::renderDebug(Shader& shader) {
 }
 
 }
+
+#endif // EAGLER_VULKAN

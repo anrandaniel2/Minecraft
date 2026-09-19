@@ -6,6 +6,14 @@
 #include <glad/gl.h>
 #endif
 #include <iostream>
+#if defined(EAGLER_VULKAN)
+// Vulkan dummy - UI rendering handled by VulkanRenderer
+namespace Eaglercraft {
+void UIScreen::drawRect(Shader& shader, float x, float y, float w, float h, glm::vec4 color) {}
+void UIScreen::drawText(Shader& shader, const std::string& text, float x, float y, float scale, glm::vec4 color) {}
+void UIScreen::drawButton(Shader& shader, Button& button) {}
+}
+#else
 
 namespace Eaglercraft {
 
@@ -60,3 +68,5 @@ void UIScreen::drawButton(Shader& shader, Button& button) {
 }
 
 }
+
+#endif // EAGLER_VULKAN

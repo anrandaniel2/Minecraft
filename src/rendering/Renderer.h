@@ -31,10 +31,7 @@ private:
     Shader blockShader;
     Shader uiShader;
     std::unordered_map<Chunk*, std::unique_ptr<Mesh>> chunkMeshes;
-
-    // For UI rendering (simple quad)
     uint32_t uiVAO = 0, uiVBO = 0;
-
     void createUIShader();
     void createBlockShader();
     void initUIQuad();

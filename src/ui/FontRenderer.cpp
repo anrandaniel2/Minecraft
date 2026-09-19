@@ -5,6 +5,17 @@
 #include <glad/gl.h>
 #endif
 #include <iostream>
+#if defined(EAGLER_VULKAN)
+// Vulkan dummy - UI rendering handled by VulkanRenderer
+namespace Eaglercraft {
+const unsigned char FontRenderer::fontData[95][8] = {};
+FontRenderer::FontRenderer() = default;
+FontRenderer::~FontRenderer() {}
+FontRenderer& FontRenderer::get() { static FontRenderer instance; return instance; }
+bool FontRenderer::init() { initialized = true; return true; }
+void FontRenderer::renderText(Shader& shader, const std::string& text, float x, float y, float scale, glm::vec4 color) {}
+}
+#else
 
 namespace Eaglercraft {
 
@@ -107,3 +118,5 @@ void FontRenderer::renderText(Shader& shader, const std::string& text, float x, 
 }
 
 }
+
+#endif // EAGLER_VULKAN

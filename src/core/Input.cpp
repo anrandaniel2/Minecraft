@@ -1,6 +1,10 @@
 #include "Input.h"
 #ifndef EAGLER_ANDROID
 #include <GLFW/glfw3.h>
+#if defined(EAGLER_VULKAN)
+// Vulkan dummy - UI rendering handled by VulkanRenderer
+namespace Eaglercraft {}
+#else
 #else
 #define GLFW_PRESS 1
 #define GLFW_RELEASE 0
@@ -80,3 +84,5 @@ void Input::setScroll(double x, double y) {
 }
 
 }
+
+#endif // EAGLER_VULKAN

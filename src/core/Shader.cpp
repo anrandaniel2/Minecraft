@@ -1,4 +1,32 @@
 #include "Shader.h"
+#if defined(EAGLER_VULKAN)
+#include <iostream>
+// Vulkan dummy shader - does nothing, real shaders are handled by VulkanContext
+namespace Eaglercraft {
+Shader::Shader(const std::string& vertSource, const std::string& fragSource) {
+    programID = 1; // dummy valid
+}
+Shader::~Shader() {}
+uint32_t Shader::compileShader(uint32_t type, const std::string& source) { return 1; }
+bool Shader::loadFromSource(const std::string& vertSource, const std::string& fragSource) {
+    programID = 1;
+    return true;
+}
+bool Shader::loadFromFiles(const std::string& vertPath, const std::string& fragPath) {
+    programID = 1;
+    return true;
+}
+void Shader::bind() const {}
+void Shader::unbind() const {}
+int Shader::getUniformLocation(const std::string& name) { return 0; }
+void Shader::setUniform(const std::string& name, int value) {}
+void Shader::setUniform(const std::string& name, float value) {}
+void Shader::setUniform(const std::string& name, const glm::vec2& value) {}
+void Shader::setUniform(const std::string& name, const glm::vec3& value) {}
+void Shader::setUniform(const std::string& name, const glm::vec4& value) {}
+void Shader::setUniform(const std::string& name, const glm::mat4& value) {}
+}
+#else
 #ifdef EAGLER_ANDROID
 #include <GLES3/gl3.h>
 #else
@@ -121,3 +149,4 @@ void Shader::setUniform(const std::string& name, const glm::mat4& value) {
 }
 
 }
+#endif

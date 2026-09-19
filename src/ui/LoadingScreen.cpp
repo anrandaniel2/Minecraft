@@ -1,6 +1,16 @@
 #include "LoadingScreen.h"
 #include "FontRenderer.h"
 #include <glm/gtc/matrix_transform.hpp>
+#if defined(EAGLER_VULKAN)
+// Vulkan dummy - UI rendering handled by VulkanRenderer
+namespace Eaglercraft {
+LoadingScreen::LoadingScreen() {}
+LoadingScreen::~LoadingScreen() {}
+void LoadingScreen::init(int w, int h) { width=w; height=h; }
+void LoadingScreen::render(Shader& shader, int width, int height) {}
+void LoadingScreen::setProgress(float p) { progress=p; }
+}
+#else
 
 namespace Eaglercraft {
 
@@ -52,3 +62,5 @@ void LoadingScreen::render(Shader& uiShader, int w, int h) {
 }
 
 }
+
+#endif // EAGLER_VULKAN

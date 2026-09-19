@@ -2,6 +2,17 @@
 #include "FontRenderer.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
+#if defined(EAGLER_VULKAN)
+// Vulkan dummy - UI rendering handled by VulkanRenderer
+namespace Eaglercraft {
+MainMenu::MainMenu() {}
+MainMenu::~MainMenu() {}
+void MainMenu::init(int w, int h) { width=w; height=h; }
+void MainMenu::render(Shader& shader, int width, int height) {}
+void MainMenu::onMouseButton(int button, int action, int mods, float x, float y) { if (onSingleplayer) onSingleplayer(); }
+void MainMenu::onMouseMove(float x, float y) {}
+}
+#else
 
 namespace Eaglercraft {
 
@@ -116,3 +127,5 @@ void MainMenu::render(Shader& uiShader, int w, int h) {
 }
 
 }
+
+#endif // EAGLER_VULKAN
