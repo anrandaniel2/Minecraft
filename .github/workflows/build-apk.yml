@@ -40,6 +40,7 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "sdk.dir=$ANDROID_HOME" > android-webview/local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          ls -lh $ANDROID_HOME/build-tools/ || true
 
       - name: Create debug keystore
         run: |
@@ -78,7 +79,7 @@ jobs:
           cd android-webview
           gradle --version
           gradle assembleDebug --stacktrace 2>&1 | tee ../webview-build.log || true
-          echo "=== TAIL 500 ==="
+          echo "=== TAIL ==="
           tail -n 500 ../webview-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
           if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
@@ -92,8 +93,7 @@ jobs:
         run: |
           set -x
           mkdir -p build
-          # Truncate log to 800KB for git and API
-          head -c 800000 webview-build.log > build/webview-build.log || true
+          head -c 800000 webview-build.log > build/webview-build.log || echo "no log" > build/webview-build.log
           ls -lh build/
           git config user.email "bot@arena.ai"
           git config user.name "arena bot"
@@ -103,16 +103,6 @@ jobs:
           git add build/webview-build.log || true
           git commit -m "WebView log $(date -u) [skip ci]" || true
           git push origin arena/01a0bb79-minecraft || true
-          # Also try contents API with truncated log
-          SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/webview-build.log?ref=arena/01a0bb79-minecraft | jq -r '.sha // empty' || true)
-          echo "SHA $SHA"
-          B64=$(base64 -w 0 build/webview-build.log)
-          if [ -z "$SHA" ]; then
-            JSON=$(jq -n --arg content "$B64" --arg msg "Add webview log $(date -u) [skip ci]" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft"}')
-          else
-            JSON=$(jq -n --arg content "$B64" --arg msg "Update webview log $(date -u) [skip ci]" --arg sha "$SHA" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft", sha:$sha}')
-          fi
-          curl -s -X PUT -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/webview-build.log -d "$JSON" | head -n 20 || true
 
       - name: Upload artifact
         if: always()
@@ -127,6 +117,7 @@ jobs:
   build-native-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    needs: build-webview-apk
     steps:
       - uses: actions/checkout@v4
         with:
@@ -195,7 +186,8 @@ jobs:
         run: |
           set -x
           mkdir -p build
-          head -c 800000 native-build.log > build/native-build.log || true
+          head -c 800000 native-build.log > build/native-build.log || echo "no log" > build/native-build.log
+          ls -lh build/
           git config user.email "bot@arena.ai"
           git config user.name "arena bot"
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/anrandaniel2/Minecraft.git
@@ -204,14 +196,6 @@ jobs:
           git add build/native-build.log || true
           git commit -m "Native log $(date -u) [skip ci]" || true
           git push origin arena/01a0bb79-minecraft || true
-          SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/native-build.log?ref=arena/01a0bb79-minecraft | jq -r '.sha // empty' || true)
-          B64=$(base64 -w 0 build/native-build.log)
-          if [ -z "$SHA" ]; then
-            JSON=$(jq -n --arg content "$B64" --arg msg "Add native log $(date -u) [skip ci]" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft"}')
-          else
-            JSON=$(jq -n --arg content "$B64" --arg msg "Update native log $(date -u) [skip ci]" --arg sha "$SHA" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft", sha:$sha}')
-          fi
-          curl -s -X PUT -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/native-build.log -d "$JSON" | head -n 20 || true
 
       - name: Upload Native APK
         if: always()
