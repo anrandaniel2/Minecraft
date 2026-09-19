@@ -32,12 +32,12 @@ FetchContent_Declare(
     GIT_TAG v2.0.8
 )
 FetchContent_MakeAvailable(glad)
-find_package(glad QUIET)
-if(NOT glad_FOUND)
-    # fallback: glad_add_library from source
-    if(COMMAND glad_add_library)
-        glad_add_library(glad STATIC API gl:core=3.3)
-    endif()
+# glad2 provides glad_add_library function
+if(COMMAND glad_add_library)
+    glad_add_library(glad STATIC API gl:core=3.3)
+else()
+    message(WARNING "glad_add_library not found, trying to find package")
+    find_package(glad QUIET)
 endif()
 
 # GLM for math

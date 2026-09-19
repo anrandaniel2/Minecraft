@@ -21,25 +21,38 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -DCMAKE_BUILD_TYPE=Release --debug-output 2>&1 | tee configure.log
+          echo "=== CMakeCache ==="
+          cat build/CMakeCache.txt | head -n 200 || true
+          echo "=== End ==="
+        continue-on-error: false
 
       - name: Build
+        if: always()
         run: |
-          cmake --build build --config Release -j$(nproc)
+          cmake --build build --config Release -j$(nproc) 2>&1 | tee build.log
 
       - name: Check binary
+        if: always()
         run: |
-          ls -lh build/
+          ls -lh build/ || true
+          cat build/CMakeFiles/CMakeError.log || true
+          cat build/CMakeFiles/CMakeOutput.log | tail -n 200 || true
           file build/eaglercraft || true
           ldd build/eaglercraft || true
 
       - name: Upload artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: eaglercraft-native-linux
           path: |
             build/eaglercraft
             build/assets/
+            configure.log
+            build.log
+            build/CMakeFiles/CMakeError.log
+            build/CMakeFiles/CMakeOutput.log
           if-no-files-found: warn
 
   build-headless:
@@ -51,13 +64,25 @@ jobs:
 
       - name: Configure headless
         run: |
-          cmake -B build-headless -DCMAKE_BUILD_TYPE=Release -DEAGLER_BUILD_HEADLESS=ON
+          cmake -B build-headless -DCMAKE_BUILD_TYPE=Release -DEAGLER_BUILD_HEADLESS=ON 2>&1 | tee configure-headless.log
 
       - name: Build headless
         run: |
-          cmake --build build-headless --config Release -j$(nproc) || true
+          cmake --build build-headless --config Release -j$(nproc) 2>&1 | tee build-headless.log
 
       - name: List
         if: always()
         run: |
           ls -lh build-headless/ || true
+          cat build-headless/CMakeFiles/CMakeError.log || true
+
+      - name: Upload headless
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eaglercraft-headless
+          path: |
+            build-headless/eaglercraft
+            configure-headless.log
+            build-headless.log
+          if-no-files-found: warn
