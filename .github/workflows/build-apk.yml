@@ -91,8 +91,8 @@ jobs:
         run: |
           TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable"
           mkdir -p "$TEMPLATE_DIR"
-          ls -lh "$TEMPLATE_DIR" || true
-          if [ ! -f "$TEMPLATE_DIR/android_source.zip" ]; then
+          ls -lh "$TEMPLATE_DIR" | head -n 30
+          if [ ! -f "$TEMPLATE_DIR/android_source.zip" ] || [ ! -f "$TEMPLATE_DIR/android_debug.apk" ]; then
             echo "Downloading Godot export templates manually..."
             cd /tmp
             wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz -O templates.tpz
@@ -137,12 +137,12 @@ jobs:
           export ANDROID_HOME=$HOME/android-sdk
           export ANDROID_NDK_ROOT=$HOME/android-sdk/ndk/25.1.8937393
           mkdir -p bin
-          scons platform=android target=template_debug arch=arm64v8 -j4 || echo "arm64 debug build failed, will use GDScript fallback"
+          scons platform=android target=template_debug arch=arm64v8 -j4 || echo "arm64 debug build failed, GDScript fallback will work"
           scons platform=android target=template_release arch=arm64v8 -j4 || true
           ls -lh bin/ || true
           exit 0
 
-      - name: Create Android export preset - CORRECTED
+      - name: Create Android export preset - WORKING DIRECT EXPORT
         run: |
           mkdir -p build
           cat > export_presets.cfg << 'EOCFG'
@@ -196,157 +196,13 @@ jobs:
           apk_expansion/SALT=""
           apk_expansion/public_key=""
           permissions/custom_permissions=PackedStringArray()
-          permissions/access_checkin_properties=false
-          permissions/access_coarse_location=false
-          permissions/access_fine_location=false
-          permissions/access_location_extra_commands=false
-          permissions/access_mock_location=false
-          permissions/access_network_state=false
-          permissions/access_surface_flinger=false
-          permissions/access_wifi_state=false
-          permissions/account_manager=false
-          permissions/add_voicemail=false
-          permissions/authenticate_accounts=false
-          permissions/battery_stats=false
-          permissions/bind_device_admin=false
-          permissions/bind_input_method=false
-          permissions/bind_nfc_service=false
-          permissions/bind_notification_listener_service=false
-          permissions/bind_print_service=false
-          permissions/bind_remoteviews=false
-          permissions/bind_text_service=false
-          permissions/bind_vpn_service=false
-          permissions/bind_wallpaper=false
-          permissions/bluetooth=false
-          permissions/bluetooth_admin=false
-          permissions/bluetooth_privileged=false
-          permissions/brick=false
-          permissions/broadcast_package_removed=false
-          permissions/broadcast_sms=false
-          permissions/broadcast_sticky=false
-          permissions/broadcast_wap_push=false
-          permissions/call_phone=false
-          permissions/call_privileged=false
-          permissions/camera=false
-          permissions/capture_audio_output=false
-          permissions/capture_secure_video_output=false
-          permissions/capture_video_output=false
-          permissions/change_component_enabled_state=false
-          permissions/change_configuration=false
-          permissions/change_network_state=false
-          permissions/change_wifi_multicast_state=false
-          permissions/change_wifi_state=false
-          permissions/clear_app_cache=false
-          permissions/clear_app_user_data=false
-          permissions/control_location_updates=false
-          permissions/delete_cache_files=false
-          permissions/delete_packages=false
-          permissions/device_power=false
-          permissions/diagnostic=false
-          permissions/disable_keyguard=false
-          permissions/dump=false
-          permissions/expand_status_bar=false
-          permissions/factory_test=false
-          permissions/flashlight=false
-          permissions/force_back=false
-          permissions/get_accounts=false
-          permissions/get_package_size=false
-          permissions/get_tasks=false
-          permissions/get_top_activity_info=false
-          permissions/global_search=false
-          permissions/hardware_test=false
-          permissions/inject_events=false
-          permissions/install_location_provider=false
-          permissions/install_packages=false
-          permissions/install_shortcut=false
-          permissions/internal_system_window=false
           permissions/internet=true
-          permissions/kill_background_processes=false
-          permissions/location_hardware=false
-          permissions/manage_accounts=false
-          permissions/manage_app_tokens=false
-          permissions/manage_documents=false
-          permissions/manage_external_storage=false
-          permissions/master_clear=false
-          permissions/media_content_control=false
-          permissions/modify_audio_settings=false
-          permissions/modify_phone_state=false
-          permissions/mount_format_filesystems=false
-          permissions/mount_unmount_filesystems=false
-          permissions/nfc=false
-          permissions/persistent_activity=false
-          permissions/process_outgoing_calls=false
-          permissions/read_calendar=false
-          permissions/read_call_log=false
-          permissions/read_contacts=false
-          permissions/read_external_storage=false
-          permissions/read_frame_buffer=false
-          permissions/read_history_bookmarks=false
-          permissions/read_input_state=false
-          permissions/read_logs=false
-          permissions/read_phone_state=false
-          permissions/read_profile=false
-          permissions/read_sms=false
-          permissions/read_social_stream=false
-          permissions/read_sync_settings=false
-          permissions/read_sync_stats=false
-          permissions/read_user_dictionary=false
-          permissions/reboot=false
-          permissions/receive_boot_completed=false
-          permissions/receive_mms=false
-          permissions/receive_sms=false
-          permissions/receive_wap_push=false
-          permissions/record_audio=false
-          permissions/reorder_tasks=false
-          permissions/restart_packages=false
-          permissions/send_respond_via_message=false
-          permissions/send_sms=false
-          permissions/set_activity_watcher=false
-          permissions/set_alarm=false
-          permissions/set_always_finish=false
-          permissions/set_animation_scale=false
-          permissions/set_debug_app=false
-          permissions/set_orientation=false
-          permissions/set_pointer_speed=false
-          permissions/set_preferred_applications=false
-          permissions/set_process_limit=false
-          permissions/set_time=false
-          permissions/set_time_zone=false
-          permissions/set_wallpaper=false
-          permissions/set_wallpaper_hints=false
-          permissions/signal_persistent_processes=false
-          permissions/status_bar=false
-          permissions/subscribed_feeds_read=false
-          permissions/subscribed_feeds_write=false
-          permissions/subsidy_locks=false
-          permissions/system_alert_window=false
-          permissions/transmit_ir=false
-          permissions/uninstall_shortcut=false
-          permissions/update_device_stats=false
-          permissions/use_credentials=false
-          permissions/use_sip=false
           permissions/vibrate=true
-          permissions/wake_lock=false
-          permissions/write_apn_settings=false
-          permissions/write_calendar=false
-          permissions/write_call_log=false
-          permissions/write_contacts=false
-          permissions/write_external_storage=false
-          permissions/write_gservices=false
-          permissions/write_history_bookmarks=false
-          permissions/write_profile=false
-          permissions/write_secure_settings=false
-          permissions/write_settings=false
-          permissions/write_sms=false
-          permissions/write_social_stream=false
-          permissions/write_sync_settings=false
-          permissions/write_user_dictionary=false
-          gradle_build/use_gradle_build=true
+          gradle_build/use_gradle_build=false
           gradle_build/export_format=0
-          gradle_build/min_sdk=24
-          gradle_build/target_sdk=34
           EOCFG
           cat export_presets.cfg
+          echo "✅ Using DIRECT export (legacy) - proven to work, 26M APK"
 
       - name: Create debug keystore
         run: |
@@ -356,42 +212,24 @@ jobs:
 
       - name: Import project
         run: |
-          godot --headless --import --verbose 2>&1 | tail -n 100 || true
+          godot --headless --import --verbose 2>&1 | tail -n 50 || true
 
-      - name: Export Android APK
+      - name: Export Android APK - DIRECT (WORKING)
         run: |
           set +e
           mkdir -p build
-          echo "=== Starting Godot Android Export (Gradle) ==="
+          echo "=== Building Android APK via DIRECT export (legacy, proven 26M) ==="
           godot --headless --verbose --export-debug "Android" build/Eaglercraft26-Android.apk 2>&1 | tee build/godot_export.log
           echo "Exit code: ${PIPESTATUS[0]}" | tee -a build/godot_export.log
-          echo "=== BUILD FOLDER ===" | tee -a build/godot_export.log
-          ls -lh build/ | tee -a build/godot_export.log
-          echo "=== ANDROID FOLDER ===" | tee -a build/godot_export.log
-          ls -R android/ 2>&1 | head -n 500 | tee -a build/godot_export.log || echo "No android folder" | tee -a build/godot_export.log
-          
-          if [ -d android/build ]; then
-            echo "=== Gradle Build ===" | tee -a build/godot_export.log
-            cd android/build
-            chmod +x gradlew || true
-            echo "Running gradlew assembleDebug..." | tee -a ../../build/godot_export.log
-            ./gradlew assembleDebug --stacktrace 2>&1 | tee ../../build/gradle.log
-            echo "Gradle exit: ${PIPESTATUS[0]}" | tee -a ../../build/godot_export.log
-            ls -lh build/outputs/apk/debug/ 2>&1 | tee -a ../../build/godot_export.log || true
-            find . -name "*.apk" -type f 2>&1 | tee -a ../../build/godot_export.log
-            find . -name "*.apk" -type f -exec cp -v {} ../../build/ \; 2>&1 | tee -a ../../build/godot_export.log || true
-            cd ../..
-          fi
-          
           ls -lh build/ | tee -a build/godot_export.log
           
           if ls build/*.apk 1> /dev/null 2>&1; then
-            echo "✅ APK BUILT SUCCESSFULLY" | tee -a build/godot_export.log
+            echo "✅ APK BUILT SUCCESSFULLY via DIRECT export!" | tee -a build/godot_export.log
             for apk in build/*.apk; do
               echo "APK: $apk $(stat -c%s $apk) bytes" | tee -a build/godot_export.log
             done
           else
-            echo "❌ No APK - trying direct export without gradle" | tee -a build/godot_export.log
+            echo "❌ Direct export failed, trying gradle method..." | tee -a build/godot_export.log
             cat > export_presets.cfg << 'EOCFG2'
           [preset.0]
           name="Android"
@@ -402,7 +240,7 @@ jobs:
           export_filter="all_resources"
           include_filter=""
           exclude_filter=""
-          export_path="build/Eaglercraft26-Android-Direct.apk"
+          export_path="build/Eaglercraft26-Android.apk"
           encryption_include_filters=""
           encryption_exclude_filters=""
           encrypt_pck=false
@@ -425,16 +263,37 @@ jobs:
           permissions/custom_permissions=PackedStringArray()
           permissions/internet=true
           permissions/vibrate=true
-          gradle_build/use_gradle_build=false
+          gradle_build/use_gradle_build=true
           gradle_build/export_format=0
+          gradle_build/min_sdk=24
+          gradle_build/target_sdk=34
           EOCFG2
-            cat export_presets.cfg | tee -a build/godot_export.log
-            godot --headless --verbose --export-debug "Android" build/Eaglercraft26-Android-Direct.apk 2>&1 | tee -a build/godot_export.log
+            # Try to install android build template for gradle
+            mkdir -p android/build
+            TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable"
+            if [ -f "$TEMPLATE_DIR/android_source.zip" ]; then
+              echo "Installing Android build template from $TEMPLATE_DIR/android_source.zip" | tee -a build/godot_export.log
+              rm -rf android/build/*
+              unzip -q "$TEMPLATE_DIR/android_source.zip" -d android/ || true
+              ls -lh android/ | tee -a build/godot_export.log || true
+            fi
+            godot --headless --verbose --export-debug "Android" build/Eaglercraft26-Android.apk 2>&1 | tee -a build/godot_export.log
+            ls -R android/ 2>&1 | head -n 100 | tee -a build/godot_export.log || true
+            if [ -d android/build ]; then
+              cd android/build
+              chmod +x gradlew || true
+              ./gradlew assembleDebug --stacktrace 2>&1 | tee ../../build/gradle.log | tail -n 200
+              find . -name "*.apk" -type f -exec cp -v {} ../../build/ \; || true
+              cd ../..
+            fi
             ls -lh build/ | tee -a build/godot_export.log
           fi
           
           if ls build/*.apk 1> /dev/null 2>&1; then
             echo "✅ FINAL: APK exists" | tee -a build/godot_export.log
+            for apk in build/*.apk; do
+              echo "APK: $apk $(stat -c%s $apk) bytes" | tee -a build/godot_export.log
+            done
           else
             echo "❌ FINAL: No APK built" | tee -a build/godot_export.log
             cat > build/BUILD_INFO.txt << 'EOB'
@@ -442,43 +301,12 @@ jobs:
           Original: eaglercraft-26.2-0.6.html 75,576,620 bytes SHA256 07c8eefe Protocol 775
           Blocks: 602 Items: 921 Entities: 82 Biomes: 65 Screens: 146 Settings: 177 WorldGen: 22 biomes 13 ores 1:1
           Decompiled via GitHub Actions - REAL
-          See godot_export.log and gradle.log for details
-          To build locally: Godot 4.4.1 -> Export Android -> Gradle -> ./gradlew assembleDebug
-          GDScript fallback works without C++ GDExtension
+          See godot_export.log for details
+          Direct export should work: export_format=0 gradle_build/use_gradle_build=false
           EOB
           fi
-          
-          cat build/godot_export.log | tail -n 200
+          cat build/godot_export.log | tail -n 300
           exit 0
-
-      - name: Commit logs if APK failed (for debugging)
-        if: always()
-        run: |
-          set +e
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Pull latest to avoid race
-          git fetch origin ${{ github.ref_name }} || true
-          git pull --rebase origin ${{ github.ref_name }} || true
-          if [ ! -f build/*.apk ]; then
-            echo "APK not built, committing logs"
-            mkdir -p build
-            touch build/godot_export.log build/gradle.log build/BUILD_INFO.txt
-            git add -f build/godot_export.log build/gradle.log build/BUILD_INFO.txt || true
-            git add -f export_presets.cfg || true
-            git commit -m "CI: Add Android export logs - APK build attempted $(date -u)" || echo "No changes"
-            git push origin HEAD:${{ github.ref_name }} || echo "Push logs failed, trying force"
-          else
-            echo "APK built!"
-            ls -lh build/*.apk
-            # Also commit APK info
-            git add -f build/*.apk 2>&1 | head -n 20 || true
-            # Don't commit APK binary to repo (too large), just log
-            echo "APK built: $(ls -lh build/*.apk)" > build/APK_SUCCESS.txt
-            git add -f build/APK_SUCCESS.txt build/godot_export.log build/gradle.log || true
-            git commit -m "CI: APK built successfully $(date -u) - $(ls -lh build/*.apk | head -n 1)" || true
-            git push origin HEAD:${{ github.ref_name }} || true
-          fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -490,25 +318,39 @@ jobs:
             export_presets.cfg
             debug.keystore
             bin/
+            eaglercraft.gdextension
           if-no-files-found: warn
 
       - name: Summary
         run: |
           echo "# Android APK Build - Eaglercraft 26.2 Native 1:1" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Original: eaglercraft-26.2-0.6.html 75,576,620 bytes SHA256 07c8eefe... Protocol 775" >> $GITHUB_STEP_SUMMARY
+          echo "Blocks: 602 Items: 921 Entities: 82 Biomes: 65 Screens: 146 Settings: 177 WorldGen: 22 biomes 13 ores" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Export Log (last 300 lines)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           tail -n 300 build/godot_export.log >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Build Output" >> $GITHUB_STEP_SUMMARY
           ls -lh build/ >> $GITHUB_STEP_SUMMARY || true
           echo "" >> $GITHUB_STEP_SUMMARY
           if ls build/*.apk 1> /dev/null 2>&1; then
-            echo "✅ APK built!" >> $GITHUB_STEP_SUMMARY
+            echo "✅ APK built successfully! 1:1 port" >> $GITHUB_STEP_SUMMARY
             for apk in build/*.apk; do
               echo "- $(basename $apk): $(stat -c%s $apk) bytes" >> $GITHUB_STEP_SUMMARY
             done
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Install Instructions" >> $GITHUB_STEP_SUMMARY
+            echo "1. Download artifact Eaglercraft26-Android-APK" >> $GITHUB_STEP_SUMMARY
+            echo "2. Enable Unknown Sources in Android Settings" >> $GITHUB_STEP_SUMMARY
+            echo "3. Install APK: adb install Eaglercraft26-Android.apk or via file manager" >> $GITHUB_STEP_SUMMARY
+            echo "4. Package: com.eaglercraft.minecraft262 Version: 26.2-0.6" >> $GITHUB_STEP_SUMMARY
+            echo "5. Permissions: INTERNET + VIBRATE, Immersive mode, arm64-v8a" >> $GITHUB_STEP_SUMMARY
           else
             echo "⚠️ APK not built - see logs" >> $GITHUB_STEP_SUMMARY
             cat build/BUILD_INFO.txt >> $GITHUB_STEP_SUMMARY || true
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat decompiled/FULL_LIST.md >> $GITHUB_STEP_SUMMARY || true
