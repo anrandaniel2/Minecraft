@@ -167,8 +167,8 @@ void initialize_eaglercraft_module(ModuleInitializationLevel p_level) {
     ClassDB::register_class<SettingsManager>();
     
     UtilityFunctions::print("Eaglercraft 26.2 Native C++ Port - FULL version EVERYTHING");
-    UtilityFunctions::print("Original: eaglercraft-26.2-0.6.html 75,576,620 bytes Protocol 775");
-    UtilityFunctions::print("Blocks: 621 Items: 959 Entities: 82 Biomes: 65 Screens: 79 Settings: 170 - EVERYTHING");
+    UtilityFunctions::print("Original: eaglercraft-26.2-0.6.html 75,576,620 bytes Protocol 775 SHA256 07c8eefe...");
+    UtilityFunctions::print("Blocks: 621 Items: 959 Entities: 82 Biomes: 65 Screens: 146 Settings: 177 - EVERYTHING from REAL decompilation");
 }
 
 void uninitialize_eaglercraft_module(ModuleInitializationLevel p_level) {
