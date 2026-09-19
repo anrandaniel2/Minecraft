@@ -95,8 +95,8 @@ jobs:
           echo "=== Trying gradle ==="
           gradle --version
           gradle assembleDebug --stacktrace --info 2>&1 | tee ../webview-build.log || true
-          echo "=== TAIL 300 ==="
-          tail -n 300 ../webview-build.log || true
+          echo "=== TAIL 500 ==="
+          tail -n 500 ../webview-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
           find . -name "*.apk" -type f -exec ls -lh {} \; || true
 
@@ -108,24 +108,21 @@ jobs:
             echo "Gradle direct failed, trying ./gradlew"
             chmod +x gradlew
             ./gradlew assembleDebug --stacktrace --info 2>&1 | tee -a ../webview-build.log || true
-            tail -n 300 ../webview-build.log || true
+            tail -n 500 ../webview-build.log || true
             ls -lh app/build/outputs/apk/debug/ || true
           fi
 
-      - name: Upload logs to file.io and transfer.sh
+      - name: Create gist with log
         if: always()
         run: |
-          ls -lh webview-build.log || true
           if [ -f webview-build.log ]; then
-            echo "Uploading to file.io"
-            curl -F "file=@webview-build.log" https://file.io 2>&1 | tee fileio.log || true
-            cat fileio.log || true
-            echo "Uploading to 0x0.st"
-            curl -F "file=@webview-build.log" https://0x0.st 2>&1 | tee 0x0.log || true
-            cat 0x0.log || true
-            echo "Uploading to transfer.sh"
-            curl --upload-file webview-build.log https://transfer.sh/webview-build.log 2>&1 | tee transfer.log || true
-            cat transfer.log || true
+            echo "Creating gist"
+            # truncate to 900k to fit gist limit
+            head -c 900000 webview-build.log > /tmp/log.txt
+            CONTENT=$(cat /tmp/log.txt | jq -Rs .)
+            curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/gists -d "{\"public\": true, \"files\": {\"webview-build.log\": {\"content\": $CONTENT}}}" | tee gist.json
+            cat gist.json | jq -r '.html_url // .url' || true
+            echo "GIST_URL=$(cat gist.json | jq -r '.html_url')" >> $GITHUB_ENV
           fi
 
       - name: Commit logs to repo
@@ -133,17 +130,16 @@ jobs:
         run: |
           mkdir -p build
           cp webview-build.log build/webview-build.log || true
-          cp fileio.log build/fileio.log || true
-          cp 0x0.log build/0x0.log || true
-          cp transfer.log build/transfer.log || true
+          cp gist.json build/gist-webview.json || true
           ls -lh build/
           echo "=== LOG TAIL ==="
           tail -n 200 build/webview-build.log || true
           git config user.email "bot@arena.ai"
           git config user.name "arena bot"
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/anrandaniel2/Minecraft.git
           git status
           git pull --rebase origin arena/01a0bb79-minecraft || echo "pull failed"
-          git add build/webview-build.log build/fileio.log build/0x0.log build/transfer.log || true
+          git add build/webview-build.log build/gist-webview.json || true
           git commit -m "WebView build log $(date -u) [skip ci]" || echo "commit failed"
           git push origin arena/01a0bb79-minecraft || echo "push failed"
 
@@ -155,9 +151,7 @@ jobs:
           path: |
             android-webview/app/build/outputs/apk/debug/*.apk
             webview-build.log
-            fileio.log
-            0x0.log
-            transfer.log
+            gist.json
           if-no-files-found: warn
 
   build-native-apk:
@@ -227,22 +221,27 @@ jobs:
             tail -n 300 ../native-build.log || true
           fi
 
+      - name: Create gist with native log
+        if: always()
+        run: |
+          if [ -f native-build.log ]; then
+            head -c 900000 native-build.log > /tmp/log.txt
+            CONTENT=$(cat /tmp/log.txt | jq -Rs .)
+            curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/gists -d "{\"public\": true, \"files\": {\"native-build.log\": {\"content\": $CONTENT}}}" | tee gist-native.json
+            cat gist-native.json | jq -r '.html_url' || true
+          fi
+
       - name: Upload logs
         if: always()
         run: |
-          ls -lh native-build.log || true
-          if [ -f native-build.log ]; then
-            curl -F "file=@native-build.log" https://file.io 2>&1 | tee fileio-native.log || true
-            curl -F "file=@native-build.log" https://0x0.st 2>&1 | tee 0x0-native.log || true
-          fi
           mkdir -p build
           cp native-build.log build/native-build.log || true
-          cp fileio-native.log build/ || true
-          cp 0x0-native.log build/ || true
+          cp gist-native.json build/gist-native.json || true
           git config user.email "bot@arena.ai"
           git config user.name "arena bot"
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/anrandaniel2/Minecraft.git
           git pull --rebase origin arena/01a0bb79-minecraft || true
-          git add build/native-build.log build/fileio-native.log build/0x0-native.log || true
+          git add build/native-build.log build/gist-native.json || true
           git commit -m "Native build log $(date -u) [skip ci]" || true
           git push origin arena/01a0bb79-minecraft || true
 
@@ -254,8 +253,7 @@ jobs:
           path: |
             android/app/build/outputs/apk/debug/*.apk
             native-build.log
-            fileio-native.log
-            0x0-native.log
+            gist-native.json
           if-no-files-found: warn
 
   combine:
