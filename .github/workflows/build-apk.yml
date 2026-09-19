@@ -65,6 +65,9 @@ jobs:
       - name: Build WebView APK
         run: |
           cd android-webview
+          # Create local.properties
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          cat local.properties
           gradle assembleDebug --stacktrace 2>&1 | tee ../webview-build.log
           ls -lh app/build/outputs/apk/debug/ || true
           find . -name "*.apk" -type f
@@ -74,11 +77,12 @@ jobs:
         run: |
           mkdir -p build
           cp webview-build.log build/ || true
-          cat webview-build.log | tail -n 200 || true
+          cat webview-build.log | tail -n 300 || true
           git config user.email "bot@arena.ai"
           git config user.name "arena bot"
+          git pull --rebase origin arena/01a0bb79-minecraft || true
           git add build/webview-build.log || true
-          git commit -m "WebView build log" || true
+          git commit -m "WebView build log $(date)" || true
           git push origin arena/01a0bb79-minecraft || true
 
       - name: Upload WebView APK
@@ -139,6 +143,7 @@ jobs:
       - name: Build Native APK
         run: |
           cd android
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
           gradle assembleDebug --stacktrace 2>&1 | tee ../native-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
 
@@ -147,11 +152,12 @@ jobs:
         run: |
           mkdir -p build
           cp native-build.log build/ || true
-          cat native-build.log | tail -n 300 || true
+          cat native-build.log | tail -n 400 || true
           git config user.email "bot@arena.ai"
           git config user.name "arena bot"
+          git pull --rebase origin arena/01a0bb79-minecraft || true
           git add build/native-build.log || true
-          git commit -m "Native build log" || true
+          git commit -m "Native build log $(date)" || true
           git push origin arena/01a0bb79-minecraft || true
 
       - name: Upload Native APK
@@ -192,6 +198,8 @@ jobs:
             cat apk-info.txt
           else
             echo "No APKs found" > apk-info.txt
+            echo "Checking artifacts structure"
+            find ../artifacts -type f | head -n 100
           fi
           ls -lh
 
