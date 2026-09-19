@@ -1,0 +1,218 @@
+name: Fetch Eaglercraft Ultimate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - arena/01a0bb79-minecraft
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/01a0bb79-minecraft
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install tools
+        run: |
+          pip install requests beautifulsoup4 lxml cloudscraper yt-dlp selenium undetected-chromedriver webdriver-manager
+          npm install -g puppeteer
+          sudo apt-get update && sudo apt-get install -y aria2 jq wget
+
+      - name: Try yt-dlp with verbose
+        run: |
+          yt-dlp --verbose --no-check-certificate "https://www.mediafire.com/file/vvhydlnhy7cx7ir/eaglercraft-26.2-0.6.html/file" -o "test1.html" || true
+          ls -lh
+          head -c 2000 test1.html || true
+
+      - name: Try mediafire direct API with token
+        run: |
+          cat > mf.py <<'PY'
+          import requests, re, json, os, sys
+          s = requests.Session()
+          headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Referer": "https://www.mediafire.com/file/vvhydlnhy7cx7ir/eaglercraft-26.2-0.6.html/file"
+          }
+          # Try multiple API endpoints
+          endpoints = [
+              ("https://www.mediafire.com/api/1.4/file/get_info.php", {"quick_key": "vvhydlnhy7cx7ir", "response_format": "json"}),
+              ("https://www.mediafire.com/api/1.4/file/get_links.php", {"quick_key": "vvhydlnhy7cx7ir", "link_type": "direct_download", "response_format": "json"}),
+              ("https://www.mediafire.com/api/1.4/file/get_links.php", {"quick_key": "vvhydlnhy7cx7ir", "link_type": "normal_download", "response_format": "json"}),
+          ]
+          for url, params in endpoints:
+              try:
+                  print(f"Trying {url} {params}")
+                  r = s.get(url, params=params, headers=headers, timeout=20)
+                  print(f"Status {r.status_code} len {len(r.text)}")
+                  print(r.text[:2000])
+                  try:
+                      data = r.json()
+                      print(json.dumps(data, indent=2)[:3000])
+                  except:
+                      pass
+              except Exception as e:
+                  print(f"Error {e}")
+
+          # Try to get direct download via file/get_links with session token
+          # Some mediafire API requires to get session token first?
+          try:
+              # Get page to extract dkey or something
+              page_url = "https://www.mediafire.com/file/vvhydlnhy7cx7ir/eaglercraft-26.2-0.6.html/file"
+              r = s.get(page_url, headers={"User-Agent": headers["User-Agent"]}, timeout=20)
+              print(f"Page status {r.status_code} len {len(r.text)}")
+              # Look for download link
+              m = re.search(r'https://download\d+\.mediafire\.com[^\s"\'<>]+', r.text)
+              print(f"Direct regex: {m.group(0) if m else 'none'}")
+              # Look for aria-label
+              m2 = re.search(r'aria-label="Download file"\s+href="([^"]+)"', r.text)
+              print(f"Aria: {m2.group(1) if m2 else 'none'}")
+              if m2:
+                  href = m2.group(1)
+                  # Follow
+                  r2 = s.get(href, headers=headers, timeout=20, allow_redirects=True)
+                  print(f"Second page status {r2.status_code} len {len(r2.text)} url {r2.url}")
+                  m3 = re.search(r'https://download\d+\.mediafire\.com[^\s"\'<>]+', r2.text)
+                  print(f"Second direct: {m3.group(0) if m3 else 'none'}")
+                  if m3:
+                      dl_url = m3.group(0)
+                      print(f"Downloading from {dl_url}")
+                      with s.get(dl_url, stream=True, headers=headers, timeout=120) as dl:
+                          total=0
+                          with open("eaglercraft-26.2-0.6.html","wb") as f:
+                              for chunk in dl.iter_content(8192):
+                                  if chunk:
+                                      f.write(chunk)
+                                      total+=len(chunk)
+                          print(f"Saved {total}")
+          except Exception as e:
+              import traceback; traceback.print_exc()
+
+          PY
+          python mf.py
+
+      - name: Try puppeteer
+        run: |
+          cat > puppeteer.js <<'JS'
+          const puppeteer = require('puppeteer');
+          (async () => {
+            const browser = await puppeteer.launch({headless: true, args: ['--no-sandbox']});
+            const page = await browser.newPage();
+            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+            console.log('Goto mediafire');
+            await page.goto('https://www.mediafire.com/file/vvhydlnhy7cx7ir/eaglercraft-26.2-0.6.html/file', {waitUntil: 'domcontentloaded', timeout: 60000});
+            console.log('Loaded title', await page.title());
+            await page.waitForSelector('a[aria-label="Download file"]', {timeout: 15000}).catch(e=>console.log('No button', e));
+            const content = await page.content();
+            console.log('Content len', content.length);
+            console.log(content.slice(0, 5000));
+            const href = await page.$eval('a[aria-label="Download file"]', el=>el.href).catch(e=>null);
+            console.log('Href', href);
+            if (href) {
+              console.log('Navigating to href');
+              await page.goto(href, {waitUntil: 'domcontentloaded', timeout: 30000});
+              console.log('Second page url', page.url());
+              const content2 = await page.content();
+              console.log(content2.slice(0, 5000));
+              const matches = content2.match(/https:\/\/download\d+\.mediafire\.com[^"'\s<>]+/g);
+              console.log('Matches', matches);
+              if (matches && matches[0]) {
+                console.log('Downloading via fetch', matches[0]);
+                // Try to download via page
+                const client = await page.target().createCDPSession();
+                await client.send('Page.setDownloadBehavior', {behavior: 'allow', downloadPath: '/tmp'});
+                await page.goto(matches[0], {waitUntil: 'networkidle0', timeout: 60000}).catch(e=>console.log('Download nav error', e));
+              }
+            }
+            await browser.close();
+          })();
+          JS
+          node puppeteer.js || true
+
+      - name: Try selenium undetected
+        run: |
+          cat > sel.py <<'PY'
+          import time, re
+          try:
+              import undetected_chromedriver as uc
+              from selenium.webdriver.common.by import By
+              print("Starting undetected chrome")
+              options = uc.ChromeOptions()
+              options.add_argument('--headless')
+              options.add_argument('--no-sandbox')
+              options.add_argument('--disable-dev-shm-usage')
+              driver = uc.Chrome(options=options, version_main=122)
+              driver.get("https://www.mediafire.com/file/vvhydlnhy7cx7ir/eaglercraft-26.2-0.6.html/file")
+              print(f"Title {driver.title}")
+              time.sleep(5)
+              print(driver.page_source[:5000])
+              # Find download button
+              try:
+                  btn = driver.find_element(By.CSS_SELECTOR, 'a[aria-label="Download file"]')
+                  href = btn.get_attribute('href')
+                  print(f"Button href {href}")
+                  driver.get(href)
+                  time.sleep(5)
+                  print(driver.page_source[:5000])
+                  print(f"Current url {driver.current_url}")
+                  # Look for download link
+                  m = re.search(r'https://download\d+\.mediafire\.com[^"\'\s<>]+', driver.page_source)
+                  print(f"Direct {m.group(0) if m else 'none'}")
+                  if m:
+                      dl_url = m.group(0)
+                      print(f"Trying to download {dl_url}")
+                      driver.get(dl_url)
+                      time.sleep(10)
+              except Exception as e:
+                  print(f"Error finding button {e}")
+                  import traceback; traceback.print_exc()
+              driver.quit()
+          except Exception as e:
+              print(f"Selenium failed {e}")
+              import traceback; traceback.print_exc()
+          PY
+          python sel.py || true
+
+      - name: Check results
+        if: always()
+        run: |
+          ls -lh
+          wc -c eaglercraft-26.2-0.6.html 2>&1 || true
+          head -c 1000 eaglercraft-26.2-0.6.html 2>&1 || true
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultimate-fetch
+          path: |
+            eaglercraft-*.html
+            test1.html
+          if-no-files-found: warn
+
+      - name: Commit if large
+        if: always()
+        run: |
+          if [ -f eaglercraft-26.2-0.6.html ]; then
+            size=$(stat -c%s eaglercraft-26.2-0.6.html)
+            echo "Size $size"
+            if [ $size -gt 1000000 ]; then
+              mkdir -p original
+              cp eaglercraft-26.2-0.6.html original/
+              git config user.email "bot@arena.ai"
+              git config user.name "arena bot"
+              git add original/
+              git commit -m "Add original html ultimate" || true
+              git push origin arena/01a0bb79-minecraft || true
+            fi
+          fi
