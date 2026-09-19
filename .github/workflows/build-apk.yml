@@ -35,7 +35,6 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "sdk.dir=$ANDROID_HOME" > android-webview/local.properties
           cat local.properties
-          cat android-webview/local.properties
 
       - name: Create debug keystore
         run: |
@@ -70,22 +69,42 @@ jobs:
           <!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=https://eymenwsmc.site/262/index.html"></head><body>Redirecting to Eaglercraft 26.2...</body></html>
           HTML
           ls -lh android-webview/app/src/main/assets/
+          cat android-webview/app/src/main/AndroidManifest.xml
+          cat android-webview/app/build.gradle
+          cat android-webview/build.gradle
+          cat android-webview/settings.gradle
 
       - name: Build WebView APK
         run: |
           cd android-webview
           gradle assembleDebug --stacktrace --info 2>&1 | tee ../webview-build.log
+          echo "=== BUILD LOG TAIL ==="
+          tail -n 100 ../webview-build.log
           ls -lh app/build/outputs/apk/debug/ || true
           find . -name "*.apk" -type f -exec ls -lh {} \;
 
-      - name: Upload logs to file.io on failure
+      - name: Upload logs to file.io
         if: always()
         run: |
           if [ -f webview-build.log ]; then
             echo "Uploading log to file.io"
-            curl -F "file=@webview-build.log" https://file.io || true
-            cat webview-build.log | tail -n 100
+            curl -F "file=@webview-build.log" https://file.io 2>&1 | tee fileio.log || true
+            cat fileio.log
           fi
+
+      - name: Commit logs
+        if: always()
+        run: |
+          mkdir -p build
+          cp webview-build.log build/ || true
+          cp fileio.log build/ || true
+          cat build/webview-build.log | tail -n 200 || true
+          git config user.email "bot@arena.ai"
+          git config user.name "arena bot"
+          git pull --rebase origin arena/01a0bb79-minecraft || true
+          git add build/webview-build.log build/fileio.log || true
+          git commit -m "WebView build log $(date -u)" || true
+          git push origin arena/01a0bb79-minecraft || true
 
       - name: Upload WebView APK
         if: always()
@@ -95,6 +114,7 @@ jobs:
           path: |
             android-webview/app/build/outputs/apk/debug/*.apk
             webview-build.log
+            fileio.log
           if-no-files-found: warn
 
   build-native-apk:
@@ -127,7 +147,6 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          cat local.properties
 
       - name: Create keystore and icons
         run: |
@@ -155,6 +174,7 @@ jobs:
         run: |
           cd android
           gradle assembleDebug --stacktrace 2>&1 | tee ../native-build.log || true
+          tail -n 200 ../native-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
 
       - name: Upload logs
@@ -162,8 +182,15 @@ jobs:
         run: |
           if [ -f ../native-build.log ]; then
             curl -F "file=@../native-build.log" https://file.io || true
-            cat ../native-build.log | tail -n 100
           fi
+          mkdir -p ../build
+          cp ../native-build.log ../build/ || true
+          git config user.email "bot@arena.ai"
+          git config user.name "arena bot"
+          git pull --rebase origin arena/01a0bb79-minecraft || true
+          git add ../build/native-build.log || true
+          git commit -m "Native build log $(date -u)" || true
+          git push origin arena/01a0bb79-minecraft || true
 
       - name: Upload Native APK
         if: always()
