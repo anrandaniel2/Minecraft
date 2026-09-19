@@ -1,0 +1,275 @@
+name: Fetch Eaglercraft v2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/01a0bb79-minecraft
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install
+        run: |
+          pip install requests beautifulsoup4 lxml playwright cloudscraper
+          playwright install chromium
+          sudo apt-get update && sudo apt-get install -y aria2 jq
+
+      - name: Fetch via playwright
+        run: |
+          cat > fetch_play.py <<'PY'
+          from playwright.sync_api import sync_playwright
+          import re, time, requests, json, os, sys
+
+          url = "https://www.mediafire.com/file/vvhydlnhy7cx7ir/eaglercraft-26.2-0.6.html/file"
+          print(f"Opening {url}")
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+              page = context.new_page()
+              page.goto(url, wait_until="domcontentloaded", timeout=60000)
+              print("Page loaded, title:", page.title())
+              # Wait for download button
+              try:
+                  page.wait_for_selector('a[aria-label="Download file"]', timeout=15000)
+                  print("Found download button")
+                  # Get href
+                  btn = page.query_selector('a[aria-label="Download file"]')
+                  href = btn.get_attribute('href') if btn else None
+                  print(f"Button href: {href}")
+                  content = page.content()
+                  open("/tmp/content.html","w",encoding="utf-8").write(content)
+                  print(f"Content len {len(content)}")
+                  # Look for download links in content
+                  matches = re.findall(r'https://download\d+\.mediafire\.com[^"\'\s]+', content)
+                  print("Matches in content:", matches[:5])
+
+                  # Also try to click and wait for download?
+                  # Sometimes button triggers navigation to https://www.mediafire.com/file_premium_dl.php?
+                  # Try to evaluate JS
+                  # Try to intercept requests
+                  def handle_request(req):
+                      print(f"Request: {req.url}")
+
+                  # page.on("request", handle_request)
+
+                  # Click button and wait for navigation or popup
+                  # The button may open new page
+                  with page.expect_navigation(timeout=10000) as nav:
+                      try:
+                          btn.click()
+                      except Exception as e:
+                          print(f"Click error: {e}")
+                  try:
+                      nav_page = nav.value
+                      print(f"Navigated to {nav_page.url if nav_page else 'none'}")
+                  except Exception as e:
+                      print(f"Nav wait error {e}")
+
+                  time.sleep(5)
+                  print(f"After click URL: {page.url}")
+                  print(f"After click content len: {len(page.content())}")
+                  # Try to find download link now
+                  content2 = page.content()
+                  open("/tmp/content2.html","w",encoding="utf-8").write(content2)
+                  matches2 = re.findall(r'https://download\d+\.mediafire\.com[^"\'\s]+', content2)
+                  print("Matches after click:", matches2[:10])
+                  # Look for input button
+                  dl = page.query_selector('a.input')
+                  if dl:
+                      print(f"Found a.input href={dl.get_attribute('href')} text={dl.inner_text()}")
+                  # Try all links
+                  links = page.query_selector_all('a')
+                  for l in links[:50]:
+                      try:
+                          href = l.get_attribute('href')
+                          if href and 'download' in href:
+                              print(f"Link candidate: {href}")
+                      except:
+                          pass
+
+              except Exception as e:
+                  print(f"Error waiting for button: {e}")
+                  import traceback; traceback.print_exc()
+                  content = page.content()
+                  open("/tmp/content.html","w",encoding="utf-8").write(content)
+                  print(content[:5000])
+
+              browser.close()
+
+          # Try API method again
+          print("\n=== Trying API method ===")
+          s = requests.Session()
+          headers = {"User-Agent": "Mozilla/5.0"}
+          # get_info
+          try:
+              r = s.get("https://www.mediafire.com/api/1.4/file/get_info.php", params={"quick_key":"vvhydlnhy7cx7ir","response_format":"json"}, headers=headers, timeout=20)
+              print(r.text[:3000])
+          except Exception as e:
+              print(e)
+
+          try:
+              r = s.get("https://www.mediafire.com/api/1.4/file/get_links.php", params={"quick_key":"vvhydlnhy7cx7ir","link_type":"direct_download","response_format":"json"}, headers=headers, timeout=20)
+              print("get_links:", r.text[:5000])
+              data = json.loads(r.text)
+              # Extract direct
+              resp = data.get('response',{})
+              print(json.dumps(resp, indent=2)[:8000])
+              # Try to get dlink
+              if 'links' in resp:
+                  for link in resp['links']:
+                      print(f"Link: {link}")
+                      dl_url = link.get('direct_download') or link.get('normal_download') or link.get('url')
+                      if dl_url:
+                          print(f"Trying to download from {dl_url}")
+                          # Download
+                          with s.get(dl_url, stream=True, headers=headers, timeout=60) as rr:
+                              rr.raise_for_status()
+                              total=0
+                              with open("eaglercraft-26.2-0.6.html","wb") as f:
+                                  for chunk in rr.iter_content(8192):
+                                      if chunk:
+                                          f.write(chunk)
+                                          total+=len(chunk)
+                                          if total % (1024*1024)==0:
+                                              print(f"{total} bytes")
+                              print(f"Saved {total} bytes to html file")
+                              break
+          except Exception as e:
+              print(f"API download failed {e}")
+              import traceback; traceback.print_exc()
+
+          # If file exists, print size
+          if os.path.exists("eaglercraft-26.2-0.6.html"):
+              print(f"File exists size {os.path.getsize('eaglercraft-26.2-0.6.html')}")
+          else:
+              print("No file yet")
+
+          PY
+          python fetch_play.py
+
+      - name: Try cloudscraper
+        if: always()
+        run: |
+          cat > fetch_cloud.py <<'PY'
+          import cloudscraper, re, os, json, requests
+          scraper = cloudscraper.create_scraper(browser={'browser':'chrome','platform':'windows','mobile':False})
+          url = "https://www.mediafire.com/file/vvhydlnhy7cx7ir/eaglercraft-26.2-0.6.html/file"
+          print(f"Fetching {url} with cloudscraper")
+          r = scraper.get(url)
+          print(f"Status {r.status_code} len {len(r.text)}")
+          open("/tmp/cloud.html","w",encoding="utf-8").write(r.text)
+          # Find download link
+          m = re.search(r'https://download\d+\.mediafire\.com[^"\'\s<>]+', r.text)
+          print("Direct regex:", m.group(0) if m else "none")
+          # Look for input
+          m2 = re.search(r'aria-label="Download file"\s+href="([^"]+)"', r.text)
+          print("aria regex:", m2.group(1) if m2 else "none")
+          # Look for premium dl
+          m3 = re.search(r'"https://www\.mediafire\.com/file_premium_dl\.php[^"]+"', r.text)
+          print("premium:", m3.group(0) if m3 else "none")
+          # Try to get download button url via JS var
+          # Mediafire often has kNO = ...
+          # Let's try to find quickkey and do API
+          # Already tried
+
+          # Try to fetch the href if found
+          href = None
+          if m2:
+              href = m2.group(1)
+          elif m:
+              href = m.group(0)
+
+          if href:
+              print(f"Trying href {href}")
+              # Need to decode html entities
+              import html
+              href = html.unescape(href)
+              print(f"Decoded href {href}")
+              # If it's relative or file_premium, fetch it
+              r2 = scraper.get(href, allow_redirects=True)
+              print(f"Second fetch status {r2.status_code} len {len(r2.text)} final url {r2.url}")
+              open("/tmp/second.html","w",encoding="utf-8").write(r2.text[:20000])
+              # Look for download link in second page
+              m4 = re.search(r'https://download\d+\.mediafire\.com[^"\'\s<>]+', r2.text)
+              print("Second direct:", m4.group(0) if m4 else "none")
+              if m4:
+                  dl_url = m4.group(0)
+                  print(f"Downloading from {dl_url}")
+                  with scraper.get(dl_url, stream=True) as dl:
+                      total=0
+                      with open("eaglercraft-26.2-0.6.html","wb") as f:
+                          for chunk in dl.iter_content(8192):
+                              if chunk:
+                                  f.write(chunk)
+                                  total+=len(chunk)
+                      print(f"Saved {total}")
+          else:
+              # Try API
+              print("No href, trying API via scraper")
+              api_url = "https://www.mediafire.com/api/1.4/file/get_links.php"
+              params = {"quick_key":"vvhydlnhy7cx7ir","link_type":"direct_download","response_format":"json"}
+              r_api = scraper.get(api_url, params=params)
+              print(r_api.text[:5000])
+              try:
+                  data = json.loads(r_api.text)
+                  links = data.get('response',{}).get('links',[])
+                  if links:
+                      dl_url = links[0].get('direct_download') or links[0].get('normal_download')
+                      print(f"API dl_url {dl_url}")
+                      if dl_url:
+                          with scraper.get(dl_url, stream=True) as dl:
+                              total=0
+                              with open("eaglercraft-26.2-0.6.html","wb") as f:
+                                  for chunk in dl.iter_content(8192):
+                                      if chunk:
+                                          f.write(chunk)
+                                          total+=len(chunk)
+                              print(f"Saved {total}")
+              except Exception as e:
+                  print(e)
+
+          PY
+          python fetch_cloud.py
+
+      - name: Check file
+        if: always()
+        run: |
+          ls -lh
+          file eaglercraft-26.2-0.6.html 2>&1 || echo "no file"
+          head -c 1000 eaglercraft-26.2-0.6.html 2>&1 || true
+          wc -c eaglercraft-26.2-0.6.html 2>&1 || true
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eaglercraft-attempt2
+          path: |
+            eaglercraft-26.2-0.6.html
+            /tmp/*.html
+          if-no-files-found: warn
+
+      - name: Commit if large
+        if: always()
+        run: |
+          if [ -f eaglercraft-26.2-0.6.html ]; then
+            size=$(stat -c%s eaglercraft-26.2-0.6.html)
+            echo "Size $size"
+            if [ $size -gt 1000000 ]; then
+              mkdir -p original
+              cp eaglercraft-26.2-0.6.html original/
+              git config user.email "bot@arena.ai"
+              git config user.name "arena bot"
+              git add original/
+              git commit -m "Add original html v2" || true
+              git push origin arena/01a0bb79-minecraft || true
+            fi
+          fi
