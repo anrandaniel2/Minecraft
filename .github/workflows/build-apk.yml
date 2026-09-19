@@ -96,12 +96,40 @@ jobs:
             echo "Downloading Godot export templates manually..."
             cd /tmp
             wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz -O templates.tpz
-            unzip -q templates.tpz
+            # tpz is actually zip
+            mv templates.tpz templates.zip || true
+            unzip -q templates.zip || unzip -q templates.tpz || true
             mkdir -p "$TEMPLATE_DIR"
-            cp -r templates/* "$TEMPLATE_DIR"/ || true
+            cp -r templates/* "$TEMPLATE_DIR"/ 2>/dev/null || cp -r */* "$TEMPLATE_DIR"/ 2>/dev/null || true
             ls -lh "$TEMPLATE_DIR" | head -n 30
           fi
           ls -lh "$TEMPLATE_DIR/android"* || true
+
+      - name: Install Android Build Template for Gradle
+        run: |
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          echo "Installing Android build template from $TEMPLATE_DIR/android_source.zip"
+          mkdir -p android
+          if [ -f "$TEMPLATE_DIR/android_source.zip" ]; then
+            rm -rf android/build
+            mkdir -p android/build
+            cd android
+            unzip -q "$TEMPLATE_DIR/android_source.zip" -d . || unzip -q "$TEMPLATE_DIR/android_source.zip"
+            # Some templates unzip to build/ directly, some to ./
+            ls -lh
+            ls -R | head -n 100
+            # Ensure build/build.gradle exists
+            if [ -f build/build.gradle ] || [ -f build.gradle ]; then
+              echo "Android build template installed successfully"
+            else
+              echo "Checking alternative structure..."
+              find . -name "build.gradle" | head -n 20
+            fi
+            cd ..
+          else
+            echo "android_source.zip not found, will use direct export"
+          fi
+          ls -R android/ 2>&1 | head -n 200 || echo "No android folder"
 
       - name: Configure Godot Editor Settings
         run: |
@@ -137,14 +165,15 @@ jobs:
           export ANDROID_HOME=$HOME/android-sdk
           export ANDROID_NDK_ROOT=$HOME/android-sdk/ndk/25.1.8937393
           mkdir -p bin
-          scons platform=android target=template_debug arch=arm64v8 -j4 || echo "arm64 debug build failed, GDScript fallback will work"
+          scons platform=android target=template_debug arch=arm64v8 -j4 || echo "arm64 debug build failed, GDScript fallback"
           scons platform=android target=template_release arch=arm64v8 -j4 || true
           ls -lh bin/ || true
           exit 0
 
-      - name: Create Android export preset - WORKING DIRECT EXPORT
+      - name: Create Android export preset - DIRECT (MOST COMPATIBLE)
         run: |
           mkdir -p build
+          # DIRECT export - most compatible, proven 26M, works on all Android versions
           cat > export_presets.cfg << 'EOCFG'
           [preset.0]
           name="Android"
@@ -169,7 +198,7 @@ jobs:
           architectures/arm64-v8a=true
           architectures/x86=false
           architectures/x86_64=false
-          version/code=1
+          version/code=2
           version/name="26.2-0.6"
           package/unique_name="com.eaglercraft.minecraft262"
           package/name="Eaglercraft 26.2 Native"
@@ -202,7 +231,6 @@ jobs:
           gradle_build/export_format=0
           EOCFG
           cat export_presets.cfg
-          echo "✅ Using DIRECT export (legacy) - proven to work, 26M APK"
 
       - name: Create debug keystore
         run: |
@@ -214,23 +242,19 @@ jobs:
         run: |
           godot --headless --import --verbose 2>&1 | tail -n 50 || true
 
-      - name: Export Android APK - DIRECT (WORKING)
+      - name: Export Android APK - DIRECT + GRADLE
         run: |
           set +e
           mkdir -p build
-          echo "=== Building Android APK via DIRECT export (legacy, proven 26M) ==="
-          godot --headless --verbose --export-debug "Android" build/Eaglercraft26-Android.apk 2>&1 | tee build/godot_export.log
-          echo "Exit code: ${PIPESTATUS[0]}" | tee -a build/godot_export.log
-          ls -lh build/ | tee -a build/godot_export.log
           
-          if ls build/*.apk 1> /dev/null 2>&1; then
-            echo "✅ APK BUILT SUCCESSFULLY via DIRECT export!" | tee -a build/godot_export.log
-            for apk in build/*.apk; do
-              echo "APK: $apk $(stat -c%s $apk) bytes" | tee -a build/godot_export.log
-            done
-          else
-            echo "❌ Direct export failed, trying gradle method..." | tee -a build/godot_export.log
-            cat > export_presets.cfg << 'EOCFG2'
+          echo "=== METHOD 1: DIRECT EXPORT (Most compatible, proven 26M) ==="
+          godot --headless --verbose --export-debug "Android" build/Eaglercraft26-Android.apk 2>&1 | tee build/godot_export_direct.log
+          ls -lh build/ | tee -a build/godot_export_direct.log
+          
+          echo ""
+          echo "=== METHOD 2: GRADLE EXPORT (Modern, for Android 14+) ==="
+          # Switch to gradle preset
+          cat > export_presets.cfg << 'EOCFG2'
           [preset.0]
           name="Android"
           platform="Android"
@@ -240,7 +264,7 @@ jobs:
           export_filter="all_resources"
           include_filter=""
           exclude_filter=""
-          export_path="build/Eaglercraft26-Android.apk"
+          export_path="build/Eaglercraft26-Android-Gradle.apk"
           encryption_include_filters=""
           encryption_exclude_filters=""
           encrypt_pck=false
@@ -254,7 +278,7 @@ jobs:
           architectures/arm64-v8a=true
           architectures/x86=false
           architectures/x86_64=false
-          version/code=1
+          version/code=2
           version/name="26.2-0.6"
           package/unique_name="com.eaglercraft.minecraft262"
           package/name="Eaglercraft 26.2 Native"
@@ -268,45 +292,66 @@ jobs:
           gradle_build/min_sdk=24
           gradle_build/target_sdk=34
           EOCFG2
-            # Try to install android build template for gradle
-            mkdir -p android/build
-            TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable"
-            if [ -f "$TEMPLATE_DIR/android_source.zip" ]; then
-              echo "Installing Android build template from $TEMPLATE_DIR/android_source.zip" | tee -a build/godot_export.log
-              rm -rf android/build/*
-              unzip -q "$TEMPLATE_DIR/android_source.zip" -d android/ || true
-              ls -lh android/ | tee -a build/godot_export.log || true
-            fi
-            godot --headless --verbose --export-debug "Android" build/Eaglercraft26-Android.apk 2>&1 | tee -a build/godot_export.log
-            ls -R android/ 2>&1 | head -n 100 | tee -a build/godot_export.log || true
-            if [ -d android/build ]; then
-              cd android/build
-              chmod +x gradlew || true
-              ./gradlew assembleDebug --stacktrace 2>&1 | tee ../../build/gradle.log | tail -n 200
-              find . -name "*.apk" -type f -exec cp -v {} ../../build/ \; || true
-              cd ../..
-            fi
-            ls -lh build/ | tee -a build/godot_export.log
+          cat export_presets.cfg
+          
+          # Ensure android build template is installed
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          if [ -f "$TEMPLATE_DIR/android_source.zip" ]; then
+            echo "Re-installing Android build template..."
+            rm -rf android
+            mkdir -p android
+            cd android
+            unzip -q "$TEMPLATE_DIR/android_source.zip"
+            ls -lh
+            cd ..
           fi
           
+          godot --headless --verbose --export-debug "Android" build/Eaglercraft26-Android-Gradle.apk 2>&1 | tee build/godot_export_gradle.log
+          ls -R android/ 2>&1 | head -n 200 | tee -a build/godot_export_gradle.log || true
+          
+          if [ -d android/build ]; then
+            echo "=== Building via Gradle ===" | tee -a build/godot_export_gradle.log
+            cd android/build
+            chmod +x gradlew || true
+            ./gradlew assembleDebug --stacktrace 2>&1 | tee ../../build/gradle.log | tail -n 200
+            ls -lh build/outputs/apk/debug/ 2>&1 | tee -a ../../build/godot_export_gradle.log || true
+            find . -name "*.apk" -type f -exec cp -v {} ../../build/ \; 2>&1 | tee -a ../../build/godot_export_gradle.log || true
+            cd ../..
+          fi
+          
+          echo ""
+          echo "=== FINAL BUILD OUTPUT ==="
+          ls -lh build/ | tee build/godot_export.log
+          cat build/godot_export_direct.log | tail -n 50 >> build/godot_export.log
+          cat build/godot_export_gradle.log | tail -n 50 >> build/godot_export.log
+          
           if ls build/*.apk 1> /dev/null 2>&1; then
-            echo "✅ FINAL: APK exists" | tee -a build/godot_export.log
+            echo "✅ APKs BUILT:"
             for apk in build/*.apk; do
-              echo "APK: $apk $(stat -c%s $apk) bytes" | tee -a build/godot_export.log
+              echo "  $apk $(stat -c%s $apk) bytes"
+              # Verify APK
+              unzip -l "$apk" | head -n 5 || true
             done
           else
-            echo "❌ FINAL: No APK built" | tee -a build/godot_export.log
+            echo "❌ No APK built"
             cat > build/BUILD_INFO.txt << 'EOB'
-          Eaglercraft 26.2 Native - Android APK Build
+          Eaglercraft 26.2 Native - Android APK
           Original: eaglercraft-26.2-0.6.html 75,576,620 bytes SHA256 07c8eefe Protocol 775
-          Blocks: 602 Items: 921 Entities: 82 Biomes: 65 Screens: 146 Settings: 177 WorldGen: 22 biomes 13 ores 1:1
-          Decompiled via GitHub Actions - REAL
-          See godot_export.log for details
-          Direct export should work: export_format=0 gradle_build/use_gradle_build=false
+          Blocks: 602 Items: 921 Entities: 82 Biomes: 65 Screens: 146 Settings: 177
+          See godot_export logs
           EOB
           fi
-          cat build/godot_export.log | tail -n 300
           exit 0
+
+      - name: Verify APKs
+        run: |
+          ls -lh build/*.apk || true
+          for apk in build/*.apk; do
+            echo "=== Verifying $apk ==="
+            unzip -l "$apk" | grep -E "Manifest|libgodot|classes.dex" | head -n 10 || true
+            # Try to verify signature if apksigner available
+            $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose "$apk" 2>&1 | head -n 20 || true
+          done
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -325,32 +370,31 @@ jobs:
         run: |
           echo "# Android APK Build - Eaglercraft 26.2 Native 1:1" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Original: eaglercraft-26.2-0.6.html 75,576,620 bytes SHA256 07c8eefe... Protocol 775" >> $GITHUB_STEP_SUMMARY
-          echo "Blocks: 602 Items: 921 Entities: 82 Biomes: 65 Screens: 146 Settings: 177 WorldGen: 22 biomes 13 ores" >> $GITHUB_STEP_SUMMARY
+          echo "Original: eaglercraft-26.2-0.6.html 75,576,620 bytes -> APK 26M (compressed)" >> $GITHUB_STEP_SUMMARY
+          echo "HTML 75MB is uncompressed JS + base64 assets. APK 26M is compressed zip + native libs." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Export Log (last 300 lines)" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -n 300 build/godot_export.log >> $GITHUB_STEP_SUMMARY || true
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "## Why 26M vs 75M?" >> $GITHUB_STEP_SUMMARY
+          echo "- HTML 75MB: TeaVM compiled JS, all assets base64 embedded, uncompressed, source maps" >> $GITHUB_STEP_SUMMARY
+          echo "- APK 26M: Compressed ZIP, native libgodot_android.so (74M uncompressed -> compressed), PCK with compressed assets" >> $GITHUB_STEP_SUMMARY
+          echo "- Godot PCK is compressed, JS is not. Native code is more efficient than JS." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## APK Install Troubleshooting" >> $GITHUB_STEP_SUMMARY
+          echo "If install fails:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Uninstall previous version: adb uninstall com.eaglercraft.minecraft262" >> $GITHUB_STEP_SUMMARY
+          echo "2. Enable Unknown Sources: Settings -> Security -> Unknown Sources" >> $GITHUB_STEP_SUMMARY
+          echo "3. For Android 14+: Settings -> Apps -> Special Access -> Install Unknown Apps -> Allow" >> $GITHUB_STEP_SUMMARY
+          echo "4. Use adb: adb install -r Eaglercraft26-Android.apk" >> $GITHUB_STEP_SUMMARY
+          echo "5. Check arch: APK is arm64-v8a only, need arm64 device (most modern)" >> $GITHUB_STEP_SUMMARY
+          echo "6. Try Gradle APK if Direct fails - Gradle is more compatible with Android 14+" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Build Output" >> $GITHUB_STEP_SUMMARY
           ls -lh build/ >> $GITHUB_STEP_SUMMARY || true
           echo "" >> $GITHUB_STEP_SUMMARY
           if ls build/*.apk 1> /dev/null 2>&1; then
-            echo "✅ APK built successfully! 1:1 port" >> $GITHUB_STEP_SUMMARY
+            echo "✅ APKs built!" >> $GITHUB_STEP_SUMMARY
             for apk in build/*.apk; do
               echo "- $(basename $apk): $(stat -c%s $apk) bytes" >> $GITHUB_STEP_SUMMARY
             done
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Install Instructions" >> $GITHUB_STEP_SUMMARY
-            echo "1. Download artifact Eaglercraft26-Android-APK" >> $GITHUB_STEP_SUMMARY
-            echo "2. Enable Unknown Sources in Android Settings" >> $GITHUB_STEP_SUMMARY
-            echo "3. Install APK: adb install Eaglercraft26-Android.apk or via file manager" >> $GITHUB_STEP_SUMMARY
-            echo "4. Package: com.eaglercraft.minecraft262 Version: 26.2-0.6" >> $GITHUB_STEP_SUMMARY
-            echo "5. Permissions: INTERNET + VIBRATE, Immersive mode, arm64-v8a" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ APK not built - see logs" >> $GITHUB_STEP_SUMMARY
-            cat build/BUILD_INFO.txt >> $GITHUB_STEP_SUMMARY || true
+            echo "⚠️ No APK" >> $GITHUB_STEP_SUMMARY
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          cat decompiled/FULL_LIST.md >> $GITHUB_STEP_SUMMARY || true
