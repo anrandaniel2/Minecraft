@@ -1,0 +1,206 @@
+name: Fetch Eaglercraft 26.2 from eymenwsmc
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - arena/01a0bb79-minecraft
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/01a0bb79-minecraft
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install requests beautifulsoup4
+
+      - name: Fetch eymenwsmc 26.2
+        run: |
+          cat > fetch_eymen.py <<'PY'
+          import requests, re, os, json
+          from bs4 import BeautifulSoup
+          from urllib.parse import urljoin
+
+          base = "https://eymenwsmc.site/262/"
+          index_url = "https://eymenwsmc.site/262/index.html?v=292fa5ab221d7e6c"
+          headers = {"User-Agent":"Mozilla/5.0"}
+
+          s = requests.Session()
+          print(f"Fetching {index_url}")
+          r = s.get(index_url, headers=headers, timeout=30)
+          print(f"Status {r.status_code} len {len(r.text)}")
+          open("/tmp/index.html","w",encoding="utf-8").write(r.text)
+          print(r.text[:5000])
+
+          # Try to find wasm and js files
+          soup = BeautifulSoup(r.text, 'lxml')
+          scripts = []
+          for tag in soup.find_all('script'):
+              src = tag.get('src')
+              if src:
+                  scripts.append(src)
+                  print(f"script src: {src}")
+              else:
+                  # inline
+                  txt = tag.string or ""
+                  if len(txt)>0:
+                      print(f"inline script len {len(txt)} snippet {txt[:500]}")
+
+          # Find all links
+          for link in soup.find_all('link', href=True):
+              print(f"link href {link['href']}")
+
+          # Try to fetch common files
+          common = ["client.js", "classes.js", "eaglercraft.js", "main.js", "wasm.js", "eaglercraft.wasm", "client.wasm", "assets.epk", "prog.js"]
+          # Also try to list directory?
+          # The base might have files like 262/...
+          # Try to fetch https://eymenwsmc.site/262/ directory listing via fetch
+          # Try to guess from page source
+          # Look for fetch or import in JS
+          # Try to download everything linked
+          os.makedirs("original_262", exist_ok=True)
+
+          # Download all script srcs
+          for src in scripts:
+              full = urljoin(index_url, src)
+              print(f"Downloading {full}")
+              try:
+                  rr = s.get(full, headers=headers, timeout=30)
+                  print(f"  status {rr.status_code} len {len(rr.content)}")
+                  fname = os.path.basename(src.split('?')[0])
+                  if not fname:
+                      fname = "script.js"
+                  with open(f"original_262/{fname}", "wb") as f:
+                      f.write(rr.content)
+              except Exception as e:
+                  print(f"  error {e}")
+
+          # Also try to find .wasm references in page
+          wasm_refs = re.findall(r'["\']([^"\']+\.wasm(?:\?[^"\']*)?)["\']', r.text)
+          print(f"WASM refs: {wasm_refs}")
+          for ref in wasm_refs:
+              full = urljoin(index_url, ref)
+              print(f"Downloading WASM {full}")
+              try:
+                  rr = s.get(full, headers=headers, stream=True, timeout=60)
+                  print(f"  status {rr.status_code}")
+                  fname = os.path.basename(ref.split('?')[0])
+                  total=0
+                  with open(f"original_262/{fname}", "wb") as f:
+                      for chunk in rr.iter_content(8192):
+                          if chunk:
+                              f.write(chunk)
+                              total+=len(chunk)
+                  print(f"  saved {total}")
+              except Exception as e:
+                  print(f"  error {e}")
+
+          # Try to find all .epk, .js, .json
+          all_refs = re.findall(r'["\']([^"\']+\.(?:js|wasm|epk|json|mem|data)(?:\?[^"\']*)?)["\']', r.text)
+          print(f"All refs found {len(all_refs)}")
+          for ref in set(all_refs):
+              if ref.startswith("data:"):
+                  continue
+              full = urljoin(index_url, ref)
+              # skip if already downloaded
+              fname = os.path.basename(ref.split('?')[0])
+              if os.path.exists(f"original_262/{fname}"):
+                  continue
+              print(f"Downloading ref {full}")
+              try:
+                  rr = s.get(full, headers=headers, timeout=30)
+                  if rr.status_code==200:
+                      with open(f"original_262/{fname}", "wb") as f:
+                          f.write(rr.content)
+                      print(f"  saved {len(rr.content)}")
+              except Exception as e:
+                  print(f"  error {e}")
+
+          # List files
+          print("Files downloaded:")
+          for root, dirs, files in os.walk("original_262"):
+              for f in files:
+                  fp = os.path.join(root,f)
+                  print(f"  {fp} {os.path.getsize(fp)}")
+
+          # Also try to download the mediafire 0.5 version via alternative method using mediafire API we know
+          # The quick_key for 0.5 is a00orkr4rfe92yj
+          print("\n=== Trying mediafire API for 0.6 ===")
+          for qk in ["vvhydlnhy7cx7ir", "a00orkr4rfe92yj"]:
+              print(f"Trying quick_key {qk}")
+              try:
+                  api = "https://www.mediafire.com/api/1.4/file/get_links.php"
+                  params = {"quick_key": qk, "link_type":"direct_download", "response_format":"json"}
+                  r_api = s.get(api, params=params, headers=headers, timeout=20)
+                  print(r_api.text[:2000])
+                  data = r_api.json()
+                  links = data.get('response',{}).get('links',[])
+                  print(f"links: {links}")
+                  if links:
+                      dl = links[0].get('direct_download')
+                      print(f"dl {dl}")
+                      if dl:
+                          print(f"Downloading {dl}")
+                          with s.get(dl, stream=True, headers=headers, timeout=120) as dr:
+                              dr.raise_for_status()
+                              total=0
+                              fname = f"eaglercraft-26.2-{qk}.html"
+                              with open(fname, "wb") as f:
+                                  for chunk in dr.iter_content(8192):
+                                      if chunk:
+                                          f.write(chunk)
+                                          total+=len(chunk)
+                              print(f"Saved {total} to {fname}")
+              except Exception as e:
+                  print(f"Error {e}")
+                  import traceback; traceback.print_exc()
+
+          PY
+          python fetch_eymen.py
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eaglercraft-262-site
+          path: |
+            original_262/
+            eaglercraft-*.html
+            /tmp/index.html
+          if-no-files-found: warn
+
+      - name: Commit if big file
+        if: always()
+        run: |
+          ls -lh
+          ls -lh original_262/ || true
+          for f in eaglercraft-*.html; do
+            if [ -f "$f" ]; then
+              size=$(stat -c%s "$f")
+              echo "$f size $size"
+              if [ $size -gt 1000000 ]; then
+                mkdir -p original
+                cp "$f" original/
+                git config user.email "bot@arena.ai"
+                git config user.name "arena bot"
+                git add original/
+                git commit -m "Add $f from fetch3" || true
+                git push origin arena/01a0bb79-minecraft || true
+              fi
+            fi
+          done
+          # Also commit original_262 if has wasm
+          if [ -d original_262 ]; then
+            if ls original_262/*.wasm 1> /dev/null 2>&1; then
+              git add original_262/
+              git commit -m "Add original_262 wasm files" || true
+              git push origin arena/01a0bb79-minecraft || true
+            fi
+          fi
