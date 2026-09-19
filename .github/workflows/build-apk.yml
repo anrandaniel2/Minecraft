@@ -34,7 +34,6 @@ jobs:
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           mkdir -p android-webview/app
           cp debug.keystore android-webview/app/debug.keystore
-          cp debug.keystore android/app/debug.keystore || true
 
       - name: Create icons
         run: |
@@ -46,12 +45,7 @@ jobs:
           for x in range(128,384):
               for y in range(128,384):
                   img.putpixel((x,y), (255,255,255,255))
-          for x in range(150,350):
-              for y in range(150,250):
-                  img.putpixel((x,y), (34,139,34,255))
-              for y in range(250,350):
-                  img.putpixel((x,y), (139,69,19,255))
-          for base in ["android-webview/app/src/main/res", "android/app/src/main/res"]:
+          for base in ["android-webview/app/src/main/res"]:
               for size, folder in [(72,"hdpi"), (48,"mdpi"), (96,"xhdpi"), (144,"xxhdpi"), (192,"xxxhdpi")]:
                   os.makedirs(f"{base}/mipmap-{folder}", exist_ok=True)
                   resized = img.resize((size,size))
@@ -63,54 +57,29 @@ jobs:
       - name: Prepare WebView assets
         run: |
           mkdir -p android-webview/app/src/main/assets
-          # Create HTML that loads online 26.2 and also contains offline note
           cat > android-webview/app/src/main/assets/eaglercraft-26.2-0.6.html <<'HTML'
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-            <title>Eaglercraft 26.2 Native</title>
-            <style>
-              body { margin:0; background:#111; color:#fff; font-family: monospace; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
-              .logo { font-size:24px; margin-bottom:20px; }
-              .btn { background:#777; border:2px solid #000; color:#fff; padding:10px 20px; margin:5px; cursor:pointer; width:200px; text-align:center; }
-              .btn:hover { background:#88f; }
-            </style>
-          </head>
-          <body>
-            <div class="logo">Eaglercraft 26.2 - 0.6 Native C++ Port</div>
-            <div>Loading...</div>
-            <script>
-              // Redirect to online version after 1s, or show menu
-              setTimeout(() => {
-                window.location.href = "https://eymenwsmc.site/262/index.html";
-              }, 1000);
-            </script>
-          </body>
-          </html>
+          <!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=https://eymenwsmc.site/262/index.html"></head><body>Redirecting to Eaglercraft 26.2...</body></html>
           HTML
           ls -lh android-webview/app/src/main/assets/
 
       - name: Build WebView APK
         run: |
           cd android-webview
-          # Create gradle wrapper if not exists
-          if [ ! -f gradlew ]; then
-            echo "Creating gradle wrapper"
-            mkdir -p gradle/wrapper
-            cat > gradle/wrapper/gradle-wrapper.properties <<'PROP'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          PROP
-            # Use system gradle to build
-          fi
           gradle assembleDebug --stacktrace 2>&1 | tee ../webview-build.log
           ls -lh app/build/outputs/apk/debug/ || true
           find . -name "*.apk" -type f
+
+      - name: Commit logs on failure
+        if: always()
+        run: |
+          mkdir -p build
+          cp webview-build.log build/ || true
+          cat webview-build.log | tail -n 200 || true
+          git config user.email "bot@arena.ai"
+          git config user.name "arena bot"
+          git add build/webview-build.log || true
+          git commit -m "WebView build log" || true
+          git push origin arena/01a0bb79-minecraft || true
 
       - name: Upload WebView APK
         if: always()
@@ -173,6 +142,18 @@ jobs:
           gradle assembleDebug --stacktrace 2>&1 | tee ../native-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
 
+      - name: Commit logs
+        if: always()
+        run: |
+          mkdir -p build
+          cp native-build.log build/ || true
+          cat native-build.log | tail -n 300 || true
+          git config user.email "bot@arena.ai"
+          git config user.name "arena bot"
+          git add build/native-build.log || true
+          git commit -m "Native build log" || true
+          git push origin arena/01a0bb79-minecraft || true
+
       - name: Upload Native APK
         if: always()
         uses: actions/upload-artifact@v4
@@ -204,10 +185,8 @@ jobs:
           ls -lh build/ || true
           cd build
           if ls *.apk 1> /dev/null 2>&1; then
-            # Keep largest as main
             largest=$(ls -S *.apk | head -n 1)
             cp "$largest" Eaglercraft26-Android.apk
-            # Also create a combined info
             echo "APKs built:" > apk-info.txt
             ls -lh *.apk >> apk-info.txt
             cat apk-info.txt
