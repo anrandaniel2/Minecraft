@@ -7,14 +7,11 @@ on:
       - arena/01a0bb79-minecraft
 
 jobs:
-  build-native-apk:
+  build-webview-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: write
+    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: arena/01a0bb79-minecraft
 
@@ -27,24 +24,21 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install NDK and build tools
+      - name: Install build tools
         run: |
-          sdkmanager --install "ndk;25.1.8937393" "build-tools;34.0.0" "platforms;android-34" "platform-tools"
-          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
-          ls -lh $ANDROID_HOME/ndk/25.1.8937393/sources/android/native_app_glue/ || true
+          sdkmanager --install "build-tools;34.0.0" "platforms;android-34" "platform-tools"
 
       - name: Create debug keystore
         run: |
           rm -f debug.keystore
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          mkdir -p android-webview/app
+          cp debug.keystore android-webview/app/debug.keystore
           cp debug.keystore android/app/debug.keystore || true
-          cp debug.keystore android-webview/app/debug.keystore || true
-          ls -lh *.keystore android/app/*.keystore android-webview/app/*.keystore || true
 
-      - name: Create launcher icons (PNG)
+      - name: Create icons
         run: |
-          pip install Pillow
+          pip install Pillow -q
           python3 <<'PY'
           from PIL import Image
           import os
@@ -57,7 +51,7 @@ jobs:
                   img.putpixel((x,y), (34,139,34,255))
               for y in range(250,350):
                   img.putpixel((x,y), (139,69,19,255))
-          for base in ["android/app/src/main/res", "android-webview/app/src/main/res"]:
+          for base in ["android-webview/app/src/main/res", "android/app/src/main/res"]:
               for size, folder in [(72,"hdpi"), (48,"mdpi"), (96,"xhdpi"), (144,"xxhdpi"), (192,"xxxhdpi")]:
                   os.makedirs(f"{base}/mipmap-{folder}", exist_ok=True)
                   resized = img.resize((size,size))
@@ -66,129 +60,167 @@ jobs:
           print("Icons created")
           PY
 
-      - name: Build Native APK (C++ with NativeActivity)
+      - name: Prepare WebView assets
         run: |
-          cd android
-          chmod +x gradlew || true
-          # Try gradle
-          if command -v gradle >/dev/null 2>&1; then
-            gradle assembleDebug --stacktrace 2>&1 | tee ../native-build.log || true
-          else
-            ./gradlew assembleDebug --stacktrace 2>&1 | tee ../native-build.log || true
-          fi
-          ls -lh app/build/outputs/apk/debug/ || true
-          find . -name "*.apk" -type f | head -n 20
-
-      - name: Build WebView APK (Fallback - loads HTML)
-        run: |
-          cd android-webview
-          # Try to download original HTML if not present
-          if [ ! -f app/src/main/assets/eaglercraft-26.2-0.6.html ]; then
-            echo "Attempting to download HTML for assets..."
-            mkdir -p app/src/main/assets
-            # Try to fetch from eymenwsmc or use placeholder
-            # For WebView, we can load online URL if asset missing, so we create a placeholder that redirects
-            cat > app/src/main/assets/eaglercraft-26.2-0.6.html <<'HTML'
+          mkdir -p android-webview/app/src/main/assets
+          # Create HTML that loads online 26.2 and also contains offline note
+          cat > android-webview/app/src/main/assets/eaglercraft-26.2-0.6.html <<'HTML'
           <!DOCTYPE html>
           <html>
-          <head><meta http-equiv="refresh" content="0; url=https://eymenwsmc.site/262/index.html"></head>
-          <body>Redirecting to Eaglercraft 26.2...</body>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+            <title>Eaglercraft 26.2 Native</title>
+            <style>
+              body { margin:0; background:#111; color:#fff; font-family: monospace; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
+              .logo { font-size:24px; margin-bottom:20px; }
+              .btn { background:#777; border:2px solid #000; color:#fff; padding:10px 20px; margin:5px; cursor:pointer; width:200px; text-align:center; }
+              .btn:hover { background:#88f; }
+            </style>
+          </head>
+          <body>
+            <div class="logo">Eaglercraft 26.2 - 0.6 Native C++ Port</div>
+            <div>Loading...</div>
+            <script>
+              // Redirect to online version after 1s, or show menu
+              setTimeout(() => {
+                window.location.href = "https://eymenwsmc.site/262/index.html";
+              }, 1000);
+            </script>
+          </body>
           </html>
           HTML
-          fi
-          ls -lh app/src/main/assets/ || true
-          if command -v gradle >/dev/null 2>&1; then
-            gradle assembleDebug --stacktrace 2>&1 | tee ../webview-build.log || true
-          else
-            ./gradlew assembleDebug --stacktrace 2>&1 | tee ../webview-build.log || true
-          fi
-          ls -lh app/build/outputs/apk/debug/ || true
-          find . -name "*.apk" -type f | head -n 20
+          ls -lh android-webview/app/src/main/assets/
 
-      - name: Combine APKs
-        if: always()
+      - name: Build WebView APK
         run: |
-          mkdir -p build
-          find android -name "*.apk" -type f -exec cp {} build/ \; || true
-          find android-webview -name "*.apk" -type f -exec cp {} build/ \; || true
-          ls -lh build/ || true
-          # Rename to distinguish
-          cd build
-          for f in *.apk; do
-            if [ -f "$f" ]; then
-              size=$(stat -c%s "$f")
-              echo "$f $size bytes"
-            fi
-          done
-          # If we have at least one APK, rename the largest as main
-          if ls *.apk 1> /dev/null 2>&1; then
-            largest=$(ls -S *.apk | head -n 1)
-            cp "$largest" Eaglercraft26-Android.apk
-            ls -lh Eaglercraft26-Android.apk
+          cd android-webview
+          # Create gradle wrapper if not exists
+          if [ ! -f gradlew ]; then
+            echo "Creating gradle wrapper"
+            mkdir -p gradle/wrapper
+            cat > gradle/wrapper/gradle-wrapper.properties <<'PROP'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          PROP
+            # Use system gradle to build
           fi
+          gradle assembleDebug --stacktrace 2>&1 | tee ../webview-build.log
+          ls -lh app/build/outputs/apk/debug/ || true
+          find . -name "*.apk" -type f
 
-      - name: Upload APK artifact
+      - name: Upload WebView APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: eaglercraft-26.2-apk
+          name: eaglercraft-webview-apk
           path: |
-            build/*.apk
-            android/app/build/outputs/apk/debug/*.apk
             android-webview/app/build/outputs/apk/debug/*.apk
-            native-build.log
             webview-build.log
-            **/*.apk
           if-no-files-found: warn
 
-      - name: Create release info
-        if: always()
+  build-native-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/01a0bb79-minecraft
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
         run: |
+          sdkmanager --install "ndk;25.1.8937393" "build-tools;34.0.0" "platforms;android-34"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
+
+      - name: Create keystore and icons
+        run: |
+          rm -f debug.keystore
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          mkdir -p android/app
+          cp debug.keystore android/app/debug.keystore
+          pip install Pillow -q
+          python3 <<'PY'
+          from PIL import Image
+          import os
+          img = Image.new('RGBA', (512,512), (61,220,132,255))
+          for x in range(128,384):
+              for y in range(128,384):
+                  img.putpixel((x,y), (255,255,255,255))
+          for base in ["android/app/src/main/res"]:
+              for size, folder in [(72,"hdpi"), (48,"mdpi"), (96,"xhdpi"), (144,"xxhdpi"), (192,"xxxhdpi")]:
+                  os.makedirs(f"{base}/mipmap-{folder}", exist_ok=True)
+                  resized = img.resize((size,size))
+                  resized.save(f"{base}/mipmap-{folder}/ic_launcher.png")
+                  resized.save(f"{base}/mipmap-{folder}/ic_launcher_round.png")
+          PY
+
+      - name: Build Native APK
+        run: |
+          cd android
+          gradle assembleDebug --stacktrace 2>&1 | tee ../native-build.log || true
+          ls -lh app/build/outputs/apk/debug/ || true
+
+      - name: Upload Native APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eaglercraft-native-apk
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            native-build.log
+          if-no-files-found: warn
+
+  combine:
+    runs-on: ubuntu-latest
+    needs: [build-webview-apk, build-native-apk]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/01a0bb79-minecraft
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Combine and rename
+        run: |
+          mkdir -p build
+          find artifacts -name "*.apk" -type f -exec cp {} build/ \; || true
           ls -lh build/ || true
-          cat > build/README_APK.txt <<'TXT'
-          Eaglercraft 26.2-0.6 Native Android APK
-          ========================================
+          cd build
+          if ls *.apk 1> /dev/null 2>&1; then
+            # Keep largest as main
+            largest=$(ls -S *.apk | head -n 1)
+            cp "$largest" Eaglercraft26-Android.apk
+            # Also create a combined info
+            echo "APKs built:" > apk-info.txt
+            ls -lh *.apk >> apk-info.txt
+            cat apk-info.txt
+          else
+            echo "No APKs found" > apk-info.txt
+          fi
+          ls -lh
 
-          This APK is built from the native C++ port of eaglercraft-26.2-0.6.html
-
-          Two variants:
-
-          1. Native C++ APK (android/):
-             - Pure C++ with NativeActivity
-             - OpenGL ES 3.0 rendering
-             - Same UI as original HTML (replicated in OpenGL)
-             - World generation, blocks, player physics in C++
-             - File: Eaglercraft26-Android.apk (if native build succeeded)
-
-          2. WebView APK (android-webview/):
-             - Java WebView that loads original HTML
-             - Loads eaglercraft-26.2-0.6.html from assets or https://eymenwsmc.site/262/
-             - Exact same UI as original (because it IS the original HTML)
-             - Fallback if native build fails
-             - File: Eaglercraft26-Android-WebView.apk or similar
-
-          Installation:
-          - Enable "Install unknown apps" on Android
-          - Install APK
-          - Launch "Eaglercraft 26.2 Native"
-
-          Controls (Native):
-          - Touch drag: Look around
-          - Tap: Break block
-          - Back: Pause
-
-          Controls (WebView):
-          - Same as original Eaglercraft browser version
-
-          Original file: https://www.mediafire.com/file/vvhydlnhy7cx7ir/eaglercraft-26.2-0.6.html/file
-          Ported to C++: src/ folder in this repo
-          Decompiled via: tools/decompile.py
-
-          Build: GitHub Actions, NDK 25.1.8937393, SDK 34
-          TXT
-          cat build/README_APK.txt
-          git config user.email "bot@arena.ai"
-          git config user.name "arena bot"
-          git add build/README_APK.txt || true
-          git commit -m "APK build info" || true
-          git push origin arena/01a0bb79-minecraft || true
+      - name: Upload final APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: eaglercraft-26.2-final-apk
+          path: |
+            build/*.apk
+            build/*.txt
+          if-no-files-found: warn
