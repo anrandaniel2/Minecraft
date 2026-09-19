@@ -1,7 +1,7 @@
 {
-  "file_size": 0,
-  "is_teavm": false,
-  "is_eaglercraft": false,
+  "file_size": 75502665,
+  "is_teavm": true,
+  "is_eaglercraft": true,
   "constants": {},
   "blocks": {
     "properties": {
