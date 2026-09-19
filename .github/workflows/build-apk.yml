@@ -35,21 +35,30 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install build tools
+        if: always()
         run: |
-          sdkmanager --install "build-tools;34.0.0" "platforms;android-34" "platform-tools"
+          set -x
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls -lh $ANDROID_HOME || true
+          sdkmanager --list | head -n 100 || true
+          sdkmanager --install "build-tools;34.0.0" "platforms;android-34" "platform-tools" 2>&1 | tee -a /tmp/sdkmanager.log || true
+          cat /tmp/sdkmanager.log | tail -n 100 || true
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "sdk.dir=$ANDROID_HOME" > android-webview/local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          ls -lh $ANDROID_HOME/build-tools/ || true
+          cat local.properties
 
       - name: Create debug keystore
+        if: always()
         run: |
           rm -f debug.keystore
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           mkdir -p android-webview/app
           cp debug.keystore android-webview/app/debug.keystore
+          ls -lh android-webview/app/debug.keystore || true
 
       - name: Create icons
+        if: always()
         run: |
           pip install Pillow -q
           python3 <<'PY'
@@ -65,27 +74,43 @@ jobs:
                   resized = img.resize((size,size))
                   resized.save(f"{base}/mipmap-{folder}/ic_launcher.png")
                   resized.save(f"{base}/mipmap-{folder}/ic_launcher_round.png")
+          print("Icons created")
           PY
 
       - name: Prepare WebView assets
+        if: always()
         run: |
           mkdir -p android-webview/app/src/main/assets
           cat > android-webview/app/src/main/assets/eaglercraft-26.2-0.6.html <<'HTML'
           <!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=https://eymenwsmc.site/262/index.html"></head><body>Redirecting to Eaglercraft 26.2...</body></html>
           HTML
+          ls -lh android-webview/app/src/main/assets/
 
       - name: Build WebView APK
+        if: always()
         run: |
+          set -x
           cd android-webview
-          gradle --version
-          gradle assembleDebug --stacktrace 2>&1 | tee ../webview-build.log || true
+          echo "=== PWD $(pwd) ==="
+          ls -lh
+          echo "=== gradle version ==="
+          which gradle || true
+          gradle --version 2>&1 | tee ../webview-build.log || true
+          echo "=== ls ==="
+          ls -lh ../webview-build.log || true
+          echo "=== build ==="
+          gradle assembleDebug --stacktrace --info 2>&1 | tee -a ../webview-build.log || true
           echo "=== TAIL ==="
-          tail -n 500 ../webview-build.log || true
+          tail -n 1000 ../webview-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
+          find . -name "*.apk" -type f -exec ls -lh {} \; || true
           if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            chmod +x gradlew
-            ./gradlew assembleDebug --stacktrace 2>&1 | tee -a ../webview-build.log || true
-            tail -n 500 ../webview-build.log || true
+            echo "Trying wrapper"
+            chmod +x gradlew || true
+            ls -lh gradlew || true
+            ./gradlew assembleDebug --stacktrace --info 2>&1 | tee -a ../webview-build.log || true
+            tail -n 1000 ../webview-build.log || true
+            ls -lh app/build/outputs/apk/debug/ || true
           fi
 
       - name: Commit logs
@@ -93,7 +118,13 @@ jobs:
         run: |
           set -x
           mkdir -p build
-          head -c 800000 webview-build.log > build/webview-build.log || echo "no log" > build/webview-build.log
+          ls -lh webview-build.log || true
+          ls -lh /tmp/sdkmanager.log || true
+          cat /tmp/sdkmanager.log | tail -n 200 || true
+          # Combine logs
+          cat /tmp/sdkmanager.log > build/webview-build.log 2>/dev/null || true
+          echo -e "\n\n=== WEBVIEW BUILD LOG ===\n" >> build/webview-build.log
+          cat webview-build.log >> build/webview-build.log 2>/dev/null || echo "no webview log" >> build/webview-build.log
           ls -lh build/
           git config user.email "bot@arena.ai"
           git config user.name "arena bot"
@@ -112,6 +143,7 @@ jobs:
           path: |
             android-webview/app/build/outputs/apk/debug/*.apk
             webview-build.log
+            build/webview-build.log
           if-no-files-found: warn
 
   build-native-apk:
@@ -139,14 +171,19 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install NDK and cmake
+        if: always()
         run: |
-          sdkmanager --install "ndk;25.1.8937393" "build-tools;34.0.0" "platforms;android-34" "platform-tools" "cmake;3.22.1"
+          set -x
+          sdkmanager --install "ndk;25.1.8937393" "build-tools;34.0.0" "platforms;android-34" "platform-tools" "cmake;3.22.1" 2>&1 | tee /tmp/sdkmanager-native.log || true
+          cat /tmp/sdkmanager-native.log | tail -n 200 || true
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          cat local.properties
 
       - name: Create keystore and icons
+        if: always()
         run: |
           rm -f debug.keystore
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
@@ -169,14 +206,16 @@ jobs:
           PY
 
       - name: Build Native Vulkan APK
+        if: always()
         run: |
+          set -x
           cd android
-          gradle --version
-          gradle assembleDebug --stacktrace 2>&1 | tee ../native-build.log || true
+          gradle --version 2>&1 | tee ../native-build.log || true
+          gradle assembleDebug --stacktrace 2>&1 | tee -a ../native-build.log || true
           tail -n 1000 ../native-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
           if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            chmod +x gradlew
+            chmod +x gradlew || true
             ./gradlew assembleDebug --stacktrace 2>&1 | tee -a ../native-build.log || true
             tail -n 1000 ../native-build.log || true
           fi
@@ -186,7 +225,9 @@ jobs:
         run: |
           set -x
           mkdir -p build
-          head -c 800000 native-build.log > build/native-build.log || echo "no log" > build/native-build.log
+          cat /tmp/sdkmanager-native.log > build/native-build.log 2>/dev/null || true
+          echo -e "\n\n=== NATIVE BUILD LOG ===\n" >> build/native-build.log
+          cat native-build.log >> build/native-build.log 2>/dev/null || echo "no native log" >> build/native-build.log
           ls -lh build/
           git config user.email "bot@arena.ai"
           git config user.name "arena bot"
@@ -205,6 +246,7 @@ jobs:
           path: |
             android/app/build/outputs/apk/debug/*.apk
             native-build.log
+            build/native-build.log
           if-no-files-found: warn
 
   combine:
