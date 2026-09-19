@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
   actions: read
 
 jobs:
@@ -33,23 +34,12 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Debug env
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          java -version
-          gradle --version
-          ls -R | head -n 200
-
       - name: Install build tools
         run: |
           sdkmanager --install "build-tools;34.0.0" "platforms;android-34" "platform-tools"
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "sdk.dir=$ANDROID_HOME" > android-webview/local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          cat local.properties
-          cat android-webview/build.gradle
-          cat android-webview/settings.gradle
-          cat android-webview/app/build.gradle
 
       - name: Create debug keystore
         run: |
@@ -74,7 +64,6 @@ jobs:
                   resized = img.resize((size,size))
                   resized.save(f"{base}/mipmap-{folder}/ic_launcher.png")
                   resized.save(f"{base}/mipmap-{folder}/ic_launcher_round.png")
-          print("Icons created")
           PY
 
       - name: Prepare WebView assets
@@ -91,28 +80,48 @@ jobs:
           tail -n 500 ../webview-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
           if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            echo "Trying wrapper"
             chmod +x gradlew
             ./gradlew assembleDebug --stacktrace --info 2>&1 | tee -a ../webview-build.log || true
-            tail -n 500 ../webview-build.log || true
+            tail -n 1000 ../webview-build.log || true
           fi
 
-      - name: Upload log via GitHub API
+      - name: Post log as issue comment via API
         if: always()
         run: |
           if [ -f webview-build.log ]; then
-            echo "Uploading log via contents API"
-            # Get existing sha if file exists
-            SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/webview-build.log?ref=arena/01a0bb79-minecraft | jq -r '.sha // empty')
-            echo "Existing SHA: $SHA"
-            CONTENT=$(base64 -w 0 webview-build.log)
+            echo "Posting log to issue"
+            # Create a new issue with log truncated
+            head -c 60000 webview-build.log > /tmp/body.txt
+            echo -e "\n\nFull log tail:\n" >> /tmp/body.txt
+            tail -n 200 webview-build.log >> /tmp/body.txt
+            # Try to create issue
+            gh issue create --title "WebView build log $(date -u) run $GITHUB_RUN_ID" --body-file /tmp/body.txt 2>&1 | tee issue.json || true
+            cat issue.json || true
+            # Also try API directly
+            CONTENT=$(cat webview-build.log | head -c 50000 | jq -Rs .)
+            curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/anrandaniel2/Minecraft/issues -d "{\"title\":\"WebView log $GITHUB_RUN_ID\",\"body\":$CONTENT}" | tee issue-api.json || true
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload log via Contents API (retry)
+        if: always()
+        run: |
+          if [ -f webview-build.log ]; then
+            echo "Trying contents API"
+            # get sha
+            RESP=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/webview-build.log?ref=arena/01a0bb79-minecraft || true)
+            echo "$RESP" | head -n 20
+            SHA=$(echo "$RESP" | jq -r '.sha // empty' || true)
+            echo "SHA $SHA"
+            B64=$(base64 -w 0 webview-build.log)
             if [ -z "$SHA" ]; then
-              DATA=$(jq -n --arg content "$CONTENT" --arg msg "Add webview build log $(date -u)" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft"}')
+              JSON=$(jq -n --arg content "$B64" --arg msg "Add webview log" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft"}')
             else
-              DATA=$(jq -n --arg content "$CONTENT" --arg msg "Update webview build log $(date -u)" --arg sha "$SHA" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft", sha:$sha}')
+              JSON=$(jq -n --arg content "$B64" --arg msg "Update webview log" --arg sha "$SHA" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft", sha:$sha}')
             fi
-            curl -s -X PUT -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/webview-build.log -d "$DATA" | tee api-response.json
-            cat api-response.json | head -n 100
+            curl -s -X PUT -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/webview-build.log -d "$JSON" | tee put.json
+            cat put.json
           fi
 
       - name: Upload WebView APK artifact
@@ -123,6 +132,9 @@ jobs:
           path: |
             android-webview/app/build/outputs/apk/debug/*.apk
             webview-build.log
+            issue.json
+            issue-api.json
+            put.json
           if-no-files-found: warn
 
   build-native-apk:
@@ -147,7 +159,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install NDK and tools
+      - name: Install NDK
         run: |
           sdkmanager --install "ndk;25.1.8937393" "build-tools;34.0.0" "platforms;android-34" "platform-tools" "cmake;3.22.1"
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
@@ -182,28 +194,22 @@ jobs:
           cd android
           gradle assembleDebug --stacktrace 2>&1 | tee ../native-build.log || true
           tail -n 500 ../native-build.log || true
-          ls -lh app/build/outputs/apk/debug/ || true
           if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
             chmod +x gradlew
             ./gradlew assembleDebug --stacktrace 2>&1 | tee -a ../native-build.log || true
-            tail -n 500 ../native-build.log || true
+            tail -n 1000 ../native-build.log || true
           fi
 
-      - name: Upload native log via API
+      - name: Post native log as issue
         if: always()
         run: |
           if [ -f native-build.log ]; then
-            SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/native-build.log?ref=arena/01a0bb79-minecraft | jq -r '.sha // empty')
-            echo "Existing SHA: $SHA"
-            CONTENT=$(base64 -w 0 native-build.log)
-            if [ -z "$SHA" ]; then
-              DATA=$(jq -n --arg content "$CONTENT" --arg msg "Add native build log $(date -u)" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft"}')
-            else
-              DATA=$(jq -n --arg content "$CONTENT" --arg msg "Update native build log $(date -u)" --arg sha "$SHA" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft", sha:$sha}')
-            fi
-            curl -s -X PUT -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/native-build.log -d "$DATA" | tee api-response.json
-            cat api-response.json | head -n 100
+            head -c 60000 native-build.log > /tmp/body.txt
+            gh issue create --title "Native build log $(date -u) run $GITHUB_RUN_ID" --body-file /tmp/body.txt 2>&1 | tee issue.json || true
+            cat issue.json || true
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Native APK
         if: always()
@@ -229,7 +235,7 @@ jobs:
         with:
           path: artifacts
 
-      - name: Combine and rename
+      - name: Combine
         run: |
           mkdir -p build
           find artifacts -name "*.apk" -type f -exec cp {} build/ \; || true
@@ -238,11 +244,10 @@ jobs:
           if ls *.apk 1> /dev/null 2>&1; then
             largest=$(ls -S *.apk | head -n 1)
             cp "$largest" Eaglercraft26-Android.apk
-            echo "APKs built:" > apk-info.txt
-            ls -lh *.apk >> apk-info.txt
+            ls -lh *.apk > apk-info.txt
             cat apk-info.txt
           else
-            echo "No APKs found" > apk-info.txt
+            echo "No APKs" > apk-info.txt
             find ../artifacts -type f | head -n 100 >> apk-info.txt
             cat apk-info.txt
           fi
