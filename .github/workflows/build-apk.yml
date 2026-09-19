@@ -6,6 +6,10 @@ on:
     branches:
       - arena/01a0bb79-minecraft
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   build-webview-apk:
     runs-on: ubuntu-latest
@@ -32,10 +36,8 @@ jobs:
       - name: Debug env
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
-          ls -lh $ANDROID_HOME || true
           java -version
           gradle --version
-          echo "PWD $(pwd)"
           ls -R | head -n 200
 
       - name: Install build tools
@@ -45,13 +47,9 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > android-webview/local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           cat local.properties
-          cat android-webview/local.properties
           cat android-webview/build.gradle
           cat android-webview/settings.gradle
           cat android-webview/app/build.gradle
-          cat android-webview/gradle/wrapper/gradle-wrapper.properties
-          ls -lh android-webview/gradlew
-          cat android-webview/gradle.properties
 
       - name: Create debug keystore
         run: |
@@ -59,7 +57,6 @@ jobs:
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           mkdir -p android-webview/app
           cp debug.keystore android-webview/app/debug.keystore
-          ls -lh android-webview/app/debug.keystore
 
       - name: Create icons
         run: |
@@ -86,62 +83,37 @@ jobs:
           cat > android-webview/app/src/main/assets/eaglercraft-26.2-0.6.html <<'HTML'
           <!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=https://eymenwsmc.site/262/index.html"></head><body>Redirecting to Eaglercraft 26.2...</body></html>
           HTML
-          ls -lh android-webview/app/src/main/assets/
-          cat android-webview/app/src/main/AndroidManifest.xml
 
-      - name: Build WebView APK with gradle
+      - name: Build WebView APK
         run: |
           cd android-webview
-          echo "=== Trying gradle ==="
-          gradle --version
           gradle assembleDebug --stacktrace --info 2>&1 | tee ../webview-build.log || true
-          echo "=== TAIL 500 ==="
           tail -n 500 ../webview-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
-          find . -name "*.apk" -type f -exec ls -lh {} \; || true
-
-      - name: Try wrapper if gradle failed
-        if: always()
-        run: |
-          cd android-webview
           if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            echo "Gradle direct failed, trying ./gradlew"
+            echo "Trying wrapper"
             chmod +x gradlew
             ./gradlew assembleDebug --stacktrace --info 2>&1 | tee -a ../webview-build.log || true
             tail -n 500 ../webview-build.log || true
-            ls -lh app/build/outputs/apk/debug/ || true
           fi
 
-      - name: Create gist with log
+      - name: Upload log via GitHub API
         if: always()
         run: |
           if [ -f webview-build.log ]; then
-            echo "Creating gist"
-            # truncate to 900k to fit gist limit
-            head -c 900000 webview-build.log > /tmp/log.txt
-            CONTENT=$(cat /tmp/log.txt | jq -Rs .)
-            curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/gists -d "{\"public\": true, \"files\": {\"webview-build.log\": {\"content\": $CONTENT}}}" | tee gist.json
-            cat gist.json | jq -r '.html_url // .url' || true
-            echo "GIST_URL=$(cat gist.json | jq -r '.html_url')" >> $GITHUB_ENV
+            echo "Uploading log via contents API"
+            # Get existing sha if file exists
+            SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/webview-build.log?ref=arena/01a0bb79-minecraft | jq -r '.sha // empty')
+            echo "Existing SHA: $SHA"
+            CONTENT=$(base64 -w 0 webview-build.log)
+            if [ -z "$SHA" ]; then
+              DATA=$(jq -n --arg content "$CONTENT" --arg msg "Add webview build log $(date -u)" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft"}')
+            else
+              DATA=$(jq -n --arg content "$CONTENT" --arg msg "Update webview build log $(date -u)" --arg sha "$SHA" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft", sha:$sha}')
+            fi
+            curl -s -X PUT -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/webview-build.log -d "$DATA" | tee api-response.json
+            cat api-response.json | head -n 100
           fi
-
-      - name: Commit logs to repo
-        if: always()
-        run: |
-          mkdir -p build
-          cp webview-build.log build/webview-build.log || true
-          cp gist.json build/gist-webview.json || true
-          ls -lh build/
-          echo "=== LOG TAIL ==="
-          tail -n 200 build/webview-build.log || true
-          git config user.email "bot@arena.ai"
-          git config user.name "arena bot"
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/anrandaniel2/Minecraft.git
-          git status
-          git pull --rebase origin arena/01a0bb79-minecraft || echo "pull failed"
-          git add build/webview-build.log build/gist-webview.json || true
-          git commit -m "WebView build log $(date -u) [skip ci]" || echo "commit failed"
-          git push origin arena/01a0bb79-minecraft || echo "push failed"
 
       - name: Upload WebView APK artifact
         if: always()
@@ -151,7 +123,6 @@ jobs:
           path: |
             android-webview/app/build/outputs/apk/debug/*.apk
             webview-build.log
-            gist.json
           if-no-files-found: warn
 
   build-native-apk:
@@ -183,7 +154,6 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          cat local.properties
 
       - name: Create keystore and icons
         run: |
@@ -210,40 +180,30 @@ jobs:
       - name: Build Native APK
         run: |
           cd android
-          gradle --version
           gradle assembleDebug --stacktrace 2>&1 | tee ../native-build.log || true
-          tail -n 300 ../native-build.log || true
+          tail -n 500 ../native-build.log || true
           ls -lh app/build/outputs/apk/debug/ || true
           if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            echo "Trying wrapper"
             chmod +x gradlew
             ./gradlew assembleDebug --stacktrace 2>&1 | tee -a ../native-build.log || true
-            tail -n 300 ../native-build.log || true
+            tail -n 500 ../native-build.log || true
           fi
 
-      - name: Create gist with native log
+      - name: Upload native log via API
         if: always()
         run: |
           if [ -f native-build.log ]; then
-            head -c 900000 native-build.log > /tmp/log.txt
-            CONTENT=$(cat /tmp/log.txt | jq -Rs .)
-            curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/gists -d "{\"public\": true, \"files\": {\"native-build.log\": {\"content\": $CONTENT}}}" | tee gist-native.json
-            cat gist-native.json | jq -r '.html_url' || true
+            SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/native-build.log?ref=arena/01a0bb79-minecraft | jq -r '.sha // empty')
+            echo "Existing SHA: $SHA"
+            CONTENT=$(base64 -w 0 native-build.log)
+            if [ -z "$SHA" ]; then
+              DATA=$(jq -n --arg content "$CONTENT" --arg msg "Add native build log $(date -u)" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft"}')
+            else
+              DATA=$(jq -n --arg content "$CONTENT" --arg msg "Update native build log $(date -u)" --arg sha "$SHA" '{message:$msg, content:$content, branch:"arena/01a0bb79-minecraft", sha:$sha}')
+            fi
+            curl -s -X PUT -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/anrandaniel2/Minecraft/contents/build/native-build.log -d "$DATA" | tee api-response.json
+            cat api-response.json | head -n 100
           fi
-
-      - name: Upload logs
-        if: always()
-        run: |
-          mkdir -p build
-          cp native-build.log build/native-build.log || true
-          cp gist-native.json build/gist-native.json || true
-          git config user.email "bot@arena.ai"
-          git config user.name "arena bot"
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/anrandaniel2/Minecraft.git
-          git pull --rebase origin arena/01a0bb79-minecraft || true
-          git add build/native-build.log build/gist-native.json || true
-          git commit -m "Native build log $(date -u) [skip ci]" || true
-          git push origin arena/01a0bb79-minecraft || true
 
       - name: Upload Native APK
         if: always()
@@ -253,7 +213,6 @@ jobs:
           path: |
             android/app/build/outputs/apk/debug/*.apk
             native-build.log
-            gist-native.json
           if-no-files-found: warn
 
   combine:
@@ -287,7 +246,6 @@ jobs:
             find ../artifacts -type f | head -n 100 >> apk-info.txt
             cat apk-info.txt
           fi
-          ls -lh
 
       - name: Upload final APK
         uses: actions/upload-artifact@v4
