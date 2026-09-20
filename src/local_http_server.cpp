@@ -222,16 +222,12 @@ void LocalHttpServer::accept_loop() {
 		// Dedicated thread while under the cap; otherwise queue for the pool.
 		if (active_connections_.load() < kMaxConnectionThreads) {
 			active_connections_.fetch_add(1);
-			try {
-				std::thread([this, fd] {
-					handle_connection(fd);
-					::close(fd);
-					active_connections_.fetch_sub(1);
-				}).detach();
-				continue;
-			} catch (...) {
+			std::thread([this, fd] {
+				handle_connection(fd);
+				::close(fd);
 				active_connections_.fetch_sub(1);
-			}
+			}).detach();
+			continue;
 		}
 		{
 			std::lock_guard<std::mutex> lock(queue_mutex_);
