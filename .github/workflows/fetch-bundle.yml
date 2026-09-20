@@ -5,12 +5,16 @@ name: Fetch EaglerCraft bundle
 # (no network needed at runtime).
 
 on:
+  push:
+    paths:
+      - ".github/workflows/fetch-bundle.yml"
+      - "web/BUNDLE_URL"
   workflow_dispatch:
     inputs:
       url:
-        description: "Direct/share URL of the EaglerCraft .html (Dropbox links are converted to dl=1)"
-        required: true
-        default: "https://www.dropbox.com/scl/fi/9xnqds8hr44xwtagljmso/eaglercraft-26.2-0.6.html?rlkey=selh50755gpfnxg4gm33u49dv&st=lfhrgo6f&dl=0"
+        description: "Direct/share URL of the EaglerCraft .html (Dropbox links are converted to dl=1). Defaults to web/BUNDLE_URL."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -26,6 +30,9 @@ jobs:
           URL: ${{ inputs.url }}
         run: |
           set -e
+          if [ -z "$URL" ]; then URL="$(tr -d '[:space:]' < web/BUNDLE_URL)"; fi
+          if [ -f web/eaglercraft.html ] && [ "${{ github.event_name }}" = "push" ]; then
+            echo "bundle already committed; skipping"; echo "SKIP=1" >> $GITHUB_ENV; exit 0; fi
           # Dropbox: force direct download.
           if echo "$URL" | grep -q "dropbox.com"; then
             URL="$(echo "$URL" | sed -E 's/([?&])dl=0/\1dl=1/; t; s/$/\&dl=1/')"
@@ -36,6 +43,7 @@ jobs:
           grep -c "http" web/eaglercraft.html || true
 
       - name: Commit
+        if: env.SKIP != '1'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
