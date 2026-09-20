@@ -2,6 +2,8 @@
 
 #include "eagler_host.h"
 
+#include "android_jni_bridge.h"
+
 #include "bundle_unpacker.h"
 
 #include <godot_cpp/classes/dir_access.hpp>
@@ -688,28 +690,63 @@ void EaglerHost::_ui_create_webview() {
 	wv->call("setHorizontalScrollBarEnabled", false);
 
 	// WebSettings: JS + WebGL + storage + audio autoplay + zoom off.
-	Ref<JavaObject> settings = wv->call("getSettings");
-	if (settings.is_valid()) {
-		settings->call("setJavaScriptEnabled", true);
-		settings->call("setDomStorageEnabled", true);
-		settings->call("setDatabaseEnabled", true);
-		settings->call("setAllowFileAccess", false);
-		settings->call("setAllowContentAccess", false);
-		settings->call("setMediaPlaybackRequiresUserGesture", false);
-		settings->call("setJavaScriptCanOpenWindowsAutomatically", false);
-		settings->call("setSupportZoom", false);
-		settings->call("setBuiltInZoomControls", false);
-		settings->call("setDisplayZoomControls", false);
-		settings->call("setUseWideViewPort", true);
-		settings->call("setLoadWithOverviewMode", true);
-		settings->call("setMixedContentMode", kMixedContentCompat);
-		// Fully offline: everything comes from the loopback server; never
-		// stall on a (non-existent) network connection.
-		settings->call("setCacheMode", offline_only_ ? kCacheLoadCacheElseNetwork : kCacheLoadDefault);
-		settings->call("setBlockNetworkLoads", false); // must stay false for 127.0.0.1
-		settings->call("setGeolocationEnabled", false);
-		settings->call("setSafeBrowsingEnabled", false);
-		settings->call("setOffscreenPreRaster", true);
+	//
+	// WebView.getSettings() returns the provider's implementation class
+	// (com.android.webview.chromium.ContentSettingsAdapter) which lives in
+	// the WebView APK's class loader; Godot's JavaClassWrapper resolves
+	// return values by runtime class through the app loader, fails and
+	// yields null -> JavaScript would silently stay disabled and the page
+	// would never boot. Go through raw JNI against the framework base class
+	// instead (virtual dispatch), handing the WebView over via System
+	// properties (Object-typed, so the wrapper can pass it).
+	bool settings_ok = false;
+	{
+		Ref<JavaClass> System = jcw->wrap("java.lang.System");
+		Ref<JavaObject> props = System.is_valid() ? Ref<JavaObject>(System->call("getProperties")) : Ref<JavaObject>();
+		const String key = "net.eaglercraft.godothost.webview";
+		if (props.is_valid()) {
+			props->call("put", key, wv);
+			eagler::AndroidJni::WebSettings ws;
+			ws.mixed_content_mode = kMixedContentCompat;
+			ws.cache_mode = offline_only_ ? kCacheLoadCacheElseNetwork : kCacheLoadDefault;
+			String err;
+			settings_ok = eagler::AndroidJni::configure_webview(key, ws, &err) > 0;
+			if (!settings_ok) {
+				UtilityFunctions::push_warning("[EaglerHost] JNI WebSettings path failed: ", err);
+			}
+		} else {
+			UtilityFunctions::push_warning("[EaglerHost] java.lang.System.getProperties unavailable through JavaClassWrapper");
+		}
+	}
+	if (!settings_ok) {
+		// Fallback: the wrapper path (works on WebView providers whose
+		// settings class is resolvable, e.g. some emulators).
+		Ref<JavaObject> settings = wv->call("getSettings");
+		if (settings.is_valid()) {
+			settings->call("setJavaScriptEnabled", true);
+			settings->call("setDomStorageEnabled", true);
+			settings->call("setDatabaseEnabled", true);
+			settings->call("setAllowFileAccess", false);
+			settings->call("setAllowContentAccess", false);
+			settings->call("setMediaPlaybackRequiresUserGesture", false);
+			settings->call("setJavaScriptCanOpenWindowsAutomatically", false);
+			settings->call("setSupportZoom", false);
+			settings->call("setBuiltInZoomControls", false);
+			settings->call("setDisplayZoomControls", false);
+			settings->call("setUseWideViewPort", true);
+			settings->call("setLoadWithOverviewMode", true);
+			settings->call("setMixedContentMode", kMixedContentCompat);
+			settings->call("setCacheMode", offline_only_ ? kCacheLoadCacheElseNetwork : kCacheLoadDefault);
+			settings->call("setBlockNetworkLoads", false); // must stay false for 127.0.0.1
+			settings->call("setGeolocationEnabled", false);
+			settings->call("setSafeBrowsingEnabled", false);
+			settings->call("setOffscreenPreRaster", true);
+			settings_ok = true;
+		}
+	}
+	if (!settings_ok) {
+		_set_error("Could not configure WebSettings (JavaScript would stay disabled).");
+		return;
 	}
 
 	if (WebViewClient.is_valid()) {

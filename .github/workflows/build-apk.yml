@@ -94,6 +94,10 @@ jobs:
                 ndk_version=${{ env.NDK_VERSION }} android_api_level=24 \
                 build_profile=build_profile.json -j$(nproc)
           ls -la bin/${{ matrix.platform }}
+          # Android: JNI_OnLoad must be exported so ART hands us the JavaVM (see android_jni_bridge.cpp).
+          if [ "${{ matrix.platform }}" = "android" ]; then
+            nm -D --defined-only bin/android/*.so | grep -q " T JNI_OnLoad" || { echo "::error::JNI_OnLoad not exported"; exit 1; }
+          fi
           # Sanity: the library must contain the classes registered in register_types.cpp.
           for cls in $(grep -oP 'GDREGISTER_CLASS\(\K[A-Za-z_]+' src/register_types.cpp); do
             strings bin/${{ matrix.platform }}/*.so | grep -q "$cls" || { echo "::error::$cls missing from built library (stale objects?)"; exit 1; }
