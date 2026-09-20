@@ -404,9 +404,12 @@ jobs:
           unzip -l "$APK" | grep -q "lib/arm64-v8a/libeaglerhost" || { echo "::error::arm64 native lib missing from APK"; exit 1; }
           # The .so must NOT also be inside the PCK: if Godot finds it as a
           # resource it tries to dlopen from the pack and fails on device.
-          unzip -o -q "$APK" "assets/*" -d /tmp/apkassets || true
-          if grep -rl "libeaglerhost.android" /tmp/apkassets 2>/dev/null | grep -q .; then
+          if unzip -l "$APK" | grep -E "assets/.*libeaglerhost.*\.so" ; then
+            echo "::error::native library was packed as an asset (include_filter too broad)"; exit 1; fi
+          unzip -o -q "$APK" "assets/*.pck" -d /tmp/apkassets 2>/dev/null || true
+          if ls /tmp/apkassets/assets/*.pck >/dev/null 2>&1 && strings /tmp/apkassets/assets/*.pck | grep -qE "^res://bin/android/libeaglerhost.*\.so$"; then
             echo "::error::native library was packed into the PCK (include_filter too broad)"; exit 1; fi
+          unzip -l "$APK" | grep -E "lib/.*libeaglerhost|assets/.*(pck|gdextension)" || true
 
       - uses: actions/upload-artifact@v4
         with:
