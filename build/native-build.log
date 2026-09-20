@@ -56,8 +56,8 @@ Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-to
 > Task :app:generateDebugResValues
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
-> Task :app:packageDebugResources
 > Task :app:mergeDebugResources
+> Task :app:packageDebugResources
 > Task :app:createDebugCompatibleScreenManifests
 > Task :app:extractDeepLinksDebug
 > Task :app:parseDebugLocalResources
@@ -70,10 +70,10 @@ Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-to
 > Task :app:compressDebugAssets
 > Task :app:processDebugJavaRes NO-SOURCE
 > Task :app:checkDebugDuplicateClasses
-> Task :app:processDebugManifestForPackage
-> Task :app:mergeDebugJavaResource
 > Task :app:desugarDebugFileDependencies
+> Task :app:processDebugManifestForPackage
 > Task :app:mergeExtDexDebug
+> Task :app:mergeDebugJavaResource
 > Task :app:mergeLibDexDebug
 > Task :app:processDebugResources
 > Task :app:configureCMakeDebug[arm64-v8a]
@@ -93,10 +93,10 @@ Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-to
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 44s
+BUILD SUCCESSFUL in 41s
 35 actionable tasks: 35 executed
 === APK LIST ===
-  9182382   2728 -rw-r--r--   1 runner   runner    2791491 Sep 20 00:55 ./app/build/outputs/apk/debug/app-debug.apk
+  9441711   2728 -rw-r--r--   1 runner   runner    2791491 Sep 20 01:21 ./app/build/outputs/apk/debug/app-debug.apk
 total 2.7M
--rw-r--r-- 1 runner runner 2.7M Sep 20 00:55 app-debug.apk
--rw-r--r-- 1 runner runner  383 Sep 20 00:55 output-metadata.json
+-rw-r--r-- 1 runner runner 2.7M Sep 20 01:21 app-debug.apk
+-rw-r--r-- 1 runner runner  383 Sep 20 01:21 output-metadata.json
