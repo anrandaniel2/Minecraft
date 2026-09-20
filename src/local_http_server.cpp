@@ -283,10 +283,13 @@ std::string LocalHttpServer::sanitize_path(const std::string &raw_target) {
 	return out; // "" means root.
 }
 
-std::string LocalHttpServer::common_headers() const {
+std::string LocalHttpServer::common_headers(bool cacheable) const {
 	std::string h;
 	h += "Connection: keep-alive\r\n";
-	h += "Cache-Control: no-cache\r\n";
+	// Big immutable payloads (wasm/epk) may be cached by Chromium, which also
+	// lets it reuse compiled WebAssembly code across launches. HTML is not.
+	h += (cacheable && config_.immutable_assets) ? "Cache-Control: public, max-age=31536000, immutable\r\n"
+													: "Cache-Control: no-cache\r\n";
 	h += "Access-Control-Allow-Origin: *\r\n";
 	h += "X-Content-Type-Options: nosniff\r\n";
 	if (config_.cross_origin_isolation) {
@@ -319,7 +322,7 @@ bool LocalHttpServer::send_response(int fd, int status, const char *reason,
 	std::string head = "HTTP/1.1 " + std::to_string(status) + " " + reason + "\r\n";
 	head += "Content-Type: " + content_type + "\r\n";
 	head += "Content-Length: " + std::to_string(body_len) + "\r\n";
-	head += common_headers();
+	head += common_headers(false);
 	head += extra_headers;
 	head += "\r\n";
 	if (!send_all(fd, head.data(), head.size())) {
@@ -382,7 +385,7 @@ bool LocalHttpServer::send_file(int fd, const std::string &path, const std::stri
 	if (partial) {
 		head += "Content-Range: bytes " + std::to_string(start) + "-" + std::to_string(end) + "/" + std::to_string(size) + "\r\n";
 	}
-	head += common_headers();
+	head += common_headers(content_type.rfind("text/html", 0) != 0);
 	head += "\r\n";
 	if (!send_all(fd, head.data(), head.size())) {
 		return false;

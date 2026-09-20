@@ -38,6 +38,7 @@ public:
 		unsigned worker_threads = 0; // 0 = hardware_concurrency (min 2).
 		bool cross_origin_isolation = false; // COOP/COEP headers (SharedArrayBuffer).
 		int keep_alive_timeout_sec = 15;
+		bool immutable_assets = false; // Long-lived caching for non-HTML files.
 	};
 
 	LocalHttpServer();
@@ -72,7 +73,7 @@ private:
 	bool send_file(int fd, const std::string &path, const std::string &content_type,
 			bool head_only, const std::string &range_header);
 
-	std::string common_headers() const;
+	std::string common_headers(bool cacheable) const;
 	static std::string sanitize_path(const std::string &raw_target);
 
 	Config config_;

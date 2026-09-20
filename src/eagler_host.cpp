@@ -2,6 +2,8 @@
 
 #include "eagler_host.h"
 
+#include "bundle_unpacker.h"
+
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/display_server.hpp>
 #include <godot_cpp/classes/engine.hpp>
@@ -129,6 +131,14 @@ void EaglerHost::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_worker_threads"), &EaglerHost::get_worker_threads);
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "worker_threads", PROPERTY_HINT_RANGE, "0,16,1"), "set_worker_threads", "get_worker_threads");
 
+	ClassDB::bind_method(D_METHOD("set_native_unpack", "enabled"), &EaglerHost::set_native_unpack);
+	ClassDB::bind_method(D_METHOD("get_native_unpack"), &EaglerHost::get_native_unpack);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "native_unpack"), "set_native_unpack", "get_native_unpack");
+	ClassDB::bind_method(D_METHOD("set_enable_game_workers", "enabled"), &EaglerHost::set_enable_game_workers);
+	ClassDB::bind_method(D_METHOD("get_enable_game_workers"), &EaglerHost::get_enable_game_workers);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "enable_game_workers"), "set_enable_game_workers", "get_enable_game_workers");
+	ClassDB::bind_method(D_METHOD("is_unpacked"), &EaglerHost::is_unpacked);
+
 	ClassDB::bind_method(D_METHOD("set_offline_only", "enabled"), &EaglerHost::set_offline_only);
 	ClassDB::bind_method(D_METHOD("get_offline_only"), &EaglerHost::get_offline_only);
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "offline_only"), "set_offline_only", "get_offline_only");
@@ -150,6 +160,11 @@ void EaglerHost::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_ui_pause"), &EaglerHost::_ui_pause);
 	ClassDB::bind_method(D_METHOD("_ui_resume"), &EaglerHost::_ui_resume);
 	ClassDB::bind_method(D_METHOD("_ui_back"), &EaglerHost::_ui_back);
+	ClassDB::bind_method(D_METHOD("_throttle_host_renderer"), &EaglerHost::_throttle_host_renderer);
+
+	ClassDB::bind_method(D_METHOD("set_host_fps_when_hidden", "fps"), &EaglerHost::set_host_fps_when_hidden);
+	ClassDB::bind_method(D_METHOD("get_host_fps_when_hidden"), &EaglerHost::get_host_fps_when_hidden);
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "host_fps_when_hidden", PROPERTY_HINT_RANGE, "1,120,1"), "set_host_fps_when_hidden", "get_host_fps_when_hidden");
 
 	ADD_SIGNAL(MethodInfo("server_started", PropertyInfo(Variant::STRING, "base_url")));
 	ADD_SIGNAL(MethodInfo("webview_ready"));
@@ -177,6 +192,13 @@ bool EaglerHost::get_immersive() const { return immersive_; }
 void EaglerHost::set_cross_origin_isolation(bool p_enabled) { cross_origin_isolation_ = p_enabled; }
 bool EaglerHost::get_cross_origin_isolation() const { return cross_origin_isolation_; }
 void EaglerHost::set_worker_threads(int p_threads) { worker_threads_ = p_threads; }
+void EaglerHost::set_host_fps_when_hidden(int p_fps) { host_fps_when_hidden_ = p_fps; }
+int EaglerHost::get_host_fps_when_hidden() const { return host_fps_when_hidden_; }
+void EaglerHost::set_native_unpack(bool p_enabled) { native_unpack_ = p_enabled; }
+bool EaglerHost::get_native_unpack() const { return native_unpack_; }
+void EaglerHost::set_enable_game_workers(bool p_enabled) { enable_game_workers_ = p_enabled; }
+bool EaglerHost::get_enable_game_workers() const { return enable_game_workers_; }
+bool EaglerHost::is_unpacked() const { return unpacked_; }
 void EaglerHost::set_offline_only(bool p_enabled) { offline_only_ = p_enabled; }
 bool EaglerHost::get_offline_only() const { return offline_only_; }
 int EaglerHost::get_worker_threads() const { return worker_threads_; }
@@ -416,6 +438,48 @@ void EaglerHost::_extraction_thread_main() {
 		}
 	}
 
+	// -- Native unpack of the single-file bundle ---------------------------
+	// Converts the 75 MB base64 HTML into classes.wasm / *.epk / slim
+	// index.html so the WebView can stream-compile and cache the WASM.
+	if (ok && native_unpack_) {
+		const std::string src = web_root_ + "/" + html_resource_path_.get_file().utf8().get_data();
+		const std::string dst = web_root_ + "/unpacked";
+		const std::string unpack_stamp = dst + "/" + kBundleStampFile;
+		String existing_unpack;
+		{
+			Ref<FileAccess> f = FileAccess::open(String(unpack_stamp.c_str()), FileAccess::READ);
+			if (f.is_valid()) {
+				existing_unpack = f->get_as_text();
+			}
+		}
+		if (eagler::BundleUnpacker::is_single_file_bundle(src)) {
+			if (existing_unpack != stamp) {
+				eagler::BundleUnpacker::Options o;
+				o.html_path = src;
+				o.out_dir = dst;
+				o.index_name = "index.html";
+				o.threads = worker_threads_ > 0 ? static_cast<unsigned>(worker_threads_) : 0;
+				o.enable_workers = enable_game_workers_;
+				o.log = [this](const std::string &m) { _log(String(m.c_str())); };
+				eagler::UnpackStats st;
+				std::string uerr;
+				if (eagler::BundleUnpacker::unpack(o, &st, &uerr)) {
+					Ref<FileAccess> f = FileAccess::open(String(unpack_stamp.c_str()), FileAccess::WRITE);
+					if (f.is_valid()) {
+						f->store_string(stamp);
+					}
+					_log(String("native unpack: ") + String::num_int64(static_cast<int64_t>(st.decompressed_bytes / 1048576)) +
+							" MiB in " + String::num(st.seconds, 2) + " s on " + String::num_int64(st.threads) + " threads");
+					unpacked_ = true;
+				} else {
+					UtilityFunctions::push_warning("[EaglerHost] native unpack failed (", uerr.c_str(), "); falling back to the single-file page.");
+				}
+			} else {
+				unpacked_ = true;
+			}
+		}
+	}
+
 	extraction_error_ = err;
 	extraction_ok_.store(ok);
 	extraction_done_.store(true);
@@ -428,10 +492,18 @@ void EaglerHost::_extraction_thread_main() {
 bool EaglerHost::_start_server() {
 	server_ = std::make_unique<eagler::LocalHttpServer>();
 	eagler::LocalHttpServer::Config cfg;
-	cfg.root_dir = web_root_;
-	cfg.index_file = html_resource_path_.get_file().utf8().get_data();
+	if (unpacked_) {
+		cfg.root_dir = web_root_ + "/unpacked";
+		cfg.index_file = "index.html";
+	} else {
+		cfg.root_dir = web_root_;
+		cfg.index_file = html_resource_path_.get_file().utf8().get_data();
+	}
+	// COOP/COEP gives the page a cross-origin-isolated context so the mesh /
+	// server workers can use SharedArrayBuffer and high-resolution timers.
+	cfg.cross_origin_isolation = cross_origin_isolation_ || (unpacked_ && enable_game_workers_);
+	cfg.immutable_assets = unpacked_;
 	cfg.worker_threads = worker_threads_ > 0 ? static_cast<unsigned>(worker_threads_) : 0;
-	cfg.cross_origin_isolation = cross_origin_isolation_;
 	std::string err;
 	if (!server_->start(cfg, &err)) {
 		_set_error(String("HTTP server failed: ") + err.c_str());
@@ -538,6 +610,11 @@ void EaglerHost::_ui_create_webview() {
 		}
 	}
 
+	// Keep the WebView's Java heap and GPU budget generous: this is the only
+	// UI in the app, so nothing else needs it.
+	wv->call("setDrawingCacheEnabled", false);
+	wv->call("setKeepScreenOn", true);
+
 	// Attach above Godot's Vulkan SurfaceView (full-screen).
 	// Constructor name for nested classes is "Outer$Inner" (JavaClassWrapper convention).
 	Ref<JavaObject> lp = LayoutParams->call("ViewGroup$LayoutParams", kMatchParent, kMatchParent);
@@ -553,7 +630,16 @@ void EaglerHost::_ui_create_webview() {
 
 	state_.store(STATE_WEBVIEW_READY);
 	_log("WebView attached, loading " + url);
+	// Godot's Vulkan swapchain sits underneath an opaque WebView; cap its
+	// frame rate so the GPU/CPU budget goes to the game's WebGL context.
+	call_deferred("_throttle_host_renderer");
 	call_deferred("emit_signal", "webview_ready");
+}
+
+void EaglerHost::_throttle_host_renderer() {
+	Engine::get_singleton()->set_max_fps(host_fps_when_hidden_);
+	OS::get_singleton()->set_low_processor_usage_mode(true);
+	OS::get_singleton()->set_low_processor_usage_mode_sleep_usec(16000);
 }
 
 void EaglerHost::_apply_immersive_mode() {

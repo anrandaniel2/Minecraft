@@ -87,15 +87,23 @@ jobs:
   # 2. Unit-test the pure C++ HTTP server on the host.
   # ---------------------------------------------------------------------------
   test-http-server:
-    name: Test LocalHttpServer
+    name: Test native components
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build & run
+        with:
+          submodules: recursive
+      - name: LocalHttpServer
         run: |
           mkdir -p /tmp/www && echo "<html>ok</html>" > /tmp/www/index.html
           g++ -std=c++17 -O2 -pthread -Isrc tests/http_server_test.cpp src/local_http_server.cpp -o /tmp/http_test
           /tmp/http_test /tmp/www
+      - name: BundleUnpacker (real bundle)
+        run: |
+          g++ -std=c++17 -O2 -pthread -Isrc -Ithirdparty/brotli/c/include tests/bundle_unpacker_test.cpp \
+              src/bundle_unpacker.cpp thirdparty/brotli/c/dec/*.c thirdparty/brotli/c/common/*.c -o /tmp/unpack_test
+          /tmp/unpack_test web/eaglercraft.html /tmp/unpacked
+          ls -la /tmp/unpacked
 
   # ---------------------------------------------------------------------------
   # 3. Export the APK with headless Godot (Gradle build so we can patch the

@@ -12,8 +12,13 @@ import os
 
 env = SConscript("godot-cpp/SConstruct")
 
-env.Append(CPPPATH=["src/"])
+env.Append(CPPPATH=["src/", "thirdparty/brotli/c/include"])
 sources = Glob("src/*.cpp")
+
+# Brotli decoder (C) - used by the native bundle unpacker.
+brotli_env = env.Clone()
+brotli_env.Append(CPPDEFINES=["BROTLI_BUILD_PORTABLE"])
+sources += brotli_env.SharedObject(Glob("thirdparty/brotli/c/dec/*.c")) + brotli_env.SharedObject(Glob("thirdparty/brotli/c/common/*.c"))
 
 # Threads + exceptions off (Godot style), position independent code.
 if env["platform"] == "android":

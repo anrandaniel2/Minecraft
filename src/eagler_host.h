@@ -68,6 +68,15 @@ public:
 	void set_worker_threads(int p_threads);
 	int get_worker_threads() const;
 
+	void set_host_fps_when_hidden(int p_fps);
+	int get_host_fps_when_hidden() const;
+
+	void set_native_unpack(bool p_enabled);
+	bool get_native_unpack() const;
+	void set_enable_game_workers(bool p_enabled);
+	bool get_enable_game_workers() const;
+	bool is_unpacked() const;
+
 	void set_offline_only(bool p_enabled);
 	bool get_offline_only() const;
 
@@ -108,6 +117,7 @@ private:
 	void _run_on_ui_thread(const Callable &p_callable);
 	void _set_error(const String &p_msg);
 	void _apply_immersive_mode();
+	void _throttle_host_renderer();
 	void _tick_offline_guard(double p_delta);
 	void _log(const String &p_msg) const;
 
@@ -119,6 +129,10 @@ private:
 	bool cross_origin_isolation_ = false;
 	int worker_threads_ = 0;
 	bool offline_only_ = true;
+	bool native_unpack_ = true;
+	int host_fps_when_hidden_ = 10;
+	bool enable_game_workers_ = true;
+	std::atomic<bool> unpacked_{ false };
 
 	// State.
 	std::atomic<int> state_{ STATE_IDLE };

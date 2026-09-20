@@ -37,6 +37,16 @@ GDScript or C# in this repository.
 | APK via Actions      | `.github/workflows/build-apk.yml` compiles the extension for all ABIs and exports a signed APK.               |
 | Completely offline   | The 75 MB single-file bundle (assets, sounds, WASM, worker code all inlined) ships inside the APK and is served from `127.0.0.1`. No remote URLs in the bundle; the network-security-config has **no trust anchors** and forbids cleartext except loopback; the C++ host injects a JS guard that rejects any non-loopback `fetch`/XHR/WebSocket and reports `navigator.onLine=false`. Worlds are saved in the WebView's IndexedDB. |
 
+## Startup optimisation (native unpack)
+
+On first launch the C++ host converts the 75 MB single-file HTML into
+`classes.wasm`, `mesh-worker.wasm`, `server-worker.wasm`, `assets.epk`,
+`sounds.epk` and a 167 KB `index.html` (multithreaded base64 + brotli in C++,
+~0.6 s). The WebView then stream-compiles the WASM, caches the compiled code
+between launches, and the game's mesh/server **workers are enabled** (the
+stock file ships single-threaded). Details: `docs/BUNDLE_ANALYSIS.md`.
+Toggle with the `native_unpack` / `enable_game_workers` properties.
+
 ## Repository layout
 
 ```
@@ -47,10 +57,13 @@ export_presets.cfg       Android export preset (Gradle build)
 SConstruct               Builds libeaglerhost.*.so with godot-cpp
 build_profile.json       Trims godot-cpp to the classes we use (faster CI)
 src/
+  bundle_unpacker.*      Native single-file → multi-file converter (brotli, threads)
   local_http_server.*    Multithreaded loopback static server (pure C++)
   eagler_host.*          Godot node: extraction, server, WebView, lifecycle
   register_types.*       GDExtension entry point
-tests/http_server_test.cpp   Host-side test for the server (run in CI)
+tests/                   Host-side tests for server + unpacker (run in CI)
+thirdparty/brotli        Google brotli decoder (submodule)
+docs/                    Bundle analysis + extracted loader JS for reference
 web/                     Put eaglercraft.html here (see web/README.md)
 .github/workflows/       APK compiler
 ```
