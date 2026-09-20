@@ -135,6 +135,7 @@ private:
 	void _set_error(const String &p_msg);
 	void _apply_immersive_mode();
 	void _ui_reapply_fullscreen();
+	void _ui_check_fullscreen();
 	int _android_sdk_int();
 	void _throttle_host_renderer();
 	void _tick_offline_guard(double p_delta);
@@ -151,7 +152,7 @@ private:
 	// Config.
 	String html_resource_path_ = "res://web/eaglercraft.html";
 	PackedStringArray extra_web_files_;
-	bool use_hardware_layer_ = true;
+	bool use_hardware_layer_ = false;
 	bool immersive_ = true;
 	bool cross_origin_isolation_ = false;
 	int worker_threads_ = 0;

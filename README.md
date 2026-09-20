@@ -79,6 +79,15 @@ Persistence and resolution:
 
 Other runtime performance settings on the node:
 
+* `use_hardware_layer` (default **off**) — a `LAYER_TYPE_HARDWARE` layer on
+  a WebView does not make it faster: Chromium already composites on the GPU,
+  the layer just adds a full-screen render-to-texture + second composite per
+  frame. Off = one less full-screen pass, identical image.
+* The immersive-mode watchdog now only *checks* every 2 s whether a system
+  bar became visible and re-applies fullscreen only then; the previous
+  unconditional re-apply forced a WebView relayout every 2 s (a periodic
+  frame hitch).
+
 * `stop_host_render_loop` (default on) — Godot's Vulkan render loop is
   disabled once the opaque WebView is attached, so no per-frame clear/present
   competes with the game's GPU context.

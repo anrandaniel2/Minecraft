@@ -192,6 +192,7 @@ void EaglerHost::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_ui_back"), &EaglerHost::_ui_back);
 	ClassDB::bind_method(D_METHOD("_throttle_host_renderer"), &EaglerHost::_throttle_host_renderer);
 	ClassDB::bind_method(D_METHOD("_ui_reapply_fullscreen"), &EaglerHost::_ui_reapply_fullscreen);
+	ClassDB::bind_method(D_METHOD("_ui_check_fullscreen"), &EaglerHost::_ui_check_fullscreen);
 	ClassDB::bind_method(D_METHOD("_on_page_command", "command"), &EaglerHost::_on_page_command);
 	ClassDB::bind_method(D_METHOD("_connect_updater"), &EaglerHost::_connect_updater);
 	ClassDB::bind_method(D_METHOD("set_safe_mode", "enabled"), &EaglerHost::set_safe_mode);
@@ -407,7 +408,10 @@ void EaglerHost::_process(double p_delta) {
 		fullscreen_timer_ += p_delta;
 		if (fullscreen_timer_ >= 2.0) {
 			fullscreen_timer_ = 0.0;
-			_run_on_ui_thread(Callable(this, "_ui_reapply_fullscreen"));
+			// Check-only hop: the full re-apply (window attrs, insets
+			// controller, setSystemUiVisibility) forces a relayout of the
+			// WebView surface, which is a visible frame hitch every 2 s.
+			_run_on_ui_thread(Callable(this, "_ui_check_fullscreen"));
 		}
 	}
 	if (state_.load() == STATE_EXTRACTING && extraction_done_.load()) {
@@ -728,8 +732,16 @@ void EaglerHost::_ui_create_webview() {
 	webview_ = wv;
 
 	// Hardware-accelerated layer for the view itself.
+	// Note: a LAYER_TYPE_HARDWARE layer on a WebView does *not* make its
+	// content GPU-rendered (Chromium already composites on the GPU); it
+	// forces the whole 2560x1600 view to be rendered into an extra texture
+	// and then composited again every frame. That is one full-screen copy
+	// of GPU work and memory bandwidth per frame for no visual gain, so it
+	// is off unless explicitly requested.
 	if (use_hardware_layer_) {
 		wv->call("setLayerType", kLayerTypeHardware, Variant());
+	} else {
+		wv->call("setLayerType", 0 /*LAYER_TYPE_NONE*/, Variant());
 	}
 	if (Color.is_valid()) {
 		wv->call("setBackgroundColor", Color->get("BLACK"));
@@ -957,6 +969,36 @@ int EaglerHost::_android_sdk_int() {
 
 void EaglerHost::_ui_reapply_fullscreen() {
 	_apply_immersive_mode();
+}
+
+void EaglerHost::_ui_check_fullscreen() {
+	// Only re-assert when a system bar is actually showing. UI thread.
+	if (activity_.is_null()) {
+		return;
+	}
+	Ref<JavaObject> window = activity_->call("getWindow");
+	if (window.is_null()) {
+		return;
+	}
+	Ref<JavaObject> decor = window->call("getDecorView");
+	if (decor.is_null()) {
+		return;
+	}
+	bool visible = false;
+	if (_android_sdk_int() >= 30) {
+		Ref<JavaObject> insets = decor->call("getRootWindowInsets");
+		if (insets.is_valid()) {
+			Ref<JavaClass> Type = JavaClassWrapper::get_singleton()->wrap("android.view.WindowInsets$Type");
+			int bars = Type.is_valid() ? int(Type->call("systemBars")) : 0x7;
+			visible = bool(insets->call("isVisible", bars));
+		}
+	} else {
+		int vis = int(decor->call("getSystemUiVisibility"));
+		visible = (vis & 0x4 /*SYSTEM_UI_FLAG_FULLSCREEN*/) == 0 || (vis & 0x2 /*HIDE_NAVIGATION*/) == 0;
+	}
+	if (visible) {
+		_apply_immersive_mode();
+	}
 }
 
 void EaglerHost::_ui_destroy_webview() {
