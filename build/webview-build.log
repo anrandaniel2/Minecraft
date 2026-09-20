@@ -73,10 +73,10 @@ Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-to
 > Task :app:mergeDebugJavaResource
 > Task :app:desugarDebugFileDependencies
 > Task :app:mergeExtDexDebug
-> Task :app:mergeDebugJniLibFolders
-> Task :app:mergeLibDexDebug
-> Task :app:mergeDebugNativeLibs NO-SOURCE
 > Task :app:processDebugManifestForPackage
+> Task :app:mergeLibDexDebug
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeDebugNativeLibs NO-SOURCE
 > Task :app:stripDebugDebugSymbols NO-SOURCE
 > Task :app:validateSigningDebug
 > Task :app:writeDebugAppMetadata
@@ -93,9 +93,9 @@ Note: Recompile with -Xlint:deprecation for details.
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 33s
+BUILD SUCCESSFUL in 24s
 30 actionable tasks: 30 executed
-  9176563     20 -rw-r--r--   1 runner   runner      20000 Sep 20 00:19 ./app/build/outputs/apk/debug/app-debug.apk
+  9202778     20 -rw-r--r--   1 runner   runner      20001 Sep 20 00:30 ./app/build/outputs/apk/debug/app-debug.apk
 total 24K
--rw-r--r-- 1 runner runner 20K Sep 20 00:19 app-debug.apk
--rw-r--r-- 1 runner runner 383 Sep 20 00:19 output-metadata.json
+-rw-r--r-- 1 runner runner 20K Sep 20 00:30 app-debug.apk
+-rw-r--r-- 1 runner runner 383 Sep 20 00:30 output-metadata.json
