@@ -1,7 +1,5 @@
 12.0
 
-Loading package information...                                                  Loading local repository...                                                     [                                       ] 3% Loading local repository...        [                                       ] 3% Fetch remote repository...         [=                                      ] 3% Fetch remote repository...         [=                                      ] 4% Fetch remote repository...         [=                                      ] 5% Fetch remote repository...         [==                                     ] 5% Fetch remote repository...         [==                                     ] 6% Fetch remote repository...         [==                                     ] 7% Fetch remote repository...         [==                                     ] 7% Computing updates...               [===                                    ] 8% Computing updates...               [===                                    ] 10% Computing updates...              [===                                    ] 10% Installing CMake 3.22.1           [===                                    ] 10% Downloading cmake-3.22.1-linux.zip[====                                   ] 10% Downloading cmake-3.22.1-linux.zip[====                                   ] 11% Downloading cmake-3.22.1-linux.zip[====                                   ] 12% Downloading cmake-3.22.1-linux.zip[=====                                  ] 13% Downloading cmake-3.22.1-linux.zip[=====                                  ] 14% Downloading cmake-3.22.1-linux.zip[=====                                  ] 15% Downloading cmake-3.22.1-linux.zip[======                                 ] 15% Downloading cmake-3.22.1-linux.zip[======                                 ] 16% Downloading cmake-3.22.1-linux.zip[======                                 ] 17% Downloading cmake-3.22.1-linux.zip[=======                                ] 18% Downloading cmake-3.22.1-linux.zip[=======                                ] 19% Downloading cmake-3.22.1-linux.zip[=======                                ] 20% Downloading cmake-3.22.1-linux.zip[========                               ] 20% Downloading cmake-3.22.1-linux.zip[========                               ] 21% Downloading cmake-3.22.1-linux.zip[========                               ] 21% Unzipping...                      [========                               ] 21% Unzipping... bin/cmake            [========                               ] 22% Unzipping... bin/cmake            [=========                              ] 23% Unzipping... bin/cmake            [=========                              ] 24% Unzipping... bin/cmake            [=========                              ] 24% Unzipping... bin/ctest            [=========                              ] 25% Unzipping... bin/ctest            [==========                             ] 25% Unzipping... bin/ctest            [==========                             ] 26% Unzipping... bin/ctest            [==========                             ] 27% Unzipping... bin/ctest            [===========                            ] 28% Unzipping... bin/ctest            [===========                            ] 28% Unzipping... bin/cpack            [===========                            ] 29% Unzipping... bin/cpack            [===========                            ] 30% Unzipping... bin/cpack            [============                           ] 30% Unzipping... bin/cpack            [============                           ] 31% Unzipping... bin/cpack            [============                           ] 31% Unzipping... share/vim/vimfiles/in[============                           ] 31% Unzipping... share/vim/vimfiles/sy[============                           ] 31% Unzipping... share/aclocal/cmake.m[============                           ] 31% Unzipping... share/emacs/site-lisp[============                           ] 31% Unzipping... share/cmake-3.22/incl[============                           ] 31% Unzipping... share/cmake-3.22/Help[============                           ] 31% Unzipping... share/cmake-3.22/Temp[============                           ] 32% Unzipping... share/cmake-3.22/Temp[============                           ] 32% Unzipping... share/cmake-3.22/Modu[============                           ] 32% Unzipping... share/bash-completion[============                           ] 32% Unzipping... doc/cmake-3.22/Copyri[============                           ] 32% Unzipping... doc/cmake-3.22/cmzlib[============                           ] 32% Unzipping... doc/cmake-3.22/cmzstd[============                           ] 32% Unzipping... doc/cmake-3.22/cmnght[============                           ] 32% Unzipping... doc/cmake-3.22/cmsys/[============                           ] 32% Unzipping... doc/cmake-3.22/cmcurl[============                           ] 32% Unzipping... doc/cmake-3.22/cmlibr[============                           ] 32% Unzipping... doc/cmake-3.22/cmliba[============                           ] 32% Unzipping... doc/cmake-3.22/cmlibl[============                           ] 32% Unzipping... doc/cmake-3.22/cmlibu[============                           ] 32% Unzipping... doc/openssl-1.1.1l/LI[============                           ] 32% Unzipping... source.properties    [============                           ] 32% Unzipping... bin/ninja            [============                           ] 32% Unzipping... doc/ninja/LICENSE    [============                           ] 32% Unzipping... share/cmake-3.22/Modu[=============                          ] 33% Unzipping... share/cmake-3.22/Modu[=====================                  ] 55% Unzipping... share/cmake-3.22/Modu[=====================                  ] 55% Installing NDK (Side by side) 25.1[=====================                  ] 55% Downloading android-ndk-r25b-linux[======================                 ] 55% Downloading android-ndk-r25b-linux[======================                 ] 56% Downloading android-ndk-r25b-linux[======================                 ] 57% Downloading android-ndk-r25b-linux[=======================                ] 58% Downloading android-ndk-r25b-linux[=======================                ] 59% Downloading android-ndk-r25b-linux[=======================                ] 60% Downloading android-ndk-r25b-linux[========================               ] 60% Downloading android-ndk-r25b-linux[========================               ] 61% Downloading android-ndk-r25b-linux[========================               ] 62% Downloading android-ndk-r25b-linux[=========================              ] 63% Downloading android-ndk-r25b-linux[=========================              ] 64% Downloading android-ndk-r25b-linux[=========================              ] 65% Downloading android-ndk-r25b-linux[==========================             ] 65% Downloading android-ndk-r25b-linux[==========================             ] 66% Downloading android-ndk-r25b-linux[==========================             ] 66% Unzipping... share/cmake-3.22/Modu[==========================             ] 66% Unzipping... android-ndk-r25b/    [==========================             ] 66% Unzipping... android-ndk-r25b/CHAN[==========================             ] 66% Unzipping... android-ndk-r25b/wrap[==========================             ] 66% Unzipping... android-ndk-r25b/preb[==========================             ] 66% Unzipping... android-ndk-r25b/buil[==========================             ] 66% Unzipping... android-ndk-r25b/NOTI[==========================             ] 66% Unzipping... android-ndk-r25b/ndk-[==========================             ] 66% Unzipping... android-ndk-r25b/NOTI[==========================             ] 66% Unzipping... android-ndk-r25b/meta[==========================             ] 66% Unzipping... android-ndk-r25b/ndk-[==========================             ] 66% Unzipping... android-ndk-r25b/pyth[==========================             ] 66% Unzipping... android-ndk-r25b/sour[==========================             ] 66% Unzipping... android-ndk-r25b/simp[==========================             ] 67% Unzipping... android-ndk-r25b/simp[==========================             ] 67% Unzipping... android-ndk-r25b/ndk-[==========================             ] 67% Unzipping... android-ndk-r25b/READ[==========================             ] 67% Unzipping... android-ndk-r25b/tool[===========================            ] 68% Unzipping... android-ndk-r25b/tool[===========================            ] 69% Unzipping... android-ndk-r25b/tool[===========================            ] 70% Unzipping... android-ndk-r25b/tool[============================           ] 70% Unzipping... android-ndk-r25b/tool[============================           ] 71% Unzipping... android-ndk-r25b/tool[============================           ] 72% Unzipping... android-ndk-r25b/tool[=============================          ] 73% Unzipping... android-ndk-r25b/tool[=============================          ] 74% Unzipping... android-ndk-r25b/tool[=============================          ] 75% Unzipping... android-ndk-r25b/tool[==============================         ] 75% Unzipping... android-ndk-r25b/tool[==============================         ] 76% Unzipping... android-ndk-r25b/tool[==============================         ] 77% Unzipping... android-ndk-r25b/tool[==============================         ] 77% Unzipping... android-ndk-r25b/ndk-[==============================         ] 77% Unzipping... android-ndk-r25b/shad[==============================         ] 78% Unzipping... android-ndk-r25b/shad[=======================================] 100% Unzipping... android-ndk-r25b/sha
-
 
 
 === NATIVE BUILD LOG ===
@@ -28,6 +26,15 @@ JVM:          17.0.20.1 (Eclipse Adoptium 17.0.20.1+1)
 OS:           Linux 6.17.0-1022-azure amd64
 
 Starting a Gradle Daemon (subsequent builds will be faster)
+
+> Configure project :app
+Checking the license for package NDK (Side by side) 25.1.8937393 in /usr/local/lib/android/sdk/licenses
+License for package NDK (Side by side) 25.1.8937393 accepted.
+Preparing "Install NDK (Side by side) 25.1.8937393 v.25.1.8937393".
+"Install NDK (Side by side) 25.1.8937393 v.25.1.8937393" ready.
+Installing NDK (Side by side) 25.1.8937393 in /usr/local/lib/android/sdk/ndk/25.1.8937393
+"Install NDK (Side by side) 25.1.8937393 v.25.1.8937393" complete.
+"Install NDK (Side by side) 25.1.8937393 v.25.1.8937393" finished.
 WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 34
 
 This Android Gradle plugin (8.1.0) was tested up to compileSdk = 33 (and compileSdkPreview = "UpsideDownCakePrivacySandbox").
@@ -48,6 +55,7 @@ Preparing "Install Android SDK Build-Tools 33.0.1 v.33.0.1".
 Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-tools/33.0.1
 "Install Android SDK Build-Tools 33.0.1 v.33.0.1" complete.
 "Install Android SDK Build-Tools 33.0.1 v.33.0.1" finished.
+
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
@@ -59,8 +67,8 @@ Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-to
 > Task :app:packageDebugResources
 > Task :app:mergeDebugResources
 > Task :app:createDebugCompatibleScreenManifests
-> Task :app:extractDeepLinksDebug
 > Task :app:parseDebugLocalResources
+> Task :app:extractDeepLinksDebug
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
 > Task :app:mergeDebugShaders
@@ -69,311 +77,43 @@ Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-to
 > Task :app:mergeDebugAssets
 > Task :app:compressDebugAssets
 > Task :app:processDebugJavaRes NO-SOURCE
-> Task :app:desugarDebugFileDependencies
 > Task :app:checkDebugDuplicateClasses
-> Task :app:mergeDebugJavaResource
-> Task :app:configureCMakeDebug[arm64-v8a]
-> Task :app:mergeExtDexDebug
-> Task :app:mergeLibDexDebug
-
-> Task :app:buildCMakeDebug[arm64-v8a] FAILED
-C/C++: ninja: Entering directory `/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a'
-C/C++: /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp
-C/C++: /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp:8:2: error: #else after #else
-C/C++: #else
-C/C++:  ^
-C/C++: 1 error generated.
-
+> Task :app:desugarDebugFileDependencies
 > Task :app:processDebugManifestForPackage
+> Task :app:mergeExtDexDebug
+> Task :app:mergeDebugJavaResource
+> Task :app:mergeLibDexDebug
+> Task :app:processDebugResources
 
-FAILURE: Build failed with an exception.
+> Task :app:configureCMakeDebug[arm64-v8a]
+Checking the license for package CMake 3.22.1 in /usr/local/lib/android/sdk/licenses
+License for package CMake 3.22.1 accepted.
+Preparing "Install CMake 3.22.1 v.3.22.1".
+"Install CMake 3.22.1 v.3.22.1" ready.
+Installing CMake 3.22.1 in /usr/local/lib/android/sdk/cmake/3.22.1
+"Install CMake 3.22.1 v.3.22.1" complete.
+"Install CMake 3.22.1 v.3.22.1" finished.
 
-* What went wrong:
-Execution failed for task ':app:buildCMakeDebug[arm64-v8a]'.
-> com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a'
-  [1/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Mesh.cpp.o
-  [2/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Camera.cpp.o
-  [3/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/FontRenderer.cpp.o
-  [4/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o
-  [5/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Player.cpp.o
-  [6/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o
-  [7/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Renderer.cpp.o
-  [8/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o
-  [9/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/utils/PerlinNoise.cpp.o
-  [10/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Block.cpp.o
-  [11/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o
-  [12/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.cpp.o
-  [13/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o
-  FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o 
-  /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp
-  /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp:8:2: error: #else after #else
-  #else
-   ^
-  1 error generated.
-  [14/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Texture.cpp.o
-  [15/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Chunk.cpp.o
-  [16/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/WorldGenerator.cpp.o
-  [17/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Shader.cpp.o
-  [18/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/World.cpp.o
-  ninja: build stopped: subcommand failed.
-  
-  C++ build system [build] failed while executing:
-      /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
-        -C \
-        /home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a \
-        eaglercraft
-    from /home/runner/work/Minecraft/Minecraft/android/app
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderDebug
+> Task :app:mergeProjectDexDebug
+> Task :app:buildCMakeDebug[arm64-v8a]
+> Task :app:configureCMakeDebug[armeabi-v7a]
+> Task :app:buildCMakeDebug[armeabi-v7a]
+> Task :app:mergeDebugJniLibFolders
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:mergeDebugNativeLibs
+> Task :app:stripDebugDebugSymbols
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
 
-* Try:
-> Run with --info or --debug option to get more log output.
-> Run with --scan to get full insights.
-
-* Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:buildCMakeDebug[arm64-v8a]'.
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:149)
-	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:282)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:147)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:135)
-	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
-	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
-	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
-	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
-	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:199)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.internal.operations.DefaultBuildOperationExecutor.call(DefaultBuildOperationExecutor.java:73)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
-	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:338)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:325)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:318)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:304)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:463)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:380)
-	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
-	at org.gradle.internal.concurrent.ManagedExecutorImpl$1.run(ManagedExecutorImpl.java:49)
-Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a'
-[1/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Mesh.cpp.o
-[2/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Camera.cpp.o
-[3/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/FontRenderer.cpp.o
-[4/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o
-[5/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Player.cpp.o
-[6/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o
-[7/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Renderer.cpp.o
-[8/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o
-[9/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/utils/PerlinNoise.cpp.o
-[10/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Block.cpp.o
-[11/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o
-[12/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.cpp.o
-[13/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o
-FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o 
-/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp
-/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp:8:2: error: #else after #else
-#else
- ^
-1 error generated.
-[14/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Texture.cpp.o
-[15/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Chunk.cpp.o
-[16/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/WorldGenerator.cpp.o
-[17/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Shader.cpp.o
-[18/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/World.cpp.o
-ninja: build stopped: subcommand failed.
-
-C++ build system [build] failed while executing:
-    /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
-      -C \
-      /home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a \
-      eaglercraft
-  from /home/runner/work/Minecraft/Minecraft/android/app
-	at org.gradle.internal.UncheckedException.throwAsUncheckedException(UncheckedException.java:68)
-	at org.gradle.internal.UncheckedException.throwAsUncheckedException(UncheckedException.java:41)
-	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:128)
-	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.doExecute(StandardTaskAction.java:58)
-	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:51)
-	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:29)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:242)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:29)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:26)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:47)
-	at org.gradle.internal.operations.DefaultBuildOperationExecutor.run(DefaultBuildOperationExecutor.java:68)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:227)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:210)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:193)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:166)
-	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:93)
-	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:44)
-	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:57)
-	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:54)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:199)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.internal.operations.DefaultBuildOperationExecutor.call(DefaultBuildOperationExecutor.java:73)
-	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:54)
-	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:44)
-	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:67)
-	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:37)
-	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:41)
-	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:74)
-	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
-	at org.gradle.internal.execution.steps.CreateOutputsStep.execute(CreateOutputsStep.java:50)
-	at org.gradle.internal.execution.steps.CreateOutputsStep.execute(CreateOutputsStep.java:28)
-	at org.gradle.internal.execution.steps.CaptureStateAfterExecutionStep.executeDelegateBroadcastingChanges(CaptureStateAfterExecutionStep.java:100)
-	at org.gradle.internal.execution.steps.CaptureStateAfterExecutionStep.execute(CaptureStateAfterExecutionStep.java:72)
-	at org.gradle.internal.execution.steps.CaptureStateAfterExecutionStep.execute(CaptureStateAfterExecutionStep.java:50)
-	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:40)
-	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:29)
-	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:166)
-	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$1(BuildCacheStep.java:70)
-	at org.gradle.internal.Either$Right.fold(Either.java:175)
-	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:59)
-	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:68)
-	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:46)
-	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:36)
-	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:25)
-	at org.gradle.internal.execution.steps.RecordOutputsStep.execute(RecordOutputsStep.java:36)
-	at org.gradle.internal.execution.steps.RecordOutputsStep.execute(RecordOutputsStep.java:22)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:91)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:55)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:55)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:37)
-	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:65)
-	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
-	at org.gradle.internal.execution.steps.ResolveCachingStateStep.execute(ResolveCachingStateStep.java:76)
-	at org.gradle.internal.execution.steps.ResolveCachingStateStep.execute(ResolveCachingStateStep.java:37)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:94)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:49)
-	at org.gradle.internal.execution.steps.CaptureStateBeforeExecutionStep.execute(CaptureStateBeforeExecutionStep.java:71)
-	at org.gradle.internal.execution.steps.CaptureStateBeforeExecutionStep.execute(CaptureStateBeforeExecutionStep.java:45)
-	at org.gradle.internal.execution.steps.SkipEmptyWorkStep.executeWithNonEmptySources(SkipEmptyWorkStep.java:177)
-	at org.gradle.internal.execution.steps.SkipEmptyWorkStep.execute(SkipEmptyWorkStep.java:81)
-	at org.gradle.internal.execution.steps.SkipEmptyWorkStep.execute(SkipEmptyWorkStep.java:53)
-	at org.gradle.internal.execution.steps.RemoveUntrackedExecutionStateStep.execute(RemoveUntrackedExecutionStateStep.java:32)
-	at org.gradle.internal.execution.steps.RemoveUntrackedExecutionStateStep.execute(RemoveUntrackedExecutionStateStep.java:21)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:36)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:23)
-	at org.gradle.internal.execution.steps.CleanupStaleOutputsStep.execute(CleanupStaleOutputsStep.java:75)
-	at org.gradle.internal.execution.steps.CleanupStaleOutputsStep.execute(CleanupStaleOutputsStep.java:41)
-	at org.gradle.internal.execution.steps.AssignWorkspaceStep.lambda$execute$0(AssignWorkspaceStep.java:32)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:287)
-	at org.gradle.internal.execution.steps.AssignWorkspaceStep.execute(AssignWorkspaceStep.java:30)
-	at org.gradle.internal.execution.steps.AssignWorkspaceStep.execute(AssignWorkspaceStep.java:21)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:37)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:27)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:42)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:31)
-	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:64)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:146)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:135)
-	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
-	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
-	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
-	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
-	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:199)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.internal.operations.DefaultBuildOperationExecutor.call(DefaultBuildOperationExecutor.java:73)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
-	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:338)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:325)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:318)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:304)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:463)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:380)
-	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
-	at org.gradle.internal.concurrent.ManagedExecutorImpl$1.run(ManagedExecutorImpl.java:49)
-Caused by: com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a'
-[1/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Mesh.cpp.o
-[2/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Camera.cpp.o
-[3/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/FontRenderer.cpp.o
-[4/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o
-[5/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Player.cpp.o
-[6/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o
-[7/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Renderer.cpp.o
-[8/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o
-[9/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/utils/PerlinNoise.cpp.o
-[10/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Block.cpp.o
-[11/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o
-[12/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.cpp.o
-[13/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o
-FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o 
-/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp
-/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp:8:2: error: #else after #else
-#else
- ^
-1 error generated.
-[14/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Texture.cpp.o
-[15/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Chunk.cpp.o
-[16/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/WorldGenerator.cpp.o
-[17/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Shader.cpp.o
-[18/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/World.cpp.o
-ninja: build stopped: subcommand failed.
-
-C++ build system [build] failed while executing:
-    /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
-      -C \
-      /home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a \
-      eaglercraft
-  from /home/runner/work/Minecraft/Minecraft/android/app
-	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt.execute(ExecuteProcess.kt:274)
-	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt$executeProcess$1.invoke(ExecuteProcess.kt:106)
-	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt$executeProcess$1.invoke(ExecuteProcess.kt:104)
-	at com.android.build.gradle.internal.cxx.timing.TimingEnvironmentKt.time(TimingEnvironment.kt:32)
-	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt.executeProcess(ExecuteProcess.kt:104)
-	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt.executeProcess$default(ExecuteProcess.kt:84)
-	at com.android.build.gradle.internal.cxx.build.CxxRegularBuilder.executeProcessBatch(CxxRegularBuilder.kt:331)
-	at com.android.build.gradle.internal.cxx.build.CxxRegularBuilder.build(CxxRegularBuilder.kt:128)
-	at com.android.build.gradle.tasks.ExternalNativeBuildTask$doTaskAction$$inlined$recordTaskAction$1.invoke(BaseTask.kt:70)
-	at com.android.build.gradle.internal.tasks.Blocks.recordSpan(Blocks.java:51)
-	at com.android.build.gradle.tasks.ExternalNativeBuildTask.doTaskAction(ExternalNativeBuildTask.kt:145)
-	at com.android.build.gradle.internal.tasks.UnsafeOutputsTask$taskAction$$inlined$recordTaskAction$1.invoke(BaseTask.kt:65)
-	at com.android.build.gradle.internal.tasks.Blocks.recordSpan(Blocks.java:51)
-	at com.android.build.gradle.internal.tasks.UnsafeOutputsTask.taskAction(UnsafeOutputsTask.kt:63)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
-	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
-	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:125)
-	... 113 more
-Caused by: com.android.ide.common.process.ProcessException: Error while executing process /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja with arguments {-C /home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a eaglercraft}
-	at com.android.build.gradle.internal.process.GradleProcessResult.buildProcessException(GradleProcessResult.java:73)
-	at com.android.build.gradle.internal.process.GradleProcessResult.assertNormalExitValue(GradleProcessResult.java:48)
-	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt.execute(ExecuteProcess.kt:269)
-	... 130 more
-Caused by: org.gradle.process.internal.ExecException: Process 'command '/usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja'' finished with non-zero exit value 1
-	at org.gradle.process.internal.DefaultExecHandle$ExecResultImpl.assertNormalExitValue(DefaultExecHandle.java:415)
-	at com.android.build.gradle.internal.process.GradleProcessResult.assertNormalExitValue(GradleProcessResult.java:46)
-	... 131 more
-
-
-* Get more help at https://help.gradle.org
-
-BUILD FAILED in 31s
-22 actionable tasks: 22 executed
-ls: cannot access 'app/build/outputs/apk/debug/': No such file or directory
+BUILD SUCCESSFUL in 56s
+35 actionable tasks: 35 executed
+=== APK LIST ===
+  9187636   2728 -rw-r--r--   1 runner   runner    2791491 Sep 20 00:43 ./app/build/outputs/apk/debug/app-debug.apk
+total 2.7M
+-rw-r--r-- 1 runner runner 2.7M Sep 20 00:43 app-debug.apk
+-rw-r--r-- 1 runner runner  383 Sep 20 00:43 output-metadata.json
