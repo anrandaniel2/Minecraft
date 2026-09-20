@@ -421,6 +421,19 @@ bool BundleUnpacker::unpack(const Options &opts, UnpackStats *stats, std::string
 				"  }).catch(function(e){window.__eaglerHostLog('gpu probe failed: '+e+' -> webgl2');if(mode==='auto'){window.__eaglerWebGPU=false;}});}catch(e){window.__eaglerHostLog('gpu probe threw: '+e);if(mode==='auto'){window.__eaglerWebGPU=false;}}}\n"
 				"  window.__eaglerWebGPUFailed=function(why){try{localStorage.setItem('eaglerHostWebGPUFailed','1');}catch(e){}window.__eaglerHostLog('WEBGPU-FAILED '+why);};\n"
 				"})();\n"
+				// Render scale. The game sizes its backing canvas from window.devicePixelRatio,
+				// so a 2560x1600 tablet at DPR 2 renders 4M px per frame. ?scale=<f> multiplies
+				// the DPR; auto (no param) caps the backing store around 1.1 MP (~1440x800)
+				// which is where mid-range mobile GPUs hold 60 fps in this client.
+				"(function(){var p=new URLSearchParams(location.search||'');var real=window.devicePixelRatio||1;var s=parseFloat(p.get('scale'));\n"
+				"  var dpr;if(s>0){dpr=real*s;}else{var px=screen.width*screen.height*real*real;var cap=1100000;dpr=px>cap?real*Math.sqrt(cap/px):real;}\n"
+				"  dpr=Math.max(0.5,Math.min(dpr,real));if(Math.abs(dpr-real)>0.001){try{Object.defineProperty(window,'devicePixelRatio',{get:function(){return dpr;},configurable:true});}catch(e){}}\n"
+				"  window.__eaglerHostLog('render scale dpr='+real.toFixed(2)+' -> '+dpr.toFixed(2)+' css='+screen.width+'x'+screen.height+' backing~'+Math.round(screen.width*dpr)+'x'+Math.round(screen.height*dpr));\n"
+				"})();\n"
+				// Persistent storage: without navigator.storage.persist() the WebView may evict
+				// the origin's IndexedDB (worlds/settings) under storage pressure.
+				"(function(){try{if(navigator.storage&&navigator.storage.persist){navigator.storage.persisted().then(function(p){if(p){window.__eaglerHostLog('storage already persistent');return;}return navigator.storage.persist().then(function(g){window.__eaglerHostLog('storage persist granted='+g);});}).catch(function(e){window.__eaglerHostLog('storage persist error '+e);});}else{window.__eaglerHostLog('storage persist unavailable');}\n"
+				"  if(navigator.storage&&navigator.storage.estimate){navigator.storage.estimate().then(function(e){window.__eaglerHostLog('storage usage='+Math.round((e.usage||0)/1048576)+'MB quota='+Math.round((e.quota||0)/1048576)+'MB');}).catch(function(){});}}catch(e){}})();\n"
 				"window.__eaglerHostLog('bridge ready ua='+navigator.userAgent+' cores='+navigator.hardwareConcurrency+' mem='+(navigator.deviceMemory||'?')+' secure='+self.isSecureContext+' xoi='+self.crossOriginIsolated+' sab='+(typeof SharedArrayBuffer)+' origin='+location.origin);\n"
 				"try{fetch(location.href,{method:'HEAD',cache:'no-store'}).then(function(r){window.__eaglerHostLog('headers coop='+r.headers.get('cross-origin-opener-policy')+' coep='+r.headers.get('cross-origin-embedder-policy')+' corp='+r.headers.get('cross-origin-resource-policy'));});}catch(e){}\n"
 				"})();</script>\n";

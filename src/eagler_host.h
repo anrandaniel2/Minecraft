@@ -70,6 +70,10 @@ public:
 	bool get_sustained_performance() const;
 	void set_stop_host_render_loop(bool p_enabled);
 	bool get_stop_host_render_loop() const;
+	void set_server_port(int p_port);
+	int get_server_port_setting() const;
+	void set_render_scale(double p_scale);
+	double get_render_scale() const;
 	bool get_immersive() const;
 
 	void set_cross_origin_isolation(bool p_enabled);
@@ -184,6 +188,8 @@ private:
 	String graphics_backend_ = "auto";
 	bool sustained_performance_ = true;
 	bool stop_host_render_loop_ = true;
+	int server_port_ = 28018; // fixed so the browser origin (and its IndexedDB) is stable
+	double render_scale_ = 0.0; // 0 = auto (cap the canvas at ~1080p-equivalent), else devicePixelRatio multiplier
 	int watchdog_dumps_ = 0;
 	double watchdog_timer_ = 0.0;
 };

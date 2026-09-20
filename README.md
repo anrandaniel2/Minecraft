@@ -64,6 +64,17 @@ before the wasm boots and logs the adapter (`gpu adapter vendor=… arch=…`).
 A fatal WebGPU error during boot is remembered in `localStorage`
 (`eaglerHostWebGPUFailed`) and the host reloads once on WebGL2.
 
+Persistence and resolution:
+
+* `server_port` (default 28018) — the loopback server binds a **fixed** port
+  so the browser origin `http://127.0.0.1:28018` is stable across launches.
+  Browser storage (IndexedDB worlds, settings) is keyed by origin; with an
+  ephemeral port every launch looked like a fresh install. The page also
+  calls `navigator.storage.persist()` so the WebView won't evict the data.
+* `render_scale` (default 0 = auto) — multiplier on `devicePixelRatio` for
+  the game canvas. Auto caps the backing store around 1.1 MP; set `1.0` for
+  native resolution, `0.5` for maximum frame rate.
+
 Other runtime performance settings on the node:
 
 * `stop_host_render_loop` (default on) — Godot's Vulkan render loop is

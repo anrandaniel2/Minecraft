@@ -255,6 +255,27 @@ int AndroidJni::configure_webview(const godot::String &p_property_key, const Web
 	set_bool("setGeolocationEnabled", s.geolocation);
 	set_bool("setSafeBrowsingEnabled", s.safe_browsing);
 	set_bool("setOffscreenPreRaster", s.offscreen_preraster);
+	// WebSettings.setRenderPriority(RenderPriority) - enum parameter.
+	{
+		jclass RP = env->FindClass("android/webkit/WebSettings$RenderPriority");
+		if (RP) {
+			jfieldID f = env->GetStaticFieldID(RP, s.render_priority == 1 ? "HIGH" : "NORMAL", "Landroid/webkit/WebSettings$RenderPriority;");
+			jmethodID m = env->GetMethodID(WS, "setRenderPriority", "(Landroid/webkit/WebSettings$RenderPriority;)V");
+			if (f && m) {
+				jobject v = env->GetStaticObjectField(RP, f);
+				env->CallVoidMethod(settings, m, v);
+				if (env->ExceptionCheck()) {
+					env->ExceptionClear();
+				} else {
+					++applied;
+				}
+			} else {
+				env->ExceptionClear();
+			}
+		} else {
+			env->ExceptionClear();
+		}
+	}
 
 	// Read back the one that matters so the log proves it.
 	jmethodID getJs = env->GetMethodID(WS, "getJavaScriptEnabled", "()Z");

@@ -129,7 +129,28 @@ bool LocalHttpServer::start(const Config &config, std::string *error_out) {
 	addr.sin_port = htons(config_.port);
 	addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // Never expose on the network.
 
-	if (::bind(listen_fd_, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) {
+	// Bind the requested port; if it is taken (another instance, or a
+	// lingering socket) walk forward through a small window before giving
+	// up and letting the kernel pick. The caller cares about a *stable*
+	// port: browser storage (IndexedDB worlds, localStorage settings) is
+	// keyed by origin, so http://127.0.0.1:<port> must not change between
+	// launches or every start looks like a fresh install.
+	bool bound = false;
+	for (int attempt = 0; attempt < (config_.port ? config_.port_attempts : 1); ++attempt) {
+		addr.sin_port = htons(config_.port ? static_cast<uint16_t>(config_.port + attempt) : 0);
+		if (::bind(listen_fd_, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0) {
+			bound = true;
+			break;
+		}
+		if (errno != EADDRINUSE) {
+			break;
+		}
+	}
+	if (!bound && config_.port) {
+		addr.sin_port = 0;
+		bound = ::bind(listen_fd_, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0;
+	}
+	if (!bound) {
 		if (error_out) {
 			*error_out = std::string("bind(): ") + strerror(errno);
 		}

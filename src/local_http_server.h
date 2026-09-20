@@ -36,6 +36,7 @@ public:
 		std::string root_dir; // Absolute path to the directory to serve.
 		std::string index_file = "index.html"; // Served for "/".
 		uint16_t port = 0; // 0 = ephemeral, chosen by the kernel.
+		int port_attempts = 16; // port..port+attempts-1 tried before falling back to ephemeral.
 		unsigned worker_threads = 0; // 0 = hardware_concurrency (min 2).
 		bool cross_origin_isolation = false; // COOP/COEP headers (SharedArrayBuffer).
 		int keep_alive_timeout_sec = 15; // idle keep-alive; first request gets 5 s

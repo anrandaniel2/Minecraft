@@ -36,6 +36,8 @@ public:
 		bool geolocation = false;
 		bool safe_browsing = false;
 		bool offscreen_preraster = true;
+		int render_priority = 1; // RenderPriority.HIGH (deprecated but still honoured by the provider)
+		bool app_cache_legacy = false;
 	};
 
 	// True on Android when a JavaVM* is available (obtained lazily).

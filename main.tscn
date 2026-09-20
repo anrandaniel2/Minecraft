@@ -11,6 +11,8 @@ enable_game_workers = true
 graphics_backend = "auto"
 sustained_performance = true
 stop_host_render_loop = true
+server_port = 28018
+render_scale = 0.0
 
 [node name="AppUpdater" type="AppUpdater" parent="."]
 repository = "anrandaniel2/Minecraft"

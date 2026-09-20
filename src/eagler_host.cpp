@@ -31,7 +31,7 @@ namespace {
 constexpr const char *kBundleStampFile = ".eagler_bundle_stamp";
 // Bump whenever BundleUnpacker changes the generated index.html so an
 // already-unpacked install is regenerated on the next launch.
-constexpr const char *kUnpackTemplateVersion = "unpack-template:4\n";
+constexpr const char *kUnpackTemplateVersion = "unpack-template:5\n";
 
 // android.view.View#SYSTEM_UI_FLAG_* combination for sticky immersive mode.
 constexpr int kImmersiveFlags = 0x00000100 /*LAYOUT_STABLE*/
@@ -206,6 +206,12 @@ void EaglerHost::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_stop_host_render_loop", "enabled"), &EaglerHost::set_stop_host_render_loop);
 	ClassDB::bind_method(D_METHOD("get_stop_host_render_loop"), &EaglerHost::get_stop_host_render_loop);
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "stop_host_render_loop"), "set_stop_host_render_loop", "get_stop_host_render_loop");
+	ClassDB::bind_method(D_METHOD("set_server_port", "port"), &EaglerHost::set_server_port);
+	ClassDB::bind_method(D_METHOD("get_server_port_setting"), &EaglerHost::get_server_port_setting);
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "server_port", PROPERTY_HINT_RANGE, "0,65535,1"), "set_server_port", "get_server_port_setting");
+	ClassDB::bind_method(D_METHOD("set_render_scale", "scale"), &EaglerHost::set_render_scale);
+	ClassDB::bind_method(D_METHOD("get_render_scale"), &EaglerHost::get_render_scale);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "render_scale", PROPERTY_HINT_RANGE, "0,3,0.05"), "set_render_scale", "get_render_scale");
 	ClassDB::bind_method(D_METHOD("_on_update_available", "version", "notes"), &EaglerHost::_on_update_available);
 	ClassDB::bind_method(D_METHOD("_on_update_progress", "bytes", "total"), &EaglerHost::_on_update_progress);
 	ClassDB::bind_method(D_METHOD("_on_update_downloaded", "apk_path"), &EaglerHost::_on_update_downloaded);
@@ -248,6 +254,10 @@ void EaglerHost::set_sustained_performance(bool p_enabled) { sustained_performan
 bool EaglerHost::get_sustained_performance() const { return sustained_performance_; }
 void EaglerHost::set_stop_host_render_loop(bool p_enabled) { stop_host_render_loop_ = p_enabled; }
 bool EaglerHost::get_stop_host_render_loop() const { return stop_host_render_loop_; }
+void EaglerHost::set_server_port(int p_port) { server_port_ = p_port; }
+int EaglerHost::get_server_port_setting() const { return server_port_; }
+void EaglerHost::set_render_scale(double p_scale) { render_scale_ = p_scale; }
+double EaglerHost::get_render_scale() const { return render_scale_; }
 bool EaglerHost::get_safe_mode() const { return safe_mode_; }
 bool EaglerHost::get_immersive() const { return immersive_; }
 void EaglerHost::set_cross_origin_isolation(bool p_enabled) { cross_origin_isolation_ = p_enabled; }
@@ -376,6 +386,9 @@ String EaglerHost::_page_url() const {
 	}
 	if (graphics_backend_ == "webgpu" || graphics_backend_ == "webgl2") {
 		q.push_back("gpu=" + graphics_backend_);
+	}
+	if (render_scale_ > 0.0) {
+		q.push_back("scale=" + String::num(render_scale_, 2));
 	}
 	if (!q.is_empty()) {
 		url += "?" + String("&").join(q);
@@ -653,12 +666,17 @@ bool EaglerHost::_start_server() {
 		return "{\"ok\":true}";
 	};
 	cfg.worker_threads = worker_threads_ > 0 ? static_cast<unsigned>(worker_threads_) : 0;
+	cfg.port = static_cast<uint16_t>(server_port_ > 0 && server_port_ < 65536 ? server_port_ : 0);
 	std::string err;
 	if (!server_->start(cfg, &err)) {
 		_set_error(String("HTTP server failed: ") + err.c_str());
 		return false;
 	}
 	state_.store(STATE_SERVING);
+	if (server_port_ > 0 && server_->port() != server_port_) {
+		UtilityFunctions::push_warning("[EaglerHost] port ", server_port_, " busy; bound ", server_->port(),
+				" instead. The browser origin changed, so previously saved worlds/settings are under the old origin.");
+	}
 	_log(String("Serving ") + web_root_.c_str() + " at " + server_->base_url().c_str() +
 			" with " + String::num_int64(server_->worker_count()) + " worker threads");
 	emit_signal("server_started", String(server_->base_url().c_str()));
