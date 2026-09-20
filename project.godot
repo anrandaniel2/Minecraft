@@ -39,8 +39,11 @@ rendering_device/driver="vulkan"
 rendering_device/driver.android="vulkan"
 rendering_device/fallback_to_opengl3=false
 rendering_device/fallback_to_d3d12=false
-; Multi-threaded rendering (render thread separate from main thread).
-driver/threads/thread_model=2
+; Thread model: Android's display server does not support a separate render
+; thread (model 2 -> "Rendering thread not supported" warning), so use Safe.
+; Multithreading in this project comes from the C++ host (unpacker pool, HTTP
+; worker pool) and the game's own mesh/server workers.
+driver/threads/thread_model=1
 rendering_device/vsync/frame_queue_size=3
 rendering_device/vsync/swapchain_image_count=3
 textures/vram_compression/import_etc2_astc=true

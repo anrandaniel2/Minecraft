@@ -5,12 +5,13 @@ android/build/
 android/.build_version
 export/
 
-# Compiled extension binaries (built by CI / scons)
-bin/
+# Intermediate build products. NOTE: bin/**/*.so are intentionally tracked:
+# CI builds them and commits them back so a plain checkout can be exported
+# without an NDK (Godot never compiles C++ during export).
 *.os
 *.o
-*.so
 *.a
+godot-cpp/bin/
 .sconsign.dblite
 .sconf_temp/
 __pycache__/

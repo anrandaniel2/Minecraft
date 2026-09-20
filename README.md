@@ -78,6 +78,14 @@ file. Everything the game needs is inside that one HTML file, so the APK works
 with airplane mode on. Multiplayer (which needs relay servers) is naturally
 unavailable offline; singleplayer/LAN-less play is what this build targets.
 
+## Exporting from a clone (desktop or Android editor)
+
+`bin/android/*.so` and `bin/linux/*.so` are **committed** (CI rebuilds and
+pushes them on every change to `src/`), so you can open the project in Godot
+4.5 and export / one-click-run straight away – no NDK, no Gradle, no C++
+toolchain needed on your machine. If the extension fails to load, check that
+those files exist in your checkout (`git pull`).
+
 ## Building locally
 
 ```bash

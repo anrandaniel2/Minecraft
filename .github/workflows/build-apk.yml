@@ -18,6 +18,9 @@ env:
   NDK_VERSION: "28.1.13356709"
   JAVA_VERSION: "17"
 
+permissions:
+  contents: write
+
 concurrency:
   group: apk-${{ github.ref }}
   cancel-in-progress: true
@@ -116,6 +119,39 @@ jobs:
               src/bundle_unpacker.cpp thirdparty/brotli/c/dec/*.c thirdparty/brotli/c/common/*.c -o /tmp/unpack_test
           /tmp/unpack_test web/eaglercraft.html /tmp/unpacked
           ls -la /tmp/unpacked
+
+  # ---------------------------------------------------------------------------
+  # 2b. Commit the built libraries back to the branch so that a plain checkout
+  #     (desktop editor, Android editor one-click run) can export without an NDK.
+  # ---------------------------------------------------------------------------
+  commit-libs:
+    name: Commit prebuilt libraries
+    needs: [native]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-android-*
+          merge-multiple: true
+          path: bin/android
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-linux-*
+          merge-multiple: true
+          path: bin/linux
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f bin/android/*.so bin/linux/*.so
+          if git diff --cached --quiet; then echo "libraries unchanged"; exit 0; fi
+          git commit -m "ci: update prebuilt GDExtension libraries [skip ci]"
+          git pull --rebase origin "${{ github.ref_name }}" || true
+          git push origin HEAD:"${{ github.ref_name }}"
 
   # ---------------------------------------------------------------------------
   # 3. Export the APK with headless Godot (Gradle build so we can patch the
