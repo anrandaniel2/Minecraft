@@ -1,3 +1,5 @@
+12.0
+
 Loading package information...                                                  Loading local repository...                                                     [                                       ] 3% Loading local repository...        [                                       ] 3% Fetch remote repository...         [=                                      ] 3% Fetch remote repository...         [=                                      ] 4% Fetch remote repository...         [=                                      ] 5% Fetch remote repository...         [==                                     ] 5% Fetch remote repository...         [==                                     ] 6% Fetch remote repository...         [==                                     ] 7% Fetch remote repository...         [==                                     ] 7% Computing updates...               [===                                    ] 8% Computing updates...               [===                                    ] 10% Computing updates...              [=======================================] 100% Computing updates...             
 
 
@@ -49,27 +51,27 @@ Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-to
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
-> Task :app:generateDebugResValues
-> Task :app:javaPreCompileDebug
 > Task :app:checkDebugAarMetadata
+> Task :app:javaPreCompileDebug
+> Task :app:generateDebugResValues
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
 > Task :app:mergeDebugResources
 > Task :app:packageDebugResources
-> Task :app:parseDebugLocalResources
 > Task :app:createDebugCompatibleScreenManifests
 > Task :app:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets
-> Task :app:processDebugJavaRes NO-SOURCE
 > Task :app:compressDebugAssets
+> Task :app:processDebugJavaRes NO-SOURCE
 > Task :app:processDebugManifestForPackage
-> Task :app:checkDebugDuplicateClasses
 > Task :app:mergeDebugJavaResource
+> Task :app:checkDebugDuplicateClasses
 > Task :app:processDebugResources
 > Task :app:desugarDebugFileDependencies
 
@@ -91,5 +93,18 @@ Note: Recompile with -Xlint:deprecation for details.
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 30s
+BUILD SUCCESSFUL in 31s
 30 actionable tasks: 30 executed
+=== APK LIST ===
+  9175940     20 -rw-r--r--   1 runner   runner      19999 Sep 20 00:03 ./app/build/outputs/apk/debug/app-debug.apk
+total 24K
+-rw-r--r-- 1 runner runner 20K Sep 20 00:03 app-debug.apk
+-rw-r--r-- 1 runner runner 383 Sep 20 00:03 output-metadata.json
+total 8.0K
+drwxr-xr-x 3 runner runner 4.0K Sep 20 00:03 apk
+drwxr-xr-x 2 runner runner 4.0K Sep 20 00:03 logs
+
+
+=== APK FIND ===
+
+  9175940     20 -rw-r--r--   1 runner   runner      19999 Sep 20 00:03 android-webview/app/build/outputs/apk/debug/app-debug.apk
