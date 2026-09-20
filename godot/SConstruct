@@ -1,0 +1,41 @@
+#!/usr/bin/env python
+import os
+import sys
+
+env = SConscript("godot-cpp/SConstruct")
+
+# For the reference:
+# - CCFLAGS are compilation flags shared between C and C++
+# - CFLAGS are for C-specific compilation flags
+# - CXXFLAGS are for C++-specific compilation flags
+# - CPPFLAGS are for pre-processor flags
+# - CPPDEFINES are for pre-processor defines
+# - LINKFLAGS are for linking flags
+
+# tweak this if you want to use different folders, or more folders, to store your source code in.
+env.Append(CPPPATH=["src/", "../src/", "../src/core", "../src/world", "../src/player", "../src/rendering", "../src/ui", "../src/utils"])
+sources = Glob("src/*.cpp")
+sources += Glob("../src/world/*.cpp")
+sources += Glob("../src/player/*.cpp")
+sources += Glob("../src/utils/*.cpp")
+sources += Glob("../src/core/*.cpp")
+sources += Glob("../src/rendering/*.cpp")
+sources += Glob("../src/ui/*.cpp")
+
+# Add Vulkan
+env.Append(CPPDEFINES=["EAGLER_VULKAN=1", "EAGLER_GODOT=1"])
+
+if env["platform"] == "macos":
+    library = env.SharedLibrary(
+        "bin/libeaglercraft.{}.{}.framework/libeaglercraft.{}.{}".format(
+            env["platform"], env["target"], env["platform"], env["target"]
+        ),
+        source=sources,
+    )
+else:
+    library = env.SharedLibrary(
+        "bin/libeaglercraft{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
+        source=sources,
+    )
+
+Default(library)

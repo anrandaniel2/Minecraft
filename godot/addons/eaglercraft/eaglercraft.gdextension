@@ -1,0 +1,13 @@
+[configuration]
+entry_symbol = "eaglercraft_library_init"
+compatibility_minimum = 4.1
+
+[libraries]
+linux.debug.x86_64 = "res://godot/bin/libeaglercraft.linux.debug.x86_64.so"
+linux.release.x86_64 = "res://godot/bin/libeaglercraft.linux.release.x86_64.so"
+windows.debug.x86_64 = "res://godot/bin/libeaglercraft.windows.debug.x86_64.dll"
+windows.release.x86_64 = "res://godot/bin/libeaglercraft.windows.release.x86_64.dll"
+macos.debug = "res://godot/bin/libeaglercraft.macos.debug.framework"
+macos.release = "res://godot/bin/libeaglercraft.macos.release.framework"
+android.debug.arm64-v8a = "res://godot/bin/libeaglercraft.android.debug.arm64-v8a.so"
+android.release.arm64-v8a = "res://godot/bin/libeaglercraft.android.release.arm64-v8a.so"

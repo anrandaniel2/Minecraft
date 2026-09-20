@@ -1,0 +1,34 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+name="Eaglercraft 26.2 - Native Godot Port"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.4", "Vulkan")
+config/icon="res://icon.png"
+boot_splash/bg_color=Color(0.141176, 0.141176, 0.141176, 1)
+
+[autoload]
+
+GameState="*res://scripts/GameState.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/resizable=true
+window/stretch/mode="canvas_items"
+
+[rendering]
+
+renderer/rendering_method="vulkan"
+renderer/vulkan/descriptor_pool/max_sets=8192
+environment/defaults/default_clear_color=Color(0.15, 0.15, 0.15, 1)
