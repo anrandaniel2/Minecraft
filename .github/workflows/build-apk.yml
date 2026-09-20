@@ -27,13 +27,24 @@ jobs:
   # 1. Compile the C++ GDExtension for every Android ABI in parallel.
   # ---------------------------------------------------------------------------
   native:
-    name: Native (${{ matrix.arch }}, ${{ matrix.target }})
+    name: Native (${{ matrix.platform }}-${{ matrix.arch }}, ${{ matrix.target }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        platform: [android]
         arch: [arm64, arm32]
         target: [template_release, template_debug]
+        include:
+          # Editor-host library: headless Godot on the CI runner must be able to
+          # load the extension while exporting, otherwise the EaglerHost node in
+          # main.tscn is serialised as a missing class.
+          - platform: linux
+            arch: x86_64
+            target: template_debug
+          - platform: linux
+            arch: x86_64
+            target: template_release
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,6 +63,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Set up Android SDK
+        if: matrix.platform == 'android'
         uses: android-actions/setup-android@v3
         with:
           packages: "ndk;${{ env.NDK_VERSION }} platform-tools"
@@ -65,22 +77,22 @@ jobs:
             godot-cpp/src/**/*.o
             src/*.o
             .sconsign.dblite
-          key: scons-${{ matrix.arch }}-${{ matrix.target }}-${{ hashFiles('godot-cpp/gdextension/extension_api.json', 'build_profile.json', 'SConstruct') }}
-          restore-keys: scons-${{ matrix.arch }}-${{ matrix.target }}-
+          key: scons-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.target }}-${{ hashFiles('godot-cpp/gdextension/extension_api.json', 'build_profile.json', 'SConstruct') }}
+          restore-keys: scons-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.target }}-
 
       - name: Build libeaglerhost
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
         run: |
-          scons platform=android arch=${{ matrix.arch }} target=${{ matrix.target }} \
+          scons platform=${{ matrix.platform }} arch=${{ matrix.arch }} target=${{ matrix.target }} \
                 ndk_version=${{ env.NDK_VERSION }} android_api_level=24 \
                 build_profile=build_profile.json -j$(nproc)
-          ls -la bin/android
+          ls -la bin/${{ matrix.platform }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: native-${{ matrix.arch }}-${{ matrix.target }}
-          path: bin/android/*.so
+          name: native-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.target }}
+          path: bin/${{ matrix.platform }}/*.so
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -120,12 +132,18 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: native-*
+          pattern: native-android-*
           merge-multiple: true
           path: bin/android
 
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-linux-*
+          merge-multiple: true
+          path: bin/linux
+
       - name: Show native libs
-        run: ls -la bin/android
+        run: ls -la bin/android bin/linux
 
       - uses: actions/setup-java@v4
         with:
@@ -277,7 +295,9 @@ jobs:
 
       - name: Import project (headless)
         run: |
-          ~/godot/godot --headless --path . --import 2>&1 | tail -n 40 || true
+          ~/godot/godot --headless --path . --import 2>&1 | tee import.log | tail -n 40 || true
+          if grep -q "GDExtension dynamic library not found" import.log; then
+            echo "::error::editor-host extension library failed to load"; exit 1; fi
 
       - name: Export APK
         env:
@@ -292,6 +312,8 @@ jobs:
           fi
           ls -la export
           test -n "$(ls export/*.apk 2>/dev/null)" || { echo "::error::No APK produced"; exit 1; }
+          if grep -q "Cannot get class 'EaglerHost'" export.log; then
+            echo "::error::EaglerHost class was not available during export (extension not loaded)"; exit 1; fi
 
       - name: Verify APK contents (native libs, bundle, permissions)
         run: |

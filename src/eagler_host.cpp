@@ -161,6 +161,7 @@ void EaglerHost::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_ui_resume"), &EaglerHost::_ui_resume);
 	ClassDB::bind_method(D_METHOD("_ui_back"), &EaglerHost::_ui_back);
 	ClassDB::bind_method(D_METHOD("_throttle_host_renderer"), &EaglerHost::_throttle_host_renderer);
+	ClassDB::bind_method(D_METHOD("_ui_reapply_fullscreen"), &EaglerHost::_ui_reapply_fullscreen);
 
 	ClassDB::bind_method(D_METHOD("set_host_fps_when_hidden", "fps"), &EaglerHost::set_host_fps_when_hidden);
 	ClassDB::bind_method(D_METHOD("get_host_fps_when_hidden"), &EaglerHost::get_host_fps_when_hidden);
@@ -256,6 +257,9 @@ void EaglerHost::_ready() {
 	}
 
 	set_process(true);
+	if (is_android_) {
+		_run_on_ui_thread(Callable(this, "_ui_reapply_fullscreen"));
+	}
 	_start_extraction();
 }
 
@@ -277,6 +281,16 @@ void EaglerHost::_tick_offline_guard(double p_delta) {
 
 void EaglerHost::_process(double p_delta) {
 	_tick_offline_guard(p_delta);
+	if (immersive_ && is_android_ && webview_.is_valid()) {
+		// Cheap periodic re-assert: system UI can reappear after the soft
+		// keyboard, dialogs or notification shade; sticky immersive hides it
+		// again after a few seconds, this makes it immediate.
+		fullscreen_timer_ += p_delta;
+		if (fullscreen_timer_ >= 2.0) {
+			fullscreen_timer_ = 0.0;
+			_run_on_ui_thread(Callable(this, "_ui_reapply_fullscreen"));
+		}
+	}
 	if (state_.load() == STATE_EXTRACTING && extraction_done_.load()) {
 		if (extraction_thread_.joinable()) {
 			extraction_thread_.join();
@@ -315,6 +329,9 @@ void EaglerHost::_notification(int p_what) {
 				paused_ = false;
 				_run_on_ui_thread(Callable(this, "_ui_resume"));
 			}
+			break;
+		case NOTIFICATION_APPLICATION_FOCUS_IN:
+			_run_on_ui_thread(Callable(this, "_ui_reapply_fullscreen"));
 			break;
 		case NOTIFICATION_WM_GO_BACK_REQUEST:
 			_run_on_ui_thread(Callable(this, "_ui_back"));
@@ -646,16 +663,88 @@ void EaglerHost::_apply_immersive_mode() {
 	if (!immersive_ || activity_.is_null()) {
 		return;
 	}
+	JavaClassWrapper *jcw = JavaClassWrapper::get_singleton();
 	Ref<JavaObject> window = activity_->call("getWindow");
 	if (window.is_null()) {
 		return;
 	}
+
+	// Window flags: keep screen on, draw behind system bars, fullscreen.
+	window->call("addFlags", 0x00000080 /*FLAG_KEEP_SCREEN_ON*/);
+	window->call("addFlags", 0x00000400 /*FLAG_FULLSCREEN*/);
+	window->call("clearFlags", 0x00000800 /*FLAG_FORCE_NOT_FULLSCREEN*/);
+	window->call("addFlags", 0x80000000 /*FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS*/);
+	window->call("clearFlags", 0x04000000 /*FLAG_TRANSLUCENT_STATUS*/);
+	window->call("clearFlags", 0x08000000 /*FLAG_TRANSLUCENT_NAVIGATION*/);
+	window->call("setStatusBarColor", 0xFF000000);
+	window->call("setNavigationBarColor", 0xFF000000);
+
+	const int sdk = _android_sdk_int();
+
+	// Draw into the display cutout (notch) area: Android 9+.
+	if (sdk >= 28) {
+		Ref<JavaObject> attrs = window->call("getAttributes");
+		if (attrs.is_valid()) {
+			// LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES = 1, ALWAYS = 3 (API 30+).
+			attrs->set("layoutInDisplayCutoutMode", sdk >= 30 ? 3 : 1);
+			window->call("setAttributes", attrs);
+		}
+	}
+
+	// Android 11+: WindowInsetsController API (the legacy flags are ignored
+	// on some OEM builds once targetSdk >= 30).
+	bool modern_ok = false;
+	if (sdk >= 30) {
+		window->call("setDecorFitsSystemWindows", false);
+		Ref<JavaObject> controller = window->call("getInsetsController");
+		if (controller.is_valid()) {
+			Ref<JavaClass> Type = jcw->wrap("android.view.WindowInsets$Type");
+			int bars = 0;
+			if (Type.is_valid()) {
+				bars = int(Type->call("systemBars")) | int(Type->call("displayCutout"));
+			} else {
+				bars = 0x7; // statusBars|navigationBars|captionBar
+			}
+			controller->call("hide", bars);
+			// BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE = 2 (sticky immersive).
+			controller->call("setSystemBarsBehavior", 2);
+			modern_ok = true;
+		}
+	}
+
+	// Legacy sticky-immersive flags (all versions; harmless on 11+ and still
+	// the only path on 7-10).
 	Ref<JavaObject> decor = window->call("getDecorView");
 	if (decor.is_valid()) {
 		decor->call("setSystemUiVisibility", kImmersiveFlags);
+		if (!modern_ok) {
+			// Re-assert whenever the system UI becomes visible again (e.g. after
+			// the keyboard closes) by polling from _process; see _tick_fullscreen.
+			fullscreen_dirty_ = true;
+		}
 	}
-	// Keep the screen on while the game runs (FLAG_KEEP_SCREEN_ON).
-	window->call("addFlags", 0x00000080);
+
+	// Make sure the WebView itself spans the whole window incl. behind bars.
+	if (webview_.is_valid()) {
+		webview_->call("setFitsSystemWindows", false);
+		webview_->call("setSystemUiVisibility", kImmersiveFlags);
+	}
+}
+
+int EaglerHost::_android_sdk_int() {
+	if (sdk_int_ >= 0) {
+		return sdk_int_;
+	}
+	sdk_int_ = 0;
+	Ref<JavaClass> Version = JavaClassWrapper::get_singleton()->wrap("android.os.Build$VERSION");
+	if (Version.is_valid()) {
+		sdk_int_ = int(Version->get("SDK_INT"));
+	}
+	return sdk_int_;
+}
+
+void EaglerHost::_ui_reapply_fullscreen() {
+	_apply_immersive_mode();
 }
 
 void EaglerHost::_ui_destroy_webview() {

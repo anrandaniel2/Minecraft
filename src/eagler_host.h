@@ -117,6 +117,8 @@ private:
 	void _run_on_ui_thread(const Callable &p_callable);
 	void _set_error(const String &p_msg);
 	void _apply_immersive_mode();
+	void _ui_reapply_fullscreen();
+	int _android_sdk_int();
 	void _throttle_host_renderer();
 	void _tick_offline_guard(double p_delta);
 	void _log(const String &p_msg) const;
@@ -153,6 +155,9 @@ private:
 	bool webview_requested_ = false;
 	bool paused_ = false;
 	int guard_injections_ = 0;
+	int sdk_int_ = -1;
+	bool fullscreen_dirty_ = false;
+	double fullscreen_timer_ = 0.0;
 	double guard_timer_ = 0.0;
 };
 
