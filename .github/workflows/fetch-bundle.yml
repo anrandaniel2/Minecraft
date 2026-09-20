@@ -1,0 +1,44 @@
+name: Fetch EaglerCraft bundle
+
+# Downloads the EaglerCraft HTML from a share link and commits it to the
+# repository as web/eaglercraft.html so the APK is fully self-contained
+# (no network needed at runtime).
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Direct/share URL of the EaglerCraft .html (Dropbox links are converted to dl=1)"
+        required: true
+        default: "https://www.dropbox.com/scl/fi/9xnqds8hr44xwtagljmso/eaglercraft-26.2-0.6.html?rlkey=selh50755gpfnxg4gm33u49dv&st=lfhrgo6f&dl=0"
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download
+        env:
+          URL: ${{ inputs.url }}
+        run: |
+          set -e
+          # Dropbox: force direct download.
+          if echo "$URL" | grep -q "dropbox.com"; then
+            URL="$(echo "$URL" | sed -E 's/([?&])dl=0/\1dl=1/; t; s/$/\&dl=1/')"
+          fi
+          curl -fL --retry 3 -A "Mozilla/5.0" -o web/eaglercraft.html "$URL"
+          ls -la web/eaglercraft.html
+          head -c 512 web/eaglercraft.html | grep -qi "<html\|<!doctype" || { echo "::error::Downloaded content is not HTML"; head -c 512 web/eaglercraft.html; exit 1; }
+          grep -c "http" web/eaglercraft.html || true
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f web/eaglercraft.html
+          git commit -m "Add EaglerCraft 26.2-0.6 bundle (web/eaglercraft.html)" || { echo "nothing to commit"; exit 0; }
+          git push
