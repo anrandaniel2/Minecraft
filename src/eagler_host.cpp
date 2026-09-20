@@ -705,7 +705,14 @@ void EaglerHost::_ui_create_webview() {
 		Ref<JavaObject> props = System.is_valid() ? Ref<JavaObject>(System->call("getProperties")) : Ref<JavaObject>();
 		const String key = "net.eaglercraft.godothost.webview";
 		if (props.is_valid()) {
-			props->call("put", key, wv);
+			// Object-typed parameters only accept JavaObjects through the
+			// wrapper, so the WebView is both key and value; the JNI side
+			// finds it by instanceof and removes it again.
+			props->call("put", wv, wv);
+			Ref<JavaObject> put_ex = jcw->get_exception();
+			if (put_ex.is_valid()) {
+				UtilityFunctions::push_warning("[EaglerHost] Properties.put threw: ", String(put_ex->call("toString")));
+			}
 			eagler::AndroidJni::WebSettings ws;
 			ws.mixed_content_mode = kMixedContentCompat;
 			ws.cache_mode = offline_only_ ? kCacheLoadCacheElseNetwork : kCacheLoadDefault;

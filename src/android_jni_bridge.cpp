@@ -25,7 +25,7 @@ int g_anchor = 0;
 struct LocalFrame {
 	JNIEnv *env;
 	explicit LocalFrame(JNIEnv *e) :
-			env(e) { env->PushLocalFrame(64); }
+			env(e) { env->PushLocalFrame(256); }
 	~LocalFrame() { env->PopLocalFrame(nullptr); }
 };
 
@@ -149,20 +149,44 @@ int AndroidJni::configure_webview(const godot::String &p_property_key, const Web
 		}
 		return 0;
 	}
-	jstring key = env->NewStringUTF(p_property_key.utf8().get_data());
-	jobject webview = env->CallObjectMethod(props, get, key);
-	if (remove) {
-		env->CallObjectMethod(props, remove, key);
-		env->ExceptionClear();
-	}
-	if (clear_exception(env, "Properties.get", r_error) || !webview) {
+	// The wrapper can only pass JavaObjects (not Strings) to Object-typed
+	// parameters, so the WebView was stored as put(webView, webView). Scan
+	// the values for the android.webkit.WebView instance and unlink it.
+	(void)get;
+	(void)p_property_key;
+	jclass WebView = env->FindClass("android/webkit/WebView");
+	jmethodID values = Hashtable ? env->GetMethodID(Hashtable, "values", "()Ljava/util/Collection;") : nullptr;
+	jobject coll = values ? env->CallObjectMethod(props, values) : nullptr;
+	jclass Collection = env->FindClass("java/util/Collection");
+	jmethodID toArray = Collection ? env->GetMethodID(Collection, "toArray", "()[Ljava/lang/Object;") : nullptr;
+	jobjectArray arr = (coll && toArray) ? (jobjectArray)env->CallObjectMethod(coll, toArray) : nullptr;
+	if (clear_exception(env, "Properties.values", r_error) || !arr || !WebView) {
 		if (r_error && r_error->is_empty()) {
-			*r_error = "WebView not found under property " + p_property_key;
+			*r_error = "cannot enumerate System properties";
 		}
 		return 0;
 	}
+	jobject webview = nullptr;
+	const jsize n = env->GetArrayLength(arr);
+	for (jsize i = 0; i < n && !webview; ++i) {
+		jobject o = env->GetObjectArrayElement(arr, i);
+		if (o && env->IsInstanceOf(o, WebView)) {
+			webview = o;
+		} else if (o) {
+			env->DeleteLocalRef(o);
+		}
+	}
+	if (!webview) {
+		if (r_error) {
+			*r_error = "no android.webkit.WebView among " + godot::String::num_int64(n) + " System property values";
+		}
+		return 0;
+	}
+	if (remove) {
+		env->CallObjectMethod(props, remove, webview);
+		env->ExceptionClear();
+	}
 
-	jclass WebView = env->FindClass("android/webkit/WebView");
 	jmethodID getSettings = WebView ? env->GetMethodID(WebView, "getSettings", "()Landroid/webkit/WebSettings;") : nullptr;
 	jobject settings = getSettings ? env->CallObjectMethod(webview, getSettings) : nullptr;
 	if (clear_exception(env, "WebView.getSettings", r_error) || !settings) {
