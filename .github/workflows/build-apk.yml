@@ -74,23 +74,30 @@ jobs:
       - name: Cache SCons objects
         uses: actions/cache@v4
         with:
+          # Only the godot-cpp bindings are cached (they depend solely on the
+          # API json / build profile). Our own objects are NEVER cached: a
+          # restored stale src/*.o linked against fresh headers produced a
+          # library that crashed in its static initialisers on device.
           path: |
             godot-cpp/bin
             godot-cpp/gen
             godot-cpp/src/**/*.o
-            src/*.o
-            .sconsign.dblite
-          key: scons-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.target }}-${{ hashFiles('godot-cpp/gdextension/extension_api.json', 'build_profile.json', 'SConstruct') }}
-          restore-keys: scons-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.target }}-
+            godot-cpp/src/**/*.os
+          key: scons-v2-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.target }}-${{ hashFiles('godot-cpp/gdextension/extension_api.json', 'build_profile.json', 'godot-cpp/SConstruct', 'godot-cpp/tools/**') }}
 
       - name: Build libeaglerhost
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
         run: |
+          rm -f src/*.o src/*.os thirdparty/brotli/c/*/*.o thirdparty/brotli/c/*/*.os bin/${{ matrix.platform }}/*.so .sconsign.dblite
           scons platform=${{ matrix.platform }} arch=${{ matrix.arch }} target=${{ matrix.target }} \
                 ndk_version=${{ env.NDK_VERSION }} android_api_level=24 \
                 build_profile=build_profile.json -j$(nproc)
           ls -la bin/${{ matrix.platform }}
+          # Sanity: the library must contain the classes registered in register_types.cpp.
+          for cls in $(grep -oP 'GDREGISTER_CLASS\(\K[A-Za-z_]+' src/register_types.cpp); do
+            strings bin/${{ matrix.platform }}/*.so | grep -q "$cls" || { echo "::error::$cls missing from built library (stale objects?)"; exit 1; }
+          done
 
       - uses: actions/upload-artifact@v4
         with:
