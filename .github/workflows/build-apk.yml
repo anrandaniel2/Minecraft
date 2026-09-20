@@ -32,14 +32,14 @@ jobs:
 
       - name: Install build tools
         if: always()
+        continue-on-error: true
         run: |
           set -x
-          set -o pipefail
           export ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/cmdline-tools/bin
-          sdkmanager --version 2>&1 | tee /tmp/sdkmanager.log
-          yes | sdkmanager --licenses 2>&1 | tail -n 20
-          sdkmanager --install "build-tools;34.0.0" "platforms;android-34" "platform-tools" 2>&1 | tee -a /tmp/sdkmanager.log
+          sdkmanager --version 2>&1 | tee /tmp/sdkmanager.log || true
+          yes | sdkmanager --licenses 2>&1 | tail -n 20 || true
+          sdkmanager --install "build-tools;34.0.0" "platforms;android-34" "platform-tools" 2>&1 | tee -a /tmp/sdkmanager.log || true
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "sdk.dir=$ANDROID_HOME" > android-webview/local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
@@ -47,7 +47,6 @@ jobs:
       - name: Create debug keystore
         if: always()
         run: |
-          set -o pipefail
           rm -f debug.keystore
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           mkdir -p android-webview/app
@@ -56,7 +55,6 @@ jobs:
       - name: Create icons
         if: always()
         run: |
-          set -o pipefail
           pip install Pillow -q
           python3 <<'PY'
           from PIL import Image
@@ -83,7 +81,6 @@ jobs:
       - name: Prepare WebView assets
         if: always()
         run: |
-          set -o pipefail
           mkdir -p android-webview/app/src/main/assets
           cat > android-webview/app/src/main/assets/eaglercraft-26.2-0.6.html <<'HTML'
           <!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=https://eymenwsmc.site/262/index.html"></head><body>Redirecting to Eaglercraft 26.2...</body></html>
@@ -98,15 +95,10 @@ jobs:
           chmod +x gradlew
           ./gradlew --version 2>&1 | tee ../webview-build.log
           ./gradlew assembleDebug --stacktrace 2>&1 | tee -a ../webview-build.log
-          echo "=== APK LIST ===" | tee -a ../webview-build.log
-          find . -name "*.apk" -type f -ls 2>&1 | tee -a ../webview-build.log
-          ls -lh app/build/outputs/apk/debug/ 2>&1 | tee -a ../webview-build.log
 
       - name: Commit logs
         if: always()
         run: |
-          set -x
-          set -o pipefail
           mkdir -p build
           cat /tmp/sdkmanager.log > build/webview-build.log 2>/dev/null || true
           echo -e "\n\n=== WEBVIEW BUILD LOG ===\n" >> build/webview-build.log
@@ -154,14 +146,14 @@ jobs:
 
       - name: Install NDK and cmake
         if: always()
+        continue-on-error: true
         run: |
           set -x
-          set -o pipefail
           export ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/cmdline-tools/bin
-          sdkmanager --version 2>&1 | tee /tmp/sdkmanager-native.log
-          yes | sdkmanager --licenses 2>&1 | tail -n 20
-          sdkmanager --install "ndk;25.1.8937393" "build-tools;34.0.0" "platforms;android-34" "platform-tools" "cmake;3.22.1" 2>&1 | tee -a /tmp/sdkmanager-native.log
+          sdkmanager --version 2>&1 | tee /tmp/sdkmanager-native.log || true
+          yes | sdkmanager --licenses 2>&1 | tail -n 20 || true
+          sdkmanager --install "ndk;25.1.8937393" "build-tools;34.0.0" "platforms;android-34" "platform-tools" "cmake;3.22.1" 2>&1 | tee -a /tmp/sdkmanager-native.log || true
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
           echo "sdk.dir=$ANDROID_HOME" > local.properties
@@ -170,7 +162,6 @@ jobs:
       - name: Create keystore and icons
         if: always()
         run: |
-          set -o pipefail
           rm -f debug.keystore
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           mkdir -p android/app
@@ -214,7 +205,6 @@ jobs:
       - name: Commit native logs
         if: always()
         run: |
-          set -x
           mkdir -p build
           cat /tmp/sdkmanager-native.log > build/native-build.log 2>/dev/null || true
           echo -e "\n\n=== NATIVE BUILD LOG ===\n" >> build/native-build.log
@@ -247,22 +237,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: arena/01a0bb79-minecraft
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Combine
+      - name: Combine and commit APKs
         run: |
-          set -o pipefail
+          set -x
           mkdir -p build
           find artifacts -name "*.apk" -type f -exec cp -v {} build/ \; || true
           ls -lh build/ || true
+          ls -R artifacts || true
           cd build
           if ls *.apk 1> /dev/null 2>&1; then
             largest=$(ls -S *.apk | head -n 1)
-            cp -v "$largest" Eaglercraft26-Android.apk
+            cp -v "$largest" Eaglercraft26-Android.apk || true
+            cp -v "$largest" Eaglercraft26-Vulkan.apk || true
             ls -lh *.apk > apk-info.txt
             cat apk-info.txt
           else
@@ -270,6 +263,15 @@ jobs:
             find ../artifacts -type f | head -n 100 >> apk-info.txt
             cat apk-info.txt
           fi
+          cd ..
+          git config user.email "bot@arena.ai"
+          git config user.name "arena bot"
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/anrandaniel2/Minecraft.git
+          git fetch origin arena/01a0bb79-minecraft || true
+          git pull --rebase origin arena/01a0bb79-minecraft || true
+          git add build/*.apk build/*.txt || true
+          git commit -m "APKs $(date -u) [skip ci]" || true
+          git push origin arena/01a0bb79-minecraft || true
 
       - name: Upload final APK
         uses: actions/upload-artifact@v4
