@@ -1,0 +1,21 @@
+# Godot
+.godot/
+*.import
+android/build/
+android/.build_version
+export/
+
+# Compiled extension binaries (built by CI / scons)
+bin/
+*.os
+*.o
+*.so
+*.a
+.sconsign.dblite
+.sconf_temp/
+__pycache__/
+
+# Local secrets
+*.keystore
+!debug.keystore.example
+web/eaglercraft.html

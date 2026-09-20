@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>EaglerCraft host</title>
+<style>
+  html,body{margin:0;height:100%;background:#101418;color:#e6e6e6;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;text-align:center}
+  .card{max-width:36rem;padding:2rem}
+  code{background:#1f262e;padding:.15em .4em;border-radius:.3em}
+  #gl{margin-top:1rem;font-size:.9em;color:#9ad}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>EaglerCraft bundle missing</h1>
+  <p>The host is running (server + hardware-accelerated WebView are up), but
+     <code>web/eaglercraft.html</code> was not packaged into this build.</p>
+  <p>Add the HTML file to the <code>web/</code> folder of the Godot project and rebuild the APK.</p>
+  <div id="gl"></div>
+</div>
+<script>
+  // Quick WebGL capability report so the user can see acceleration is live.
+  (function () {
+    var c = document.createElement('canvas');
+    var gl = c.getContext('webgl2') || c.getContext('webgl');
+    var el = document.getElementById('gl');
+    if (!gl) { el.textContent = 'WebGL: unavailable'; return; }
+    var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    var renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    el.textContent = 'WebGL: ' + gl.getParameter(gl.VERSION) + ' — ' + renderer;
+  })();
+</script>
+</body>
+</html>

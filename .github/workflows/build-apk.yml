@@ -1,0 +1,306 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Build a release (signed with RELEASE_KEYSTORE secrets if present)"
+        type: boolean
+        default: false
+
+env:
+  GODOT_VERSION: "4.5"
+  GODOT_RELEASE: "stable"
+  NDK_VERSION: "28.1.13356709"
+  JAVA_VERSION: "17"
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Compile the C++ GDExtension for every Android ABI in parallel.
+  # ---------------------------------------------------------------------------
+  native:
+    name: Native (${{ matrix.arch }}, ${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, arm32]
+        target: [template_release, template_debug]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SCons
+        run: pip install scons==4.8.1
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "ndk;${{ env.NDK_VERSION }} platform-tools"
+
+      - name: Cache SCons objects
+        uses: actions/cache@v4
+        with:
+          path: |
+            godot-cpp/bin
+            godot-cpp/gen
+            godot-cpp/src/**/*.o
+            src/*.o
+            .sconsign.dblite
+          key: scons-${{ matrix.arch }}-${{ matrix.target }}-${{ hashFiles('godot-cpp/gdextension/extension_api.json', 'build_profile.json', 'SConstruct') }}
+          restore-keys: scons-${{ matrix.arch }}-${{ matrix.target }}-
+
+      - name: Build libeaglerhost
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+        run: |
+          scons platform=android arch=${{ matrix.arch }} target=${{ matrix.target }} \
+                ndk_version=${{ env.NDK_VERSION }} android_api_level=24 \
+                build_profile=build_profile.json -j$(nproc)
+          ls -la bin/android
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.arch }}-${{ matrix.target }}
+          path: bin/android/*.so
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 2. Unit-test the pure C++ HTTP server on the host.
+  # ---------------------------------------------------------------------------
+  test-http-server:
+    name: Test LocalHttpServer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & run
+        run: |
+          mkdir -p /tmp/www && echo "<html>ok</html>" > /tmp/www/index.html
+          g++ -std=c++17 -O2 -pthread -Isrc tests/http_server_test.cpp src/local_http_server.cpp -o /tmp/http_test
+          /tmp/http_test /tmp/www
+
+  # ---------------------------------------------------------------------------
+  # 3. Export the APK with headless Godot (Gradle build so we can patch the
+  #    manifest for the WebView).
+  # ---------------------------------------------------------------------------
+  apk:
+    name: Export APK
+    needs: [native, test-http-server]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          merge-multiple: true
+          path: bin/android
+
+      - name: Show native libs
+        run: ls -la bin/android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0 cmdline-tools;latest"
+
+      - name: Accept SDK licenses
+        run: yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+
+      - name: Fetch EaglerCraft HTML (optional)
+        env:
+          URL: ${{ vars.EAGLERCRAFT_HTML_URL || secrets.EAGLERCRAFT_HTML_URL }}
+        run: |
+          if [ -f web/eaglercraft.html ]; then
+            echo "web/eaglercraft.html already present in repo"; exit 0; fi
+          if [ -z "$URL" ]; then
+            echo "::warning::EAGLERCRAFT_HTML_URL not set and web/eaglercraft.html missing – the APK will show the placeholder page."; exit 0; fi
+          curl -fL --retry 3 -o web/eaglercraft.html "$URL"
+          head -c 200 web/eaglercraft.html | grep -qi "<html\|<!doctype" || { echo "::error::Downloaded file is not HTML (MediaFire 'file' pages are not direct links)"; exit 1; }
+          ls -la web/
+
+      - name: Cache Godot
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_RELEASE }}
+
+      - name: Download Godot + export templates
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          V="${GODOT_VERSION}-${GODOT_RELEASE}"
+          BASE="https://github.com/godotengine/godot/releases/download/${V}"
+          mkdir -p ~/godot && cd ~/godot
+          curl -fL --retry 3 -o godot.zip "${BASE}/Godot_v${V}_linux.x86_64.zip"
+          curl -fL --retry 3 -o templates.tpz "${BASE}/Godot_v${V}_export_templates.tpz"
+          unzip -q godot.zip && mv Godot_v${V}_linux.x86_64 godot && chmod +x godot
+          unzip -q templates.tpz
+
+      - name: Install export templates
+        run: |
+          V="${GODOT_VERSION}.${GODOT_RELEASE}"
+          mkdir -p ~/.local/share/godot/export_templates/${V}
+          cp -r ~/godot/templates/* ~/.local/share/godot/export_templates/${V}/
+          ls ~/.local/share/godot/export_templates/${V} | head
+
+      - name: Install Android build template (Gradle project)
+        run: |
+          V="${GODOT_VERSION}.${GODOT_RELEASE}"
+          mkdir -p android/build
+          unzip -q -o ~/.local/share/godot/export_templates/${V}/android_source.zip -d android/build
+          echo "${V}" > android/.build_version
+          touch android/build/.gdignore
+
+      - name: Patch Gradle template for the WebView host
+        run: |
+          set -e
+          # Godot regenerates android/build/AndroidManifest.xml on every export,
+          # so we cannot edit it directly. Instead we (1) drop a network security
+          # config that only whitelists cleartext HTTP to the loopback address
+          # used by the in-process server, and (2) hook the Gradle manifest
+          # tasks to inject the attributes into the *merged* manifest.
+          mkdir -p android/build/res/xml
+          cat > android/build/res/xml/network_security_config.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <network-security-config>
+              <base-config cleartextTrafficPermitted="false" />
+              <domain-config cleartextTrafficPermitted="true">
+                  <domain includeSubdomains="false">127.0.0.1</domain>
+                  <domain includeSubdomains="false">localhost</domain>
+              </domain-config>
+          </network-security-config>
+          XML
+          cat >> android/build/build.gradle <<'GRADLE'
+
+          // --- EaglerHost: WebView requirements (injected by CI) -------------------
+          tasks.matching { it.name ==~ /process.*Manifest.*/ }.configureEach { t ->
+              t.doLast {
+                  def patch = { File f ->
+                      if (f.name == 'AndroidManifest.xml' && f.text.contains('<application')) {
+                          def txt = f.text
+                          if (!txt.contains('android:networkSecurityConfig')) {
+                              txt = txt.replaceFirst('<application', '<application android:networkSecurityConfig="@xml/network_security_config"')
+                          }
+                          if (!txt.contains('android:hardwareAccelerated')) {
+                              txt = txt.replaceFirst('<application', '<application android:hardwareAccelerated="true"')
+                          }
+                          if (!txt.contains('android:largeHeap')) {
+                              txt = txt.replaceFirst('<application', '<application android:largeHeap="true"')
+                          }
+                          f.text = txt
+                          println "EaglerHost: patched ${f}"
+                      }
+                  }
+                  t.outputs.files.each { File out ->
+                      if (out.isDirectory()) { out.eachFileRecurse { patch(it) } } else if (out.exists()) { patch(out) }
+                  }
+              }
+          }
+          GRADLE
+          tail -n 30 android/build/build.gradle
+
+      - name: Prepare keystore
+        id: keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_USER: ${{ secrets.RELEASE_KEYSTORE_USER }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          set -e
+          # Debug keystore (always).
+          keytool -genkeypair -v -keystore "$HOME/debug.keystore" -storepass android -keypass android \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US" >/dev/null 2>&1
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/debug.keystore" >> $GITHUB_ENV
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> $GITHUB_ENV
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> $GITHUB_ENV
+          # Release keystore (only if secrets are configured).
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$HOME/release.keystore"
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$HOME/release.keystore" >> $GITHUB_ENV
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$RELEASE_KEYSTORE_USER" >> $GITHUB_ENV
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$RELEASE_KEYSTORE_PASSWORD" >> $GITHUB_ENV
+            echo "has_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure Godot editor settings (Android SDK / Java paths)
+        run: |
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-4.5.tres <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "${ANDROID_SDK_ROOT}"
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          export/android/debug_keystore = "${HOME}/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+          cat ~/.config/godot/editor_settings-4.5.tres
+
+      - name: Import project (headless)
+        run: |
+          ~/godot/godot --headless --path . --import 2>&1 | tail -n 40 || true
+
+      - name: Export APK
+        env:
+          WANT_RELEASE: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.release) && steps.keystore.outputs.has_release == 'true' }}
+        run: |
+          set -o pipefail
+          mkdir -p export
+          if [ "$WANT_RELEASE" = "true" ]; then
+            ~/godot/godot --headless --path . --export-release "Android" export/EaglerCraft.apk 2>&1 | tee export.log
+          else
+            ~/godot/godot --headless --path . --export-debug "Android" export/EaglerCraft-debug.apk 2>&1 | tee export.log
+          fi
+          ls -la export
+          test -n "$(ls export/*.apk 2>/dev/null)" || { echo "::error::No APK produced"; exit 1; }
+
+      - name: Verify APK contents
+        run: |
+          APK=$(ls export/*.apk | head -n1)
+          unzip -l "$APK" | grep -E "libeaglerhost|libgodot_android|AndroidManifest" || true
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libeaglerhost" || { echo "::error::arm64 native lib missing from APK"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EaglerCraft-apk
+          path: |
+            export/*.apk
+            export.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: export/*.apk

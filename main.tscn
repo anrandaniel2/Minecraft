@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://c0eaglerhost0001"]
+
+[node name="EaglerHost" type="EaglerHost"]
+html_resource_path = "res://web/eaglercraft.html"
+extra_web_files = PackedStringArray()
+use_hardware_layer = true
+immersive = true

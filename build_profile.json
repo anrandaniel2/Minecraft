@@ -1,0 +1,22 @@
+{
+	"enabled_classes": [
+		"Node",
+		"Engine",
+		"OS",
+		"Time",
+		"ProjectSettings",
+		"DisplayServer",
+		"RenderingServer",
+		"JavaClassWrapper",
+		"JavaClass",
+		"JavaObject",
+		"TCPServer",
+		"StreamPeerTCP",
+		"FileAccess",
+		"DirAccess",
+		"Thread",
+		"Mutex",
+		"Semaphore",
+		"WorkerThreadPool"
+	]
+}

@@ -1,0 +1,44 @@
+; Engine configuration file.
+; Godot 4.5 - EaglerCraft Android host
+; Mobile-only project. All game logic lives in the C++ GDExtension (src/).
+
+config_version=5
+
+[application]
+
+config/name="EaglerCraft"
+config/description="Hardware-accelerated Android host for the EaglerCraft HTML build, running inside Godot's Vulkan mobile renderer."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.5", "Mobile")
+run/low_processor_mode=false
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/handheld/orientation=4
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/vsync/vsync_mode=1
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+pointing/android/enable_long_press_as_right_click=false
+
+[rendering]
+
+; Vulkan via the Forward Mobile renderer.
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+rendering_device/driver="vulkan"
+rendering_device/driver.android="vulkan"
+rendering_device/fallback_to_opengl3=false
+rendering_device/fallback_to_d3d12=false
+; Multi-threaded rendering (render thread separate from main thread).
+driver/threads/thread_model=2
+rendering_device/vsync/frame_queue_size=3
+rendering_device/vsync/swapchain_image_count=3
+textures/vram_compression/import_etc2_astc=true
+textures/vram_compression/import_s3tc_bptc=false
