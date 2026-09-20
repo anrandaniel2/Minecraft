@@ -456,6 +456,15 @@ jobs:
             export/*.apk.sha256
           generate_release_notes: true
 
+      - name: Prune old nightly assets
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for a in $(gh release view nightly --json assets -q '.assets[].name' 2>/dev/null); do
+            gh release delete-asset nightly "$a" -y || true
+          done
+
       - name: Publish rolling pre-release (branch push)
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
