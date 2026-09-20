@@ -8,6 +8,9 @@ immersive = true
 offline_only = true
 native_unpack = true
 enable_game_workers = true
+graphics_backend = "auto"
+sustained_performance = true
+stop_host_render_loop = true
 
 [node name="AppUpdater" type="AppUpdater" parent="."]
 repository = "anrandaniel2/Minecraft"

@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 
 #include <algorithm>
+#include <cctype>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -340,6 +341,19 @@ bool BundleUnpacker::unpack(const Options &opts, UnpackStats *stats, std::string
 	replace_all("if (clean !== \"classes.wasm\") return originalFetch(input, init);",
 			"return originalFetch(input, init); /* native unpack */");
 
+	// Cache-busting token the bundle appends to its binaries ("?v=<hash>").
+	std::string version;
+	{
+		size_t vpos = html.find("classes.wasm?v=");
+		if (vpos != std::string::npos) {
+			size_t b = vpos + 15, e = b;
+			while (e < html.size() && (isalnum(static_cast<unsigned char>(html[e])))) {
+				++e;
+			}
+			version = html.substr(b, e - b);
+		}
+	}
+
 	// 3b) The server-worker bootstrap wraps XMLHttpRequest with a shim meant
 	//     for the inline assets.epk payload. Once the payload node is gone the
 	//     shim delegates to a real XHR but never mirrors status/response/on*
@@ -347,6 +361,15 @@ bool BundleUnpacker::unpack(const Options &opts, UnpackStats *stats, std::string
 	//     "Could not download EPK file". Leave the native XHR untouched.
 	replace_all("self.XMLHttpRequest = function () {", "self.__eagInlineXHRUnused = function () {");
 	replace_all("var OriginalXHR = self.XMLHttpRequest;", "var OriginalXHR = self.XMLHttpRequest; /* native unpack: shim disabled */");
+
+	// 3c) Graphics backend switch. The bundle selects its experimental
+	//     WebGPU renderer when eaglercraftXOpts.webgpu === true (and falls
+	//     back to WebGL2 otherwise). Expose it as a live getter so the bridge
+	//     can flip the decision right up until the wasm boots (e.g. after an
+	//     async requestAdapter() probe fails).
+	replace_all("webgl2SelfTest: false,",
+			"webgl2SelfTest: false,\n"
+			"\t\t\tget webgpu() { return window.__eaglerWebGPU === true; },");
 
 	// 4) Multithreaded mode: the page is now served from a real http origin
 	//    with COOP/COEP, so mesh + server workers can run.
@@ -366,7 +389,8 @@ bool BundleUnpacker::unpack(const Options &opts, UnpackStats *stats, std::string
 			"\t\t\t\t\t\ttry { window.__eaglerHostLog && window.__eaglerHostLog(\"stage \" + name); } catch (e) {}");
 	replace_all("\t\t\t\tfunction fatal(kind, error) {",
 			"\t\t\t\tfunction fatal(kind, error) {\n"
-			"\t\t\t\t\ttry { window.__eaglerHostLog && window.__eaglerHostLog(\"FATAL \" + kind + \": \" + (error && (error.stack || error.message || error))); } catch (e) {}");
+			"\t\t\t\t\ttry { window.__eaglerHostLog && window.__eaglerHostLog(\"FATAL \" + kind + \": \" + (error && (error.stack || error.message || error))); } catch (e) {}\n"
+			"\t\t\t\t\ttry { var __m = String(error && (error.stack || error.message || error)); if (window.__eaglerWebGPU === true && window.__eaglerWebGPUFailed && /webgpu|gpu adapter|gpu device|wgsl/i.test(__m)) { window.__eaglerWebGPUFailed(__m.slice(0, 200)); } } catch (e) {}");
 	{
 		// Install the bridge itself as the very first script in <head>.
 		static const char kBridge[] =
@@ -382,12 +406,41 @@ bool BundleUnpacker::unpack(const Options &opts, UnpackStats *stats, std::string
 				"var cw=console.warn;console.warn=function(){try{window.__eaglerHostLog('console.warn '+Array.prototype.join.call(arguments,' '));}catch(e){}return cw.apply(console,arguments);};\n"
 				"window.__eaglerHostDump=function(){try{var j=window.__eaglerCrashJournal&&window.__eaglerCrashJournal.snapshot();\n"
 				"  var l=(window.__log||[]).slice(-40);window.__eaglerHostLog('DUMP stage='+(j&&j.stage)+' state='+(j&&j.state)+' err='+window.__err+' ready='+window.__eaglerGameReady+' loaded='+window.__loaded+' xoi='+self.crossOriginIsolated+' workers='+(typeof Worker)+'\\n'+l.join('\\n'));}catch(e){window.__eaglerHostLog('DUMP failed '+e);}};\n"
+				// Graphics backend decision. ?gpu=webgpu forces it, ?gpu=webgl2 disables it,
+				// otherwise auto: use WebGPU when navigator.gpu exists and no earlier boot
+				// on this device failed with it. The async adapter probe can still veto
+				// before the wasm boots; a later fatal WebGPU error marks it and reloads.
+				"(function(){var p=new URLSearchParams(location.search||'');var mode=p.get('gpu')||'auto';\n"
+				"  var failed=false;try{failed=localStorage.getItem('eaglerHostWebGPUFailed')==='1';}catch(e){}\n"
+				"  var has=!!(navigator.gpu&&navigator.gpu.requestAdapter);\n"
+				"  window.__eaglerWebGPU=(mode==='webgpu')||(mode==='auto'&&has&&!failed);\n"
+				"  window.__eaglerHostLog('gpu mode='+mode+' navigator.gpu='+has+' previouslyFailed='+failed+' -> '+(window.__eaglerWebGPU?'webgpu':'webgl2'));\n"
+				"  if(window.__eaglerWebGPU&&has){try{navigator.gpu.requestAdapter({powerPreference:'high-performance'}).then(function(a){\n"
+				"    if(!a){throw new Error('no adapter');}var i=a.info||{};window.__eaglerHostLog('gpu adapter vendor='+i.vendor+' arch='+i.architecture+' device='+i.device+' desc='+i.description+' fallback='+a.isFallbackAdapter);\n"
+				"    return a.requestDevice().then(function(d){window.__eaglerHostLog('gpu device ok maxTex2D='+d.limits.maxTextureDimension2D+' maxBuf='+d.limits.maxBufferSize);d.destroy&&d.destroy();});\n"
+				"  }).catch(function(e){window.__eaglerHostLog('gpu probe failed: '+e+' -> webgl2');if(mode==='auto'){window.__eaglerWebGPU=false;}});}catch(e){window.__eaglerHostLog('gpu probe threw: '+e);if(mode==='auto'){window.__eaglerWebGPU=false;}}}\n"
+				"  window.__eaglerWebGPUFailed=function(why){try{localStorage.setItem('eaglerHostWebGPUFailed','1');}catch(e){}window.__eaglerHostLog('WEBGPU-FAILED '+why);};\n"
+				"})();\n"
 				"window.__eaglerHostLog('bridge ready ua='+navigator.userAgent+' cores='+navigator.hardwareConcurrency+' mem='+(navigator.deviceMemory||'?')+' secure='+self.isSecureContext+' xoi='+self.crossOriginIsolated+' sab='+(typeof SharedArrayBuffer)+' origin='+location.origin);\n"
 				"try{fetch(location.href,{method:'HEAD',cache:'no-store'}).then(function(r){window.__eaglerHostLog('headers coop='+r.headers.get('cross-origin-opener-policy')+' coep='+r.headers.get('cross-origin-embedder-policy')+' corp='+r.headers.get('cross-origin-resource-policy'));});}catch(e){}\n"
 				"})();</script>\n";
 		size_t head_tag = html.find("<head>");
 		if (head_tag != std::string::npos) {
 			html.insert(head_tag + 6, kBridge);
+		}
+	}
+
+	// 5b) Preload hints: let the WebView start streaming the big binaries
+	//     (and compile classes.wasm) while the loader script is still
+	//     parsing, instead of discovering them one at a time from JS.
+	{
+		std::string pre;
+		pre += "\n<link rel=\"preload\" href=\"classes.wasm?v=" + version + "\" as=\"fetch\" crossorigin=\"anonymous\" fetchpriority=\"high\">";
+		pre += "\n<link rel=\"preload\" href=\"assets.epk?v=" + version + "\" as=\"fetch\" crossorigin=\"anonymous\">";
+		pre += "\n<link rel=\"preload\" href=\"sounds.epk?v=" + version + "\" as=\"fetch\" crossorigin=\"anonymous\" fetchpriority=\"low\">\n";
+		size_t head_tag2 = html.find("<head>");
+		if (head_tag2 != std::string::npos && !version.empty()) {
+			html.insert(head_tag2 + 6, pre);
 		}
 	}
 

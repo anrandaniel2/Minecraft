@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
+#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -425,9 +426,43 @@ bool LocalHttpServer::send_file(int fd, const std::string &path, const std::stri
 	if (start > 0) {
 		::lseek(in, static_cast<off_t>(start), SEEK_SET);
 	}
-	std::vector<char> buf(kFileChunkBytes);
 	uint64_t remaining = length;
 	bool ok = true;
+	// Zero-copy path: sendfile() moves page-cache pages straight to the
+	// socket; the 100 MB classes.wasm and the .epk files never touch user
+	// space. Falls back to read()/send() if the kernel refuses.
+	{
+		off_t off = static_cast<off_t>(start);
+		while (remaining > 0) {
+			size_t want = static_cast<size_t>(std::min<uint64_t>(remaining, 1u << 20));
+			ssize_t n = ::sendfile(fd, in, &off, want);
+			if (n < 0) {
+				if (errno == EINTR || errno == EAGAIN) {
+					continue;
+				}
+				if (remaining == length && (errno == EINVAL || errno == ENOSYS)) {
+					break; // Not supported for this fd: fall back below.
+				}
+				::close(in);
+				return false;
+			}
+			if (n == 0) {
+				break;
+			}
+			remaining -= static_cast<uint64_t>(n);
+			bytes_sent_.fetch_add(static_cast<uint64_t>(n));
+		}
+		if (remaining == 0) {
+			::close(in);
+			return true;
+		}
+		if (remaining != length) {
+			::close(in);
+			return false; // Short transfer after progress: peer went away.
+		}
+		::lseek(in, static_cast<off_t>(start), SEEK_SET);
+	}
+	std::vector<char> buf(kFileChunkBytes);
 	while (remaining > 0 && ok) {
 		size_t want = static_cast<size_t>(std::min<uint64_t>(remaining, buf.size()));
 		ssize_t n = ::read(in, buf.data(), want);

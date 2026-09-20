@@ -63,6 +63,13 @@ public:
 	void set_immersive(bool p_enabled);
 	void set_safe_mode(bool p_enabled);
 	bool get_safe_mode() const;
+	// "auto" (WebGPU when navigator.gpu exists, else WebGL2), "webgpu", "webgl2".
+	void set_graphics_backend(const String &p_backend);
+	String get_graphics_backend() const;
+	void set_sustained_performance(bool p_enabled);
+	bool get_sustained_performance() const;
+	void set_stop_host_render_loop(bool p_enabled);
+	bool get_stop_host_render_loop() const;
 	bool get_immersive() const;
 
 	void set_cross_origin_isolation(bool p_enabled);
@@ -174,6 +181,9 @@ private:
 	double guard_timer_ = 0.0;
 	std::atomic<bool> page_ready_{ false };
 	bool safe_mode_ = false; // load the page with ?singlethread (workers off)
+	String graphics_backend_ = "auto";
+	bool sustained_performance_ = true;
+	bool stop_host_render_loop_ = true;
 	int watchdog_dumps_ = 0;
 	double watchdog_timer_ = 0.0;
 };

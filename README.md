@@ -47,6 +47,34 @@ between launches, and the game's mesh/server **workers are enabled** (the
 stock file ships single-threaded). Details: `docs/BUNDLE_ANALYSIS.md`.
 Toggle with the `native_unpack` / `enable_game_workers` properties.
 
+## Graphics backend (WebGPU / WebGL2)
+
+The bundle ships an experimental WebGPU renderer next to its WebGL2 one. The
+host picks it per launch (`graphics_backend` property on the `EaglerHost`
+node, default `auto`):
+
+| value    | behaviour |
+|----------|-----------|
+| `auto`   | WebGPU when `navigator.gpu` exists and no earlier boot on this device failed with it; otherwise WebGL2. |
+| `webgpu` | force WebGPU (`?gpu=webgpu`). |
+| `webgl2` | force WebGL2 (`?gpu=webgl2`). |
+
+In `auto` the page runs an async `requestAdapter()/requestDevice()` probe
+before the wasm boots and logs the adapter (`gpu adapter vendor=… arch=…`).
+A fatal WebGPU error during boot is remembered in `localStorage`
+(`eaglerHostWebGPUFailed`) and the host reloads once on WebGL2.
+
+Other runtime performance settings on the node:
+
+* `stop_host_render_loop` (default on) — Godot's Vulkan render loop is
+  disabled once the opaque WebView is attached, so no per-frame clear/present
+  competes with the game's GPU context.
+* `sustained_performance` (default on) — `Window.setSustainedPerformanceMode`
+  (API 24+) for a thermally stable clock over long sessions.
+* The loopback server streams files with `sendfile()` (zero-copy) and the
+  generated page preloads `classes.wasm` / `assets.epk` so the WebView starts
+  streaming-compiling the wasm while the loader is still parsing.
+
 ## Repository layout
 
 ```

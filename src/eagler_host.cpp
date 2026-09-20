@@ -31,7 +31,7 @@ namespace {
 constexpr const char *kBundleStampFile = ".eagler_bundle_stamp";
 // Bump whenever BundleUnpacker changes the generated index.html so an
 // already-unpacked install is regenerated on the next launch.
-constexpr const char *kUnpackTemplateVersion = "unpack-template:3\n";
+constexpr const char *kUnpackTemplateVersion = "unpack-template:4\n";
 
 // android.view.View#SYSTEM_UI_FLAG_* combination for sticky immersive mode.
 constexpr int kImmersiveFlags = 0x00000100 /*LAYOUT_STABLE*/
@@ -197,6 +197,15 @@ void EaglerHost::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_safe_mode", "enabled"), &EaglerHost::set_safe_mode);
 	ClassDB::bind_method(D_METHOD("get_safe_mode"), &EaglerHost::get_safe_mode);
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "safe_mode"), "set_safe_mode", "get_safe_mode");
+	ClassDB::bind_method(D_METHOD("set_graphics_backend", "backend"), &EaglerHost::set_graphics_backend);
+	ClassDB::bind_method(D_METHOD("get_graphics_backend"), &EaglerHost::get_graphics_backend);
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "graphics_backend", PROPERTY_HINT_ENUM, "auto,webgpu,webgl2"), "set_graphics_backend", "get_graphics_backend");
+	ClassDB::bind_method(D_METHOD("set_sustained_performance", "enabled"), &EaglerHost::set_sustained_performance);
+	ClassDB::bind_method(D_METHOD("get_sustained_performance"), &EaglerHost::get_sustained_performance);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "sustained_performance"), "set_sustained_performance", "get_sustained_performance");
+	ClassDB::bind_method(D_METHOD("set_stop_host_render_loop", "enabled"), &EaglerHost::set_stop_host_render_loop);
+	ClassDB::bind_method(D_METHOD("get_stop_host_render_loop"), &EaglerHost::get_stop_host_render_loop);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "stop_host_render_loop"), "set_stop_host_render_loop", "get_stop_host_render_loop");
 	ClassDB::bind_method(D_METHOD("_on_update_available", "version", "notes"), &EaglerHost::_on_update_available);
 	ClassDB::bind_method(D_METHOD("_on_update_progress", "bytes", "total"), &EaglerHost::_on_update_progress);
 	ClassDB::bind_method(D_METHOD("_on_update_downloaded", "apk_path"), &EaglerHost::_on_update_downloaded);
@@ -233,6 +242,12 @@ void EaglerHost::set_use_hardware_layer(bool p_enabled) { use_hardware_layer_ = 
 bool EaglerHost::get_use_hardware_layer() const { return use_hardware_layer_; }
 void EaglerHost::set_immersive(bool p_enabled) { immersive_ = p_enabled; }
 void EaglerHost::set_safe_mode(bool p_enabled) { safe_mode_ = p_enabled; }
+void EaglerHost::set_graphics_backend(const String &p_backend) { graphics_backend_ = p_backend; }
+String EaglerHost::get_graphics_backend() const { return graphics_backend_; }
+void EaglerHost::set_sustained_performance(bool p_enabled) { sustained_performance_ = p_enabled; }
+bool EaglerHost::get_sustained_performance() const { return sustained_performance_; }
+void EaglerHost::set_stop_host_render_loop(bool p_enabled) { stop_host_render_loop_ = p_enabled; }
+bool EaglerHost::get_stop_host_render_loop() const { return stop_host_render_loop_; }
 bool EaglerHost::get_safe_mode() const { return safe_mode_; }
 bool EaglerHost::get_immersive() const { return immersive_; }
 void EaglerHost::set_cross_origin_isolation(bool p_enabled) { cross_origin_isolation_ = p_enabled; }
@@ -355,8 +370,15 @@ String EaglerHost::_page_url() const {
 	if (url.is_empty()) {
 		return url;
 	}
+	PackedStringArray q;
 	if (safe_mode_) {
-		url += "?singlethread";
+		q.push_back("singlethread");
+	}
+	if (graphics_backend_ == "webgpu" || graphics_backend_ == "webgl2") {
+		q.push_back("gpu=" + graphics_backend_);
+	}
+	if (!q.is_empty()) {
+		url += "?" + String("&").join(q);
 	}
 	return url;
 }
@@ -617,6 +639,12 @@ bool EaglerHost::_start_server() {
 			UtilityFunctions::print("[EaglerHost/page] ", String::utf8(arg.c_str(), static_cast<int>(arg.size())));
 			if (arg.rfind("stage game-ready", 0) == 0) {
 				page_ready_.store(true);
+			} else if (arg.rfind("WEBGPU-FAILED", 0) == 0 && !page_ready_.load()) {
+				// The page already remembered the failure in localStorage;
+				// reload once so the auto mode picks WebGL2 immediately
+				// instead of leaving the user on the crash screen.
+				UtilityFunctions::push_warning("[EaglerHost] WebGPU backend failed during boot; reloading on WebGL2");
+				call_deferred("reload");
 			}
 			return "{\"ok\":true}";
 		}
@@ -787,6 +815,17 @@ void EaglerHost::_ui_create_webview() {
 	_apply_immersive_mode();
 
 	const String url = _page_url();
+	if (sustained_performance_ && _android_sdk_int() >= 24) {
+		// Window.setSustainedPerformanceMode(true) (API 24+): asks the SoC to
+		// hold a thermally stable clock instead of boosting then throttling,
+		// which is what a long game session wants. UI thread, like the rest
+		// of this method.
+		Ref<JavaObject> window = activity_->call("getWindow");
+		if (window.is_valid()) {
+			window->call("setSustainedPerformanceMode", true);
+			_log("sustained performance mode requested");
+		}
+	}
 	wv->call("loadUrl", url);
 	// The offline guard is (re-)injected from _process() once the page has
 	// installed its own fetch shim, see _tick_offline_guard().
@@ -803,6 +842,14 @@ void EaglerHost::_throttle_host_renderer() {
 	Engine::get_singleton()->set_max_fps(host_fps_when_hidden_);
 	OS::get_singleton()->set_low_processor_usage_mode(true);
 	OS::get_singleton()->set_low_processor_usage_mode_sleep_usec(16000);
+	if (stop_host_render_loop_) {
+		// The opaque WebView fully covers Godot's surface: skip the Vulkan
+		// frame entirely (no clear pass, no swapchain present per tick) so
+		// the GPU + compositor budget belongs to the game's context. Node
+		// processing and deferred calls keep running.
+		RenderingServer::get_singleton()->set_render_loop_enabled(false);
+		_log("host render loop stopped (WebView covers the surface)");
+	}
 }
 
 void EaglerHost::_apply_immersive_mode() {
