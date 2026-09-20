@@ -69,191 +69,52 @@ Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-to
 > Task :app:mergeDebugAssets
 > Task :app:compressDebugAssets
 > Task :app:processDebugJavaRes NO-SOURCE
-> Task :app:checkDebugDuplicateClasses
 > Task :app:desugarDebugFileDependencies
+> Task :app:checkDebugDuplicateClasses
 > Task :app:mergeDebugJavaResource
-> Task :app:processDebugManifestForPackage
+> Task :app:configureCMakeDebug[arm64-v8a]
 > Task :app:mergeExtDexDebug
 > Task :app:mergeLibDexDebug
-> Task :app:processDebugResources
-> Task :app:configureCMakeDebug[arm64-v8a]
-> Task :app:compileDebugJavaWithJavac NO-SOURCE
-> Task :app:dexBuilderDebug
-> Task :app:mergeProjectDexDebug
 
 > Task :app:buildCMakeDebug[arm64-v8a] FAILED
 C/C++: ninja: Entering directory `/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a'
-C/C++: /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:11:9: error: 'Button' is missing exception specification 'noexcept'
-C/C++: Button::Button() {}
-C/C++:         ^
-C/C++:                  noexcept
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/Button.h:11:5: note: previous declaration is here
-C/C++:     Button() = default;
-C/C++:     ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:12:9: error: definition of implicitly declared destructor
-C/C++: Button::~Button() {}
-C/C++:         ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:13:14: error: out-of-line definition of 'init' does not match any declaration in 'Eaglercraft::Button'
-C/C++: void Button::init(float x, float y, float w, float h, const std::string& text) { this->x=x; this->y=y; this->width=w; this->height=h; this->text=text; }
-C/C++:              ^~~~
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:15:14: error: out-of-line definition of 'isHovered' does not match any declaration in 'Eaglercraft::Button'
-C/C++: bool Button::isHovered(float mx, float my) const { return mx>=x && mx<=x+width && my>=y && my<=y+height; }
-C/C++:              ^~~~~~~~~
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:14: error: out-of-line definition of 'onMouseButton' does not match any declaration in 'Eaglercraft::Button'
-C/C++: bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-C/C++:              ^~~~~~~~~~~~~
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:98: error: too many arguments to function call, expected 0, have 2
-C/C++: bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-C/C++:                                                                                        ~~~~~~~~~ ^~~~~
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/Button.h:22:10: note: 'isHovered' declared here
-C/C++:     bool isHovered() const { return hovered; }
-C/C++:          ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:121: error: use of undeclared identifier 'onClick'
-C/C++: bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-C/C++:                                                                                                                         ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:132: error: use of undeclared identifier 'onClick'
-C/C++: bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-C/C++:                                                                                                                                    ^
-C/C++: 8 errors generated.
-C/C++: /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:7:16: error: constructor for 'Eaglercraft::LoadingScreen' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-C/C++: LoadingScreen::LoadingScreen() {}
-C/C++:                ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-C/C++: class UIScreen {
-C/C++:       ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:8:16: error: definition of implicitly declared destructor
-C/C++: LoadingScreen::~LoadingScreen() {}
-C/C++:                ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:11:21: error: redefinition of 'setProgress'
-C/C++: void LoadingScreen::setProgress(float p) { progress=p; }
-C/C++:                     ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.h:14:10: note: previous definition is here
-C/C++:     void setProgress(float p) { progress = p; }
-C/C++:          ^
-C/C++: 3 errors generated.
-C/C++: /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:9:12: error: constructor for 'Eaglercraft::InGameHUD' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-C/C++: InGameHUD::InGameHUD() {}
-C/C++:            ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-C/C++: class UIScreen {
-C/C++:       ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:10:12: error: definition of implicitly declared destructor
-C/C++: InGameHUD::~InGameHUD() {}
-C/C++:            ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:13:17: error: out-of-line definition of 'drawRect' does not match any declaration in 'Eaglercraft::InGameHUD'
-C/C++: void InGameHUD::drawRect(Shader& shader, float x, float y, float w, float h, glm::vec4 color) {}
-C/C++:                 ^~~~~~~~
-C/C++: 3 errors generated.
-C/C++: /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp:8:11: error: constructor for 'Eaglercraft::MainMenu' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-C/C++: MainMenu::MainMenu() {}
-C/C++:           ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-C/C++: class UIScreen {
-C/C++:       ^
-C/C++: /home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp:9:11: error: definition of implicitly declared destructor
-C/C++: MainMenu::~MainMenu() {}
-C/C++:           ^
-C/C++: 2 errors generated.
+C/C++: /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp
+C/C++: /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp:8:2: error: #else after #else
+C/C++: #else
+C/C++:  ^
+C/C++: 1 error generated.
+
+> Task :app:processDebugManifestForPackage
 
 FAILURE: Build failed with an exception.
 
 * What went wrong:
 Execution failed for task ':app:buildCMakeDebug[arm64-v8a]'.
 > com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a'
-  [1/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Camera.cpp.o
-  [2/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Mesh.cpp.o
-  [3/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Renderer.cpp.o
-  [4/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Player.cpp.o
-  [5/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/FontRenderer.cpp.o
-  [6/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o
-  FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o 
-  /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp
-  /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:11:9: error: 'Button' is missing exception specification 'noexcept'
-  Button::Button() {}
-          ^
-                   noexcept
-  /home/runner/work/Minecraft/Minecraft/src/ui/Button.h:11:5: note: previous declaration is here
-      Button() = default;
-      ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:12:9: error: definition of implicitly declared destructor
-  Button::~Button() {}
-          ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:13:14: error: out-of-line definition of 'init' does not match any declaration in 'Eaglercraft::Button'
-  void Button::init(float x, float y, float w, float h, const std::string& text) { this->x=x; this->y=y; this->width=w; this->height=h; this->text=text; }
-               ^~~~
-  /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:15:14: error: out-of-line definition of 'isHovered' does not match any declaration in 'Eaglercraft::Button'
-  bool Button::isHovered(float mx, float my) const { return mx>=x && mx<=x+width && my>=y && my<=y+height; }
-               ^~~~~~~~~
-  /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:14: error: out-of-line definition of 'onMouseButton' does not match any declaration in 'Eaglercraft::Button'
-  bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-               ^~~~~~~~~~~~~
-  /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:98: error: too many arguments to function call, expected 0, have 2
-  bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-                                                                                         ~~~~~~~~~ ^~~~~
-  /home/runner/work/Minecraft/Minecraft/src/ui/Button.h:22:10: note: 'isHovered' declared here
-      bool isHovered() const { return hovered; }
-           ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:121: error: use of undeclared identifier 'onClick'
-  bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-                                                                                                                          ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:132: error: use of undeclared identifier 'onClick'
-  bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-                                                                                                                                     ^
-  8 errors generated.
-  [7/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o
-  FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o 
-  /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp
-  /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:7:16: error: constructor for 'Eaglercraft::LoadingScreen' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-  LoadingScreen::LoadingScreen() {}
-                 ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-  class UIScreen {
-        ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:8:16: error: definition of implicitly declared destructor
-  LoadingScreen::~LoadingScreen() {}
-                 ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:11:21: error: redefinition of 'setProgress'
-  void LoadingScreen::setProgress(float p) { progress=p; }
-                      ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.h:14:10: note: previous definition is here
-      void setProgress(float p) { progress = p; }
-           ^
-  3 errors generated.
+  [1/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Mesh.cpp.o
+  [2/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Camera.cpp.o
+  [3/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/FontRenderer.cpp.o
+  [4/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o
+  [5/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Player.cpp.o
+  [6/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o
+  [7/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Renderer.cpp.o
   [8/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o
-  FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o 
-  /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp
-  /home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:9:12: error: constructor for 'Eaglercraft::InGameHUD' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-  InGameHUD::InGameHUD() {}
-             ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-  class UIScreen {
-        ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:10:12: error: definition of implicitly declared destructor
-  InGameHUD::~InGameHUD() {}
-             ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:13:17: error: out-of-line definition of 'drawRect' does not match any declaration in 'Eaglercraft::InGameHUD'
-  void InGameHUD::drawRect(Shader& shader, float x, float y, float w, float h, glm::vec4 color) {}
-                  ^~~~~~~~
-  3 errors generated.
-  [9/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.cpp.o
-  [10/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o
-  FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o 
-  /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp
-  /home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp:8:11: error: constructor for 'Eaglercraft::MainMenu' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-  MainMenu::MainMenu() {}
-            ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-  class UIScreen {
-        ^
-  /home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp:9:11: error: definition of implicitly declared destructor
-  MainMenu::~MainMenu() {}
-            ^
-  2 errors generated.
-  [11/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/utils/PerlinNoise.cpp.o
+  [9/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/utils/PerlinNoise.cpp.o
+  [10/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Block.cpp.o
+  [11/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o
+  [12/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.cpp.o
+  [13/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o
+  FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o 
+  /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp
+  /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp:8:2: error: #else after #else
+  #else
+   ^
+  1 error generated.
+  [14/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Texture.cpp.o
+  [15/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Chunk.cpp.o
+  [16/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/WorldGenerator.cpp.o
+  [17/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Shader.cpp.o
+  [18/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/World.cpp.o
   ninja: build stopped: subcommand failed.
   
   C++ build system [build] failed while executing:
@@ -300,96 +161,30 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:bui
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.ManagedExecutorImpl$1.run(ManagedExecutorImpl.java:49)
 Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a'
-[1/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Camera.cpp.o
-[2/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Mesh.cpp.o
-[3/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Renderer.cpp.o
-[4/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Player.cpp.o
-[5/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/FontRenderer.cpp.o
-[6/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o
-FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o 
-/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:11:9: error: 'Button' is missing exception specification 'noexcept'
-Button::Button() {}
-        ^
-                 noexcept
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.h:11:5: note: previous declaration is here
-    Button() = default;
-    ^
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:12:9: error: definition of implicitly declared destructor
-Button::~Button() {}
-        ^
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:13:14: error: out-of-line definition of 'init' does not match any declaration in 'Eaglercraft::Button'
-void Button::init(float x, float y, float w, float h, const std::string& text) { this->x=x; this->y=y; this->width=w; this->height=h; this->text=text; }
-             ^~~~
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:15:14: error: out-of-line definition of 'isHovered' does not match any declaration in 'Eaglercraft::Button'
-bool Button::isHovered(float mx, float my) const { return mx>=x && mx<=x+width && my>=y && my<=y+height; }
-             ^~~~~~~~~
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:14: error: out-of-line definition of 'onMouseButton' does not match any declaration in 'Eaglercraft::Button'
-bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-             ^~~~~~~~~~~~~
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:98: error: too many arguments to function call, expected 0, have 2
-bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-                                                                                       ~~~~~~~~~ ^~~~~
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.h:22:10: note: 'isHovered' declared here
-    bool isHovered() const { return hovered; }
-         ^
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:121: error: use of undeclared identifier 'onClick'
-bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-                                                                                                                        ^
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:132: error: use of undeclared identifier 'onClick'
-bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-                                                                                                                                   ^
-8 errors generated.
-[7/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o
-FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o 
-/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp
-/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:7:16: error: constructor for 'Eaglercraft::LoadingScreen' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-LoadingScreen::LoadingScreen() {}
-               ^
-/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-class UIScreen {
-      ^
-/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:8:16: error: definition of implicitly declared destructor
-LoadingScreen::~LoadingScreen() {}
-               ^
-/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:11:21: error: redefinition of 'setProgress'
-void LoadingScreen::setProgress(float p) { progress=p; }
-                    ^
-/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.h:14:10: note: previous definition is here
-    void setProgress(float p) { progress = p; }
-         ^
-3 errors generated.
+[1/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Mesh.cpp.o
+[2/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Camera.cpp.o
+[3/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/FontRenderer.cpp.o
+[4/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o
+[5/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Player.cpp.o
+[6/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o
+[7/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Renderer.cpp.o
 [8/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o
-FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o 
-/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp
-/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:9:12: error: constructor for 'Eaglercraft::InGameHUD' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-InGameHUD::InGameHUD() {}
-           ^
-/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-class UIScreen {
-      ^
-/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:10:12: error: definition of implicitly declared destructor
-InGameHUD::~InGameHUD() {}
-           ^
-/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:13:17: error: out-of-line definition of 'drawRect' does not match any declaration in 'Eaglercraft::InGameHUD'
-void InGameHUD::drawRect(Shader& shader, float x, float y, float w, float h, glm::vec4 color) {}
-                ^~~~~~~~
-3 errors generated.
-[9/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.cpp.o
-[10/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o
-FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o 
-/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp
-/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp:8:11: error: constructor for 'Eaglercraft::MainMenu' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-MainMenu::MainMenu() {}
-          ^
-/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-class UIScreen {
-      ^
-/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp:9:11: error: definition of implicitly declared destructor
-MainMenu::~MainMenu() {}
-          ^
-2 errors generated.
-[11/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/utils/PerlinNoise.cpp.o
+[9/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/utils/PerlinNoise.cpp.o
+[10/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Block.cpp.o
+[11/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o
+[12/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.cpp.o
+[13/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o
+FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o 
+/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp
+/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp:8:2: error: #else after #else
+#else
+ ^
+1 error generated.
+[14/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Texture.cpp.o
+[15/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Chunk.cpp.o
+[16/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/WorldGenerator.cpp.o
+[17/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Shader.cpp.o
+[18/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/World.cpp.o
 ninja: build stopped: subcommand failed.
 
 C++ build system [build] failed while executing:
@@ -515,96 +310,30 @@ C++ build system [build] failed while executing:
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.ManagedExecutorImpl$1.run(ManagedExecutorImpl.java:49)
 Caused by: com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a'
-[1/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Camera.cpp.o
-[2/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Mesh.cpp.o
-[3/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Renderer.cpp.o
-[4/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Player.cpp.o
-[5/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/FontRenderer.cpp.o
-[6/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o
-FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o 
-/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:11:9: error: 'Button' is missing exception specification 'noexcept'
-Button::Button() {}
-        ^
-                 noexcept
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.h:11:5: note: previous declaration is here
-    Button() = default;
-    ^
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:12:9: error: definition of implicitly declared destructor
-Button::~Button() {}
-        ^
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:13:14: error: out-of-line definition of 'init' does not match any declaration in 'Eaglercraft::Button'
-void Button::init(float x, float y, float w, float h, const std::string& text) { this->x=x; this->y=y; this->width=w; this->height=h; this->text=text; }
-             ^~~~
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:15:14: error: out-of-line definition of 'isHovered' does not match any declaration in 'Eaglercraft::Button'
-bool Button::isHovered(float mx, float my) const { return mx>=x && mx<=x+width && my>=y && my<=y+height; }
-             ^~~~~~~~~
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:14: error: out-of-line definition of 'onMouseButton' does not match any declaration in 'Eaglercraft::Button'
-bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-             ^~~~~~~~~~~~~
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:98: error: too many arguments to function call, expected 0, have 2
-bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-                                                                                       ~~~~~~~~~ ^~~~~
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.h:22:10: note: 'isHovered' declared here
-    bool isHovered() const { return hovered; }
-         ^
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:121: error: use of undeclared identifier 'onClick'
-bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-                                                                                                                        ^
-/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp:16:132: error: use of undeclared identifier 'onClick'
-bool Button::onMouseButton(int button, int action, int mods, float mx, float my) { if (isHovered(mx,my) && action==1 && onClick) { onClick(); return true; } return false; }
-                                                                                                                                   ^
-8 errors generated.
-[7/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o
-FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o 
-/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp
-/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:7:16: error: constructor for 'Eaglercraft::LoadingScreen' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-LoadingScreen::LoadingScreen() {}
-               ^
-/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-class UIScreen {
-      ^
-/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:8:16: error: definition of implicitly declared destructor
-LoadingScreen::~LoadingScreen() {}
-               ^
-/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp:11:21: error: redefinition of 'setProgress'
-void LoadingScreen::setProgress(float p) { progress=p; }
-                    ^
-/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.h:14:10: note: previous definition is here
-    void setProgress(float p) { progress = p; }
-         ^
-3 errors generated.
+[1/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Mesh.cpp.o
+[2/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Camera.cpp.o
+[3/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/FontRenderer.cpp.o
+[4/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/Button.cpp.o
+[5/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/player/Player.cpp.o
+[6/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/LoadingScreen.cpp.o
+[7/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/rendering/Renderer.cpp.o
 [8/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o
-FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o 
-/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp
-/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:9:12: error: constructor for 'Eaglercraft::InGameHUD' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-InGameHUD::InGameHUD() {}
-           ^
-/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-class UIScreen {
-      ^
-/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:10:12: error: definition of implicitly declared destructor
-InGameHUD::~InGameHUD() {}
-           ^
-/home/runner/work/Minecraft/Minecraft/src/ui/InGameHUD.cpp:13:17: error: out-of-line definition of 'drawRect' does not match any declaration in 'Eaglercraft::InGameHUD'
-void InGameHUD::drawRect(Shader& shader, float x, float y, float w, float h, glm::vec4 color) {}
-                ^~~~~~~~
-3 errors generated.
-[9/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.cpp.o
-[10/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o
-FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o 
-/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp
-/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp:8:11: error: constructor for 'Eaglercraft::MainMenu' must explicitly initialize the base class 'Eaglercraft::UIScreen' which does not have a default constructor
-MainMenu::MainMenu() {}
-          ^
-/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.h:23:7: note: 'Eaglercraft::UIScreen' declared here
-class UIScreen {
-      ^
-/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp:9:11: error: definition of implicitly declared destructor
-MainMenu::~MainMenu() {}
-          ^
-2 errors generated.
-[11/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/utils/PerlinNoise.cpp.o
+[9/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/utils/PerlinNoise.cpp.o
+[10/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Block.cpp.o
+[11/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/MainMenu.cpp.o
+[12/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/ui/UIScreen.cpp.o
+[13/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o
+FAILED: CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o 
+/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android24 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DEAGLER_ANDROID=1 -DEAGLER_VULKAN=1 -DGLM_FORCE_PURE=1 -DVK_USE_PLATFORM_ANDROID_KHR=1 -Deaglercraft_EXPORTS -I/home/runner/work/Minecraft/Minecraft/src -I/home/runner/work/Minecraft/Minecraft/third_party -I/usr/local/lib/android/sdk/ndk/25.1.8937393/sources/android/native_app_glue -I/home/runner/work/Minecraft/Minecraft/src/core -I/home/runner/work/Minecraft/Minecraft/src/world -I/home/runner/work/Minecraft/Minecraft/src/player -I/home/runner/work/Minecraft/Minecraft/src/rendering -I/home/runner/work/Minecraft/Minecraft/src/ui -I/home/runner/work/Minecraft/Minecraft/src/utils -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp -I/home/runner/work/Minecraft/Minecraft/android/app/src/main/cpp/shaders -I/home/runner/work/Minecraft/Minecraft/android/app/.cxx/Debug/6p521q2d/arm64-v8a/_deps/glm-src -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -frtti -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -MF CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o.d -o CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp.o -c /home/runner/work/Minecraft/Minecraft/src/core/Input.cpp
+/home/runner/work/Minecraft/Minecraft/src/core/Input.cpp:8:2: error: #else after #else
+#else
+ ^
+1 error generated.
+[14/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Texture.cpp.o
+[15/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/Chunk.cpp.o
+[16/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/WorldGenerator.cpp.o
+[17/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/core/Shader.cpp.o
+[18/28] Building CXX object CMakeFiles/eaglercraft.dir/home/runner/work/Minecraft/Minecraft/src/world/World.cpp.o
 ninja: build stopped: subcommand failed.
 
 C++ build system [build] failed while executing:
@@ -645,6 +374,6 @@ Caused by: org.gradle.process.internal.ExecException: Process 'command '/usr/loc
 
 * Get more help at https://help.gradle.org
 
-BUILD FAILED in 32s
-25 actionable tasks: 25 executed
+BUILD FAILED in 31s
+22 actionable tasks: 22 executed
 ls: cannot access 'app/build/outputs/apk/debug/': No such file or directory
