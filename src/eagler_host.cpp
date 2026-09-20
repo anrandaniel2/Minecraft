@@ -29,6 +29,9 @@ namespace {
 
 // Bumping this forces a re-extraction of the web bundle on next launch.
 constexpr const char *kBundleStampFile = ".eagler_bundle_stamp";
+// Bump whenever BundleUnpacker changes the generated index.html so an
+// already-unpacked install is regenerated on the next launch.
+constexpr const char *kUnpackTemplateVersion = "unpack-template:3\n";
 
 // android.view.View#SYSTEM_UI_FLAG_* combination for sticky immersive mode.
 constexpr int kImmersiveFlags = 0x00000100 /*LAYOUT_STABLE*/
@@ -550,7 +553,8 @@ void EaglerHost::_extraction_thread_main() {
 			}
 		}
 		if (eagler::BundleUnpacker::is_single_file_bundle(src)) {
-			if (existing_unpack != stamp) {
+			const String unpack_expect = String(kUnpackTemplateVersion) + stamp;
+			if (existing_unpack != unpack_expect) {
 				eagler::BundleUnpacker::Options o;
 				o.html_path = src;
 				o.out_dir = dst;
@@ -563,7 +567,7 @@ void EaglerHost::_extraction_thread_main() {
 				if (eagler::BundleUnpacker::unpack(o, &st, &uerr)) {
 					Ref<FileAccess> f = FileAccess::open(String(unpack_stamp.c_str()), FileAccess::WRITE);
 					if (f.is_valid()) {
-						f->store_string(stamp);
+						f->store_string(unpack_expect);
 					}
 					_log(String("native unpack: ") + String::num_int64(static_cast<int64_t>(st.decompressed_bytes / 1048576)) +
 							" MiB in " + String::num(st.seconds, 2) + " s on " + String::num_int64(st.threads) + " threads");

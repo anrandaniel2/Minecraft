@@ -340,6 +340,14 @@ bool BundleUnpacker::unpack(const Options &opts, UnpackStats *stats, std::string
 	replace_all("if (clean !== \"classes.wasm\") return originalFetch(input, init);",
 			"return originalFetch(input, init); /* native unpack */");
 
+	// 3b) The server-worker bootstrap wraps XMLHttpRequest with a shim meant
+	//     for the inline assets.epk payload. Once the payload node is gone the
+	//     shim delegates to a real XHR but never mirrors status/response/on*
+	//     handlers back to the wrapper, so the worker's EPK download reports
+	//     "Could not download EPK file". Leave the native XHR untouched.
+	replace_all("self.XMLHttpRequest = function () {", "self.__eagInlineXHRUnused = function () {");
+	replace_all("var OriginalXHR = self.XMLHttpRequest;", "var OriginalXHR = self.XMLHttpRequest; /* native unpack: shim disabled */");
+
 	// 4) Multithreaded mode: the page is now served from a real http origin
 	//    with COOP/COEP, so mesh + server workers can run.
 	if (opts.enable_workers) {
