@@ -374,7 +374,8 @@ bool BundleUnpacker::unpack(const Options &opts, UnpackStats *stats, std::string
 				"var cw=console.warn;console.warn=function(){try{window.__eaglerHostLog('console.warn '+Array.prototype.join.call(arguments,' '));}catch(e){}return cw.apply(console,arguments);};\n"
 				"window.__eaglerHostDump=function(){try{var j=window.__eaglerCrashJournal&&window.__eaglerCrashJournal.snapshot();\n"
 				"  var l=(window.__log||[]).slice(-40);window.__eaglerHostLog('DUMP stage='+(j&&j.stage)+' state='+(j&&j.state)+' err='+window.__err+' ready='+window.__eaglerGameReady+' loaded='+window.__loaded+' xoi='+self.crossOriginIsolated+' workers='+(typeof Worker)+'\\n'+l.join('\\n'));}catch(e){window.__eaglerHostLog('DUMP failed '+e);}};\n"
-				"window.__eaglerHostLog('bridge ready ua='+navigator.userAgent+' cores='+navigator.hardwareConcurrency+' mem='+(navigator.deviceMemory||'?'));\n"
+				"window.__eaglerHostLog('bridge ready ua='+navigator.userAgent+' cores='+navigator.hardwareConcurrency+' mem='+(navigator.deviceMemory||'?')+' secure='+self.isSecureContext+' xoi='+self.crossOriginIsolated+' sab='+(typeof SharedArrayBuffer)+' origin='+location.origin);\n"
+				"try{fetch(location.href,{method:'HEAD',cache:'no-store'}).then(function(r){window.__eaglerHostLog('headers coop='+r.headers.get('cross-origin-opener-policy')+' coep='+r.headers.get('cross-origin-embedder-policy')+' corp='+r.headers.get('cross-origin-resource-policy'));});}catch(e){}\n"
 				"})();</script>\n";
 		size_t head_tag = html.find("<head>");
 		if (head_tag != std::string::npos) {

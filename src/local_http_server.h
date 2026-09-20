@@ -38,7 +38,7 @@ public:
 		uint16_t port = 0; // 0 = ephemeral, chosen by the kernel.
 		unsigned worker_threads = 0; // 0 = hardware_concurrency (min 2).
 		bool cross_origin_isolation = false; // COOP/COEP headers (SharedArrayBuffer).
-		int keep_alive_timeout_sec = 15;
+		int keep_alive_timeout_sec = 15; // idle keep-alive; first request gets 5 s
 		bool immutable_assets = false; // Long-lived caching for non-HTML files.
 		// Optional: requests to "/__host/<command>[?query]" are routed here
 		// (from any worker thread) instead of the filesystem; the argument is
@@ -96,6 +96,8 @@ private:
 	std::condition_variable queue_cv_;
 	std::deque<int> pending_;
 
+	static constexpr int kMaxConnectionThreads = 64;
+	std::atomic<int> active_connections_{ 0 };
 	std::atomic<uint64_t> requests_{ 0 };
 	std::atomic<uint64_t> bytes_sent_{ 0 };
 };

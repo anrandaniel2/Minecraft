@@ -152,6 +152,13 @@ bool LocalHttpServer::start(const Config &config, std::string *error_out) {
 		bound_port_ = config_.port;
 	}
 
+	// Chromium keeps up to 6 idle keep-alive sockets per host *per realm*
+	// (page + every worker) and holds them for minutes. A fixed pool of N
+	// threads with one blocking connection each therefore fills up with idle
+	// sockets, and a new request (e.g. the server worker fetching
+	// assets.epk) waits in the queue until an idle connection times out.
+	// Loopback connections are cheap: use a thread per connection, with a
+	// generous cap, and keep a small pool as spill-over.
 	unsigned n = config_.worker_threads;
 	if (n == 0) {
 		n = std::thread::hardware_concurrency();
@@ -170,6 +177,8 @@ void LocalHttpServer::stop() {
 	if (!running_.exchange(false)) {
 		return;
 	}
+	// Detached per-connection threads observe running_ == false at their
+	// next poll() wake-up (bounded by keep_alive_timeout_sec).
 	if (listen_fd_ >= 0) {
 		::shutdown(listen_fd_, SHUT_RDWR);
 		::close(listen_fd_);
@@ -210,6 +219,20 @@ void LocalHttpServer::accept_loop() {
 		}
 		int one = 1;
 		setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+		// Dedicated thread while under the cap; otherwise queue for the pool.
+		if (active_connections_.load() < kMaxConnectionThreads) {
+			active_connections_.fetch_add(1);
+			try {
+				std::thread([this, fd] {
+					handle_connection(fd);
+					::close(fd);
+					active_connections_.fetch_sub(1);
+				}).detach();
+				continue;
+			} catch (...) {
+				active_connections_.fetch_sub(1);
+			}
+		}
 		{
 			std::lock_guard<std::mutex> lock(queue_mutex_);
 			pending_.push_back(fd);
@@ -237,11 +260,15 @@ void LocalHttpServer::worker_loop() {
 
 void LocalHttpServer::handle_connection(int fd) {
 	bool keep_alive = true;
+	bool first = true;
 	while (keep_alive && running_.load()) {
 		pollfd p{};
 		p.fd = fd;
 		p.events = POLLIN;
-		int r = ::poll(&p, 1, config_.keep_alive_timeout_sec * 1000);
+		// First request must arrive quickly (Chromium preconnects and may
+		// never use the socket); idle keep-alive gets the configured timeout.
+		int r = ::poll(&p, 1, (first ? 5 : config_.keep_alive_timeout_sec) * 1000);
+		first = false;
 		if (r <= 0 || (p.revents & (POLLHUP | POLLERR))) {
 			return;
 		}
