@@ -147,3 +147,7 @@ unzip -l minecraft-client.jar | grep -E "a\.class|net/minecraft/client/Minecraft
 
 ---
 *Extracted: 2026-09-20 | JAR: 26.3 (Wilderness Bound) | Method: local unzip + GitHub Actions Vineflower | Branch: arena/01a0c00d-minecraft*
+
+## CI Run 2026-09-20T18:45:18Z - Deobfuscation Sample
+Workflow: https://github.com/anrandaniel2/Minecraft/actions/runs/35529938536
+Artifacts: minecraft-26.3-decompiled-full.tar.gz (download from Actions)
