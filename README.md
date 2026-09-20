@@ -35,6 +35,7 @@ GDScript or C# in this repository.
 | Mobile only          | Export preset targets Android only (arm64-v8a + armeabi-v7a, minSdk 24).                                      |
 | C++ only             | `src/*.cpp` – nothing else contains logic. Build: `SConstruct` + `godot-cpp` submodule.                       |
 | APK via Actions      | `.github/workflows/build-apk.yml` compiles the extension for all ABIs and exports a signed APK.               |
+| Completely offline   | The 75 MB single-file bundle (assets, sounds, WASM, worker code all inlined) ships inside the APK and is served from `127.0.0.1`. No remote URLs in the bundle; the network-security-config has **no trust anchors** and forbids cleartext except loopback; the C++ host injects a JS guard that rejects any non-loopback `fetch`/XHR/WebSocket and reports `navigator.onLine=false`. Worlds are saved in the WebView's IndexedDB. |
 
 ## Repository layout
 
@@ -54,18 +55,15 @@ web/                     Put eaglercraft.html here (see web/README.md)
 .github/workflows/       APK compiler
 ```
 
-## Adding the game
+## The game bundle
 
-1. Download `eaglercraft-26.2-0.6.html` from the MediaFire link.
-2. Save it as **`web/eaglercraft.html`** (git-ignored), *or* set the GitHub
-   repository variable `EAGLERCRAFT_HTML_URL` to a direct download URL and CI
-   will fetch it.
-3. Push – the workflow produces `EaglerCraft-debug.apk` as an artifact.
-   Tag `v*` (with `RELEASE_KEYSTORE_BASE64/_USER/_PASSWORD` secrets) for a
-   signed release APK attached to the GitHub release.
-
-Without the file the APK still builds and shows a placeholder page that
-reports the active WebGL renderer.
+`web/eaglercraft.html` (EaglerCraft 26.2-0.6, single-file build) is committed
+in the repo; it was fetched from the Dropbox share by
+`.github/workflows/fetch-bundle.yml`. To update it, change `web/BUNDLE_URL`
+(or run that workflow manually with a URL) – it downloads and commits the new
+file. Everything the game needs is inside that one HTML file, so the APK works
+with airplane mode on. Multiplayer (which needs relay servers) is naturally
+unavailable offline; singleplayer/LAN-less play is what this build targets.
 
 ## Building locally
 

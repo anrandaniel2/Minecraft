@@ -5,3 +5,4 @@ html_resource_path = "res://web/eaglercraft.html"
 extra_web_files = PackedStringArray()
 use_hardware_layer = true
 immersive = true
+offline_only = true

@@ -68,6 +68,9 @@ public:
 	void set_worker_threads(int p_threads);
 	int get_worker_threads() const;
 
+	void set_offline_only(bool p_enabled);
+	bool get_offline_only() const;
+
 	// --- Runtime API -------------------------------------------------------
 	String get_base_url() const;
 	int get_state() const;
@@ -105,6 +108,7 @@ private:
 	void _run_on_ui_thread(const Callable &p_callable);
 	void _set_error(const String &p_msg);
 	void _apply_immersive_mode();
+	void _tick_offline_guard(double p_delta);
 	void _log(const String &p_msg) const;
 
 	// Config.
@@ -114,6 +118,7 @@ private:
 	bool immersive_ = true;
 	bool cross_origin_isolation_ = false;
 	int worker_threads_ = 0;
+	bool offline_only_ = true;
 
 	// State.
 	std::atomic<int> state_{ STATE_IDLE };
@@ -133,6 +138,8 @@ private:
 	Object *android_runtime_ = nullptr;
 	bool webview_requested_ = false;
 	bool paused_ = false;
+	int guard_injections_ = 0;
+	double guard_timer_ = 0.0;
 };
 
 } // namespace godot

@@ -41,6 +41,36 @@ constexpr int kMatchParent = -1;
 constexpr int kMixedContentCompat = 2;
 // android.webkit.WebSettings#LOAD_DEFAULT
 constexpr int kCacheLoadDefault = -1;
+// android.webkit.WebSettings#LOAD_CACHE_ELSE_NETWORK (never wait on the network).
+constexpr int kCacheLoadCacheElseNetwork = 1;
+
+// Injected into the page when offline_only is set. Rejects every request whose
+// origin is not the loopback server so the game can never reach the network.
+constexpr const char *kOfflineGuardJs = R"JS(
+(function(){
+  if (window.fetch && window.fetch.__eaglerGuarded) return;
+  var ok = function(u){ try { u = new URL(u, location.href); } catch(e){ return true; }
+    return u.protocol === 'data:' || u.protocol === 'blob:' || u.protocol === 'eagler-inline-payload:' ||
+           u.origin === location.origin; };
+  var install = function(){
+    var f = window.fetch;
+    window.fetch = function(i, o){ var u = (i && i.url) || i;
+      if (!ok(u)) return Promise.reject(new TypeError('offline: blocked ' + u)); return f.call(this, i, o); };
+    window.fetch.__eaglerGuarded = true;
+    if (XMLHttpRequest.prototype.open.__eaglerGuarded) return;
+    var open = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(m, u){ if (!ok(u)) throw new TypeError('offline: blocked ' + u);
+      return open.apply(this, arguments); };
+    XMLHttpRequest.prototype.open.__eaglerGuarded = true;
+    var WS = window.WebSocket;
+    window.WebSocket = function(u, p){ if (!ok(u)) throw new TypeError('offline: blocked ' + u);
+      return p === undefined ? new WS(u) : new WS(u, p); };
+    window.WebSocket.prototype = WS.prototype;
+    Object.defineProperty(navigator, 'onLine', { get: function(){ return false; }, configurable: true });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
+})();
+)JS";
 
 bool make_dirs(const std::string &path) {
 	std::string cur;
@@ -99,6 +129,10 @@ void EaglerHost::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_worker_threads"), &EaglerHost::get_worker_threads);
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "worker_threads", PROPERTY_HINT_RANGE, "0,16,1"), "set_worker_threads", "get_worker_threads");
 
+	ClassDB::bind_method(D_METHOD("set_offline_only", "enabled"), &EaglerHost::set_offline_only);
+	ClassDB::bind_method(D_METHOD("get_offline_only"), &EaglerHost::get_offline_only);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "offline_only"), "set_offline_only", "get_offline_only");
+
 	ClassDB::bind_method(D_METHOD("get_base_url"), &EaglerHost::get_base_url);
 	ClassDB::bind_method(D_METHOD("get_state"), &EaglerHost::get_state);
 	ClassDB::bind_method(D_METHOD("get_last_error"), &EaglerHost::get_last_error);
@@ -143,6 +177,8 @@ bool EaglerHost::get_immersive() const { return immersive_; }
 void EaglerHost::set_cross_origin_isolation(bool p_enabled) { cross_origin_isolation_ = p_enabled; }
 bool EaglerHost::get_cross_origin_isolation() const { return cross_origin_isolation_; }
 void EaglerHost::set_worker_threads(int p_threads) { worker_threads_ = p_threads; }
+void EaglerHost::set_offline_only(bool p_enabled) { offline_only_ = p_enabled; }
+bool EaglerHost::get_offline_only() const { return offline_only_; }
 int EaglerHost::get_worker_threads() const { return worker_threads_; }
 
 String EaglerHost::get_base_url() const {
@@ -201,7 +237,24 @@ void EaglerHost::_ready() {
 	_start_extraction();
 }
 
-void EaglerHost::_process(double) {
+void EaglerHost::_tick_offline_guard(double p_delta) {
+	if (!offline_only_ || !is_android_ || webview_.is_null() || state_.load() != STATE_WEBVIEW_READY) {
+		return;
+	}
+	// The guard script is idempotent and wraps whatever window.fetch is
+	// current, so re-running it after the page's own shim is installed keeps
+	// both layers intact. Re-inject a few times during the first seconds and
+	// then once more per reload.
+	guard_timer_ += p_delta;
+	if (guard_injections_ < 6 && guard_timer_ >= 1.0) {
+		guard_timer_ = 0.0;
+		guard_injections_++;
+		_run_on_ui_thread(Callable(this, "_ui_eval_js").bind(String(kOfflineGuardJs)));
+	}
+}
+
+void EaglerHost::_process(double p_delta) {
+	_tick_offline_guard(p_delta);
 	if (state_.load() == STATE_EXTRACTING && extraction_done_.load()) {
 		if (extraction_thread_.joinable()) {
 			extraction_thread_.join();
@@ -463,7 +516,12 @@ void EaglerHost::_ui_create_webview() {
 		settings->call("setUseWideViewPort", true);
 		settings->call("setLoadWithOverviewMode", true);
 		settings->call("setMixedContentMode", kMixedContentCompat);
-		settings->call("setCacheMode", kCacheLoadDefault);
+		// Fully offline: everything comes from the loopback server; never
+		// stall on a (non-existent) network connection.
+		settings->call("setCacheMode", offline_only_ ? kCacheLoadCacheElseNetwork : kCacheLoadDefault);
+		settings->call("setBlockNetworkLoads", false); // must stay false for 127.0.0.1
+		settings->call("setGeolocationEnabled", false);
+		settings->call("setSafeBrowsingEnabled", false);
 		settings->call("setOffscreenPreRaster", true);
 	}
 
@@ -490,6 +548,8 @@ void EaglerHost::_ui_create_webview() {
 
 	const String url = get_base_url();
 	wv->call("loadUrl", url);
+	// The offline guard is (re-)injected from _process() once the page has
+	// installed its own fetch shim, see _tick_offline_guard().
 
 	state_.store(STATE_WEBVIEW_READY);
 	_log("WebView attached, loading " + url);
@@ -562,6 +622,8 @@ void EaglerHost::_ui_back() {
 // ---------------------------------------------------------------------------
 
 void EaglerHost::reload() {
+	guard_injections_ = 0;
+	guard_timer_ = 0.0;
 	if (is_android_ && webview_.is_valid()) {
 		_run_on_ui_thread(Callable(this, "_ui_load_url").bind(get_base_url()));
 	}
