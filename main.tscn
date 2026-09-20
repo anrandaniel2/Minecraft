@@ -8,3 +8,10 @@ immersive = true
 offline_only = true
 native_unpack = true
 enable_game_workers = true
+
+[node name="AppUpdater" type="AppUpdater" parent="."]
+repository = "anrandaniel2/Minecraft"
+asset_pattern = "*.apk"
+auto_check = true
+auto_check_interval_hours = 24
+allow_prerelease = true

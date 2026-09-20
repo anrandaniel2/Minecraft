@@ -17,6 +17,8 @@
 		"Thread",
 		"Mutex",
 		"Semaphore",
-		"WorkerThreadPool"
+		"WorkerThreadPool",
+		"JSON",
+		"HashingContext"
 	]
 }

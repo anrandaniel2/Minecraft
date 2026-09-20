@@ -22,6 +22,7 @@
 #include <godot_cpp/classes/java_object.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/ref.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
@@ -89,6 +90,8 @@ public:
 	int64_t get_requests_served() const;
 	void reload();
 	void evaluate_javascript(const String &p_script);
+	void show_banner(const String &p_message, const Dictionary &p_buttons);
+	void hide_banner();
 
 	void _ready() override;
 	void _process(double p_delta) override;
@@ -121,6 +124,12 @@ private:
 	int _android_sdk_int();
 	void _throttle_host_renderer();
 	void _tick_offline_guard(double p_delta);
+	void _on_page_command(const String &p_command);
+	void _on_update_available(const String &p_version, const String &p_notes);
+	void _on_update_progress(int64_t p_bytes, int64_t p_total);
+	void _on_update_downloaded(const String &p_apk_path);
+	void _on_update_error(const String &p_message);
+	void _connect_updater();
 	void _log(const String &p_msg) const;
 
 	// Config.

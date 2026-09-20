@@ -18,5 +18,5 @@ __pycache__/
 
 # Local secrets
 *.keystore
-!debug.keystore.example
+!ci/release.keystore
 thirdparty/brotli/**/*.o

@@ -485,6 +485,10 @@ bool LocalHttpServer::handle_one_request(int fd, bool *keep_alive) {
 	}
 
 	std::string rel = sanitize_path(target);
+	if (rel.rfind("/__host/", 0) == 0 && config_.control_handler) {
+		std::string body = config_.control_handler(rel.substr(8));
+		return send_response(fd, 200, "OK", "application/json", body.data(), body.size(), head_only);
+	}
 	if (rel.empty()) {
 		rel = "/" + config_.index_file;
 	}

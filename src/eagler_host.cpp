@@ -5,6 +5,7 @@
 #include "bundle_unpacker.h"
 
 #include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/classes/display_server.hpp>
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/file_access.hpp>
@@ -72,6 +73,30 @@ constexpr const char *kOfflineGuardJs = R"JS(
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
 })();
+)JS";
+
+// In-page update banner (injected via evaluateJavascript). Pure DOM, no
+// dependency on the game. Buttons call back into the host through the
+// loopback server's /__host/ endpoint.
+constexpr const char *kUpdateBannerJs = R"JS(
+(function(){
+  var id='__eagler_update_banner';
+  var old=document.getElementById(id); if(old) old.remove();
+  var d=document.createElement('div'); d.id=id;
+  d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:2147483647;background:rgba(20,24,28,.94);color:#eee;'+
+    'font:14px/1.4 system-ui,sans-serif;padding:10px 14px;display:flex;gap:10px;align-items:center;'+
+    'box-shadow:0 2px 12px rgba(0,0,0,.6);border-bottom:1px solid #3a4;';
+  var t=document.createElement('div'); t.style.flex='1'; t.textContent=__MSG__; d.appendChild(t);
+  var p=document.createElement('div'); p.id=id+'_p'; p.style.cssText='min-width:52px;text-align:right;color:#9d9'; d.appendChild(p);
+  function btn(label,cmd,primary){var b=document.createElement('button');b.textContent=label;
+    b.style.cssText='padding:8px 14px;border:0;border-radius:6px;font-weight:600;'+(primary?'background:#3a4;color:#fff':'background:#334;color:#ccc');
+    b.onclick=function(){fetch('/__host/'+cmd).catch(function(){});if(cmd==='dismiss')d.remove();};d.appendChild(b);}
+  __BUTTONS__
+  document.body.appendChild(d);
+})();
+)JS";
+constexpr const char *kUpdateProgressJs = R"JS(
+(function(){var p=document.getElementById('__eagler_update_banner_p');if(p)p.textContent=__PCT__;})();
 )JS";
 
 bool make_dirs(const std::string &path) {
@@ -162,6 +187,16 @@ void EaglerHost::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_ui_back"), &EaglerHost::_ui_back);
 	ClassDB::bind_method(D_METHOD("_throttle_host_renderer"), &EaglerHost::_throttle_host_renderer);
 	ClassDB::bind_method(D_METHOD("_ui_reapply_fullscreen"), &EaglerHost::_ui_reapply_fullscreen);
+	ClassDB::bind_method(D_METHOD("_on_page_command", "command"), &EaglerHost::_on_page_command);
+	ClassDB::bind_method(D_METHOD("_connect_updater"), &EaglerHost::_connect_updater);
+	ClassDB::bind_method(D_METHOD("_on_update_available", "version", "notes"), &EaglerHost::_on_update_available);
+	ClassDB::bind_method(D_METHOD("_on_update_progress", "bytes", "total"), &EaglerHost::_on_update_progress);
+	ClassDB::bind_method(D_METHOD("_on_update_downloaded", "apk_path"), &EaglerHost::_on_update_downloaded);
+	ClassDB::bind_method(D_METHOD("_on_update_error", "message"), &EaglerHost::_on_update_error);
+	ClassDB::bind_method(D_METHOD("show_banner", "message", "buttons"), &EaglerHost::show_banner);
+	ClassDB::bind_method(D_METHOD("hide_banner"), &EaglerHost::hide_banner);
+
+	ADD_SIGNAL(MethodInfo("page_command", PropertyInfo(Variant::STRING, "command")));
 
 	ClassDB::bind_method(D_METHOD("set_host_fps_when_hidden", "fps"), &EaglerHost::set_host_fps_when_hidden);
 	ClassDB::bind_method(D_METHOD("get_host_fps_when_hidden"), &EaglerHost::get_host_fps_when_hidden);
@@ -260,6 +295,7 @@ void EaglerHost::_ready() {
 	if (is_android_) {
 		_run_on_ui_thread(Callable(this, "_ui_reapply_fullscreen"));
 	}
+	call_deferred("_connect_updater"); // children are ready after us
 	_start_extraction();
 }
 
@@ -520,6 +556,11 @@ bool EaglerHost::_start_server() {
 	// server workers can use SharedArrayBuffer and high-resolution timers.
 	cfg.cross_origin_isolation = cross_origin_isolation_ || (unpacked_ && enable_game_workers_);
 	cfg.immutable_assets = unpacked_;
+	cfg.control_handler = [this](const std::string &cmd) -> std::string {
+		// Runs on an HTTP worker thread: hop to the main thread.
+		call_deferred("_on_page_command", String(cmd.c_str()));
+		return "{\"ok\":true}";
+	};
 	cfg.worker_threads = worker_threads_ > 0 ? static_cast<unsigned>(worker_threads_) : 0;
 	std::string err;
 	if (!server_->start(cfg, &err)) {
@@ -790,6 +831,81 @@ void EaglerHost::_ui_back() {
 	if (webview_.is_valid() && bool(webview_->call("canGoBack"))) {
 		webview_->call("goBack");
 	}
+}
+
+// ---------------------------------------------------------------------------
+// In-page banner + updater bridge
+// ---------------------------------------------------------------------------
+
+static String _js_string(const String &p) {
+	return "\"" + p.json_escape() + "\"";
+}
+
+void EaglerHost::show_banner(const String &p_message, const Dictionary &p_buttons) {
+	// p_buttons: { "Label": "command", ... }; first entry is the primary one.
+	String buttons;
+	Array keys = p_buttons.keys();
+	for (int i = 0; i < keys.size(); ++i) {
+		buttons += "btn(" + _js_string(keys[i]) + "," + _js_string(p_buttons[keys[i]]) + "," + (i == 0 ? "true" : "false") + ");";
+	}
+	String js = String(kUpdateBannerJs).replace("__MSG__", _js_string(p_message)).replace("__BUTTONS__", buttons);
+	evaluate_javascript(js);
+}
+
+void EaglerHost::hide_banner() {
+	evaluate_javascript("(function(){var b=document.getElementById('__eagler_update_banner');if(b)b.remove();})();");
+}
+
+void EaglerHost::_on_page_command(const String &p_command) {
+	emit_signal("page_command", p_command);
+	Node *upd = get_node_or_null(NodePath("AppUpdater"));
+	if (p_command == "update_download" && upd) {
+		upd->call("download_update");
+		show_banner("Downloading update…", Dictionary());
+	} else if (p_command == "update_install" && upd) {
+		upd->call("install_update");
+	} else if (p_command == "update_check" && upd) {
+		upd->call("check_for_update");
+	} else if (p_command == "dismiss") {
+		hide_banner();
+	}
+}
+
+void EaglerHost::_on_update_available(const String &p_version, const String &) {
+	Dictionary b;
+	b["Update"] = "update_download";
+	b["Later"] = "dismiss";
+	show_banner("EaglerCraft " + p_version + " is available.", b);
+}
+
+void EaglerHost::_on_update_progress(int64_t p_bytes, int64_t p_total) {
+	String pct = p_total > 0 ? String::num_int64(p_bytes * 100 / p_total) + "%" : String::num_int64(p_bytes / 1048576) + " MB";
+	evaluate_javascript(String(kUpdateProgressJs).replace("__PCT__", _js_string(pct)));
+}
+
+void EaglerHost::_on_update_downloaded(const String &) {
+	Dictionary b;
+	b["Install"] = "update_install";
+	b["Later"] = "dismiss";
+	show_banner("Update downloaded. Install now? (the app will restart)", b);
+}
+
+void EaglerHost::_on_update_error(const String &p_message) {
+	Dictionary b;
+	b["Retry"] = "update_check";
+	b["Dismiss"] = "dismiss";
+	show_banner("Update failed: " + p_message, b);
+}
+
+void EaglerHost::_connect_updater() {
+	Node *upd = get_node_or_null(NodePath("AppUpdater"));
+	if (!upd) {
+		return;
+	}
+	upd->connect("update_available", Callable(this, "_on_update_available"));
+	upd->connect("download_progress", Callable(this, "_on_update_progress"));
+	upd->connect("download_finished", Callable(this, "_on_update_downloaded"));
+	upd->connect("update_error", Callable(this, "_on_update_error"));
 }
 
 // ---------------------------------------------------------------------------

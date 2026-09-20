@@ -115,3 +115,33 @@ so the project opens in the desktop editor; the WebView is Android-only.
   Chromium's GPU process handles WebGL through the device driver
   (ANGLE-on-Vulkan on most modern Android devices).
 * Requires a device with Android 7.0+ and an up-to-date Android System WebView.
+
+## In-app updates
+
+The `AppUpdater` node (C++, `src/app_updater.*`, child of `EaglerHost` in
+`main.tscn`) makes installed builds self-updating:
+
+1. On start (and every `auto_check_interval_hours`) it asks
+   `https://api.github.com/repos/<repository>/releases` for the newest release
+   whose asset matches `asset_pattern` (`*.apk`). With `allow_prerelease = true`
+   the rolling **`nightly`** pre-release that every push publishes is eligible;
+   set it to `false` to follow only tagged `vX.Y.Z` releases.
+2. If it is newer than the running `versionName`, a banner is injected into the
+   game page: **Update / Later**.
+3. **Update** streams the APK to the app's cache dir, checks the `.sha256`
+   sidecar, then **Install** hands it to `PackageInstaller`. Android 8+ asks
+   once to allow installs from this app (`REQUEST_INSTALL_PACKAGES`).
+
+Only `api.github.com`, `github.com` and `*.githubusercontent.com` are allowed
+by the network-security-config for this; the game itself remains offline.
+
+**Signing.** An update installs only if it is signed with the same key as the
+installed build. CI therefore always produces a *release* APK signed with a
+stable key: your `RELEASE_KEYSTORE_BASE64/_USER/_PASSWORD` secrets if set,
+otherwise the dev key it generates once and commits to `ci/release.keystore`
+(see `ci/README.md`). Switching keys requires one manual reinstall.
+
+**Versions.** CI stamps `version/name` (`config/version` from `project.godot`
++ `.<run number>` for branch builds, or the `vX.Y.Z` tag) and a monotonically
+increasing `version/code` into the export before building, so every build is
+an upgrade over the previous one.

@@ -25,6 +25,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <functional>
 #include <vector>
 
 namespace eagler {
@@ -39,6 +40,9 @@ public:
 		bool cross_origin_isolation = false; // COOP/COEP headers (SharedArrayBuffer).
 		int keep_alive_timeout_sec = 15;
 		bool immutable_assets = false; // Long-lived caching for non-HTML files.
+		// Optional: requests to "/__host/<command>" are routed here (from any
+		// worker thread) instead of the filesystem. Return the response body.
+		std::function<std::string(const std::string &command)> control_handler;
 	};
 
 	LocalHttpServer();

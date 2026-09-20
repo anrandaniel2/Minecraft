@@ -7,6 +7,7 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
+#include "app_updater.h"
 #include "eagler_host.h"
 
 using namespace godot;
@@ -16,6 +17,7 @@ void initialize_eaglerhost_module(ModuleInitializationLevel p_level) {
 		return;
 	}
 	GDREGISTER_CLASS(EaglerHost);
+	GDREGISTER_CLASS(AppUpdater);
 }
 
 void uninitialize_eaglerhost_module(ModuleInitializationLevel p_level) {

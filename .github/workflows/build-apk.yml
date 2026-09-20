@@ -126,7 +126,7 @@ jobs:
   # ---------------------------------------------------------------------------
   commit-libs:
     name: Commit prebuilt libraries
-    needs: [native]
+    needs: [native, apk]   # after apk so the two commit-back steps never race
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -258,6 +258,15 @@ jobs:
                   <domain includeSubdomains="false">127.0.0.1</domain>
                   <domain includeSubdomains="false">localhost</domain>
               </domain-config>
+              <!-- In-app updater: GitHub Releases only, HTTPS with system CAs. -->
+              <domain-config cleartextTrafficPermitted="false">
+                  <domain includeSubdomains="false">api.github.com</domain>
+                  <domain includeSubdomains="false">github.com</domain>
+                  <domain includeSubdomains="true">githubusercontent.com</domain>
+                  <trust-anchors>
+                      <certificates src="system" />
+                  </trust-anchors>
+              </domain-config>
           </network-security-config>
           XML
           cat >> android/build/build.gradle <<'GRADLE'
@@ -289,6 +298,23 @@ jobs:
           GRADLE
           tail -n 30 android/build/build.gradle
 
+      - name: Stamp version
+        id: ver
+        run: |
+          set -e
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            NAME="${GITHUB_REF#refs/tags/v}"
+          else
+            # Purely numeric 4th segment so the in-app version compare orders nightlies.
+            NAME="$(grep -oP 'config/version="\K[^"]+' project.godot).${GITHUB_RUN_NUMBER}"
+          fi
+          # versionCode must increase monotonically: seconds since 2024 / 60 fits in int32 until 2106.
+          CODE=$(( ( $(date +%s) - 1704067200 ) / 60 ))
+          sed -i "s|^version/name=.*|version/name=\"$NAME\"|; s|^version/code=.*|version/code=$CODE|" export_presets.cfg
+          sed -i "s|^config/version=.*|config/version=\"$NAME\"|" project.godot
+          echo "name=$NAME" >> $GITHUB_OUTPUT; echo "code=$CODE" >> $GITHUB_OUTPUT
+          grep -n "version/" export_presets.cfg
+
       - name: Prepare keystore
         id: keystore
         env:
@@ -304,16 +330,31 @@ jobs:
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/debug.keystore" >> $GITHUB_ENV
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> $GITHUB_ENV
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> $GITHUB_ENV
-          # Release keystore (only if secrets are configured).
+          # Release keystore. Android only installs an update if it is signed
+          # with the SAME key as the installed build, so this must be stable:
+          #   * preferred: RELEASE_KEYSTORE_BASE64/_USER/_PASSWORD secrets
+          #   * fallback : a keystore committed in ci/release.keystore (dev key;
+          #                fine for side-loaded builds, NOT for a store).
           if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
             echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$HOME/release.keystore"
-            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$HOME/release.keystore" >> $GITHUB_ENV
-            echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$RELEASE_KEYSTORE_USER" >> $GITHUB_ENV
-            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$RELEASE_KEYSTORE_PASSWORD" >> $GITHUB_ENV
-            echo "has_release=true" >> $GITHUB_OUTPUT
+            USER="$RELEASE_KEYSTORE_USER"; PASS="$RELEASE_KEYSTORE_PASSWORD"
           else
-            echo "has_release=false" >> $GITHUB_OUTPUT
+            if [ ! -f ci/release.keystore ]; then
+              # First run: create the dev key and commit it so all later builds share it.
+              mkdir -p ci
+              keytool -genkeypair -v -keystore ci/release.keystore -storepass eaglerhost-dev -keypass eaglerhost-dev \
+                -alias eaglerhost -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=EaglerCraft Godot Host Dev,O=EaglerHost,C=CA" >/dev/null 2>&1
+              echo "new_keystore=true" >> $GITHUB_OUTPUT
+            fi
+            cp ci/release.keystore "$HOME/release.keystore"
+            USER="eaglerhost"; PASS="eaglerhost-dev"
+            echo "::notice::Using the dev release key (ci/release.keystore). Set RELEASE_KEYSTORE_* secrets for a private key."
           fi
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$HOME/release.keystore" >> $GITHUB_ENV
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$USER" >> $GITHUB_ENV
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$PASS" >> $GITHUB_ENV
+          echo "has_release=true" >> $GITHUB_OUTPUT
 
       - name: Configure Godot editor settings (Android SDK / Java paths)
         run: |
@@ -337,15 +378,13 @@ jobs:
 
       - name: Export APK
         env:
-          WANT_RELEASE: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.release) && steps.keystore.outputs.has_release == 'true' }}
+          VER: ${{ steps.ver.outputs.name }}
         run: |
           set -o pipefail
           mkdir -p export
-          if [ "$WANT_RELEASE" = "true" ]; then
-            ~/godot/godot --headless --path . --export-release "Android" export/EaglerCraft.apk 2>&1 | tee export.log
-          else
-            ~/godot/godot --headless --path . --export-debug "Android" export/EaglerCraft-debug.apk 2>&1 | tee export.log
-          fi
+          # Always a *release* export signed with the stable key so every build
+          # can update over the previous one.
+          ~/godot/godot --headless --path . --export-release "Android" "export/EaglerCraft-${VER}.apk" 2>&1 | tee export.log
           ls -la export
           test -n "$(ls export/*.apk 2>/dev/null)" || { echo "::error::No APK produced"; exit 1; }
           if grep -q "Cannot get class 'EaglerHost'" export.log; then
@@ -358,23 +397,65 @@ jobs:
           # INTERNET is required by Android even for 127.0.0.1 sockets; anything
           # beyond INTERNET/WAKE_LOCK/VIBRATE is an error.
           $AAPT dump permissions "$APK" | tee perms.txt
-          if grep -E "uses-permission" perms.txt | grep -vE "INTERNET|WAKE_LOCK|VIBRATE|ACCESS_NETWORK_STATE"; then
+          if grep -E "uses-permission" perms.txt | grep -vE "INTERNET|WAKE_LOCK|VIBRATE|ACCESS_NETWORK_STATE|REQUEST_INSTALL_PACKAGES"; then
             echo "::error::unexpected permission requested"; exit 1; fi
           unzip -l "$APK" | grep -q "eaglercraft.html" || { echo "::error::bundle missing from APK"; exit 1; }
           unzip -l "$APK" | grep -E "libeaglerhost|libgodot_android|AndroidManifest" || true
           unzip -l "$APK" | grep -q "lib/arm64-v8a/libeaglerhost" || { echo "::error::arm64 native lib missing from APK"; exit 1; }
+          # The .so must NOT also be inside the PCK: if Godot finds it as a
+          # resource it tries to dlopen from the pack and fails on device.
+          unzip -o -q "$APK" "assets/*" -d /tmp/apkassets || true
+          if grep -rl "libeaglerhost.android" /tmp/apkassets 2>/dev/null | grep -q .; then
+            echo "::error::native library was packed into the PCK (include_filter too broad)"; exit 1; fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: EaglerCraft-apk
           path: |
             export/*.apk
+            export/*.apk.sha256
             export.log
           if-no-files-found: error
           retention-days: 30
 
-      - name: Attach to release
+      - name: Commit generated dev keystore
+        if: steps.keystore.outputs.new_keystore == 'true' && github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git stash -u -q || true   # drop version-stamp edits, keep only the keystore
+          git stash pop -q 2>/dev/null || true
+          git checkout -- export_presets.cfg project.godot 2>/dev/null || true
+          git add -f ci/release.keystore
+          git commit -m "ci: add dev release keystore (stable update signature) [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase origin "${{ github.ref_name }}" && git push origin HEAD:"${{ github.ref_name }}" && break
+            sleep 5
+          done
+
+      - name: Checksum
+        run: |
+          cd export && for f in *.apk; do sha256sum "$f" > "$f.sha256"; done && cat *.sha256
+
+      - name: Publish release (tag)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: export/*.apk
+          files: |
+            export/*.apk
+            export/*.apk.sha256
+          generate_release_notes: true
+
+      - name: Publish rolling pre-release (branch push)
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly ${{ steps.ver.outputs.name }}
+          prerelease: true
+          body: |
+            Automatic build of `${{ github.sha }}` from `${{ github.ref_name }}`.
+            The in-app updater with `allow_prerelease = true` will pick this up.
+          files: |
+            export/*.apk
+            export/*.apk.sha256
