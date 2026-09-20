@@ -1,9 +1,8 @@
-# Minecraft extracted / decompiled (32k files, 300MB) – not in Git, use workflow artifacts
+# Minecraft extracted / decompiled (32k files, 300MB) – not in Git by default, use workflow artifacts
 extracted/
 deobfuscated/
 decompiled/
 decompiled_*/
-decompiled_sample/
 *.tar.gz
 vineflower.jar
 *.log
@@ -12,9 +11,14 @@ vineflower.jar
 !minecraft-server*.jar
 !minecraft-client-*.jar
 
-# Gradle / IDE
+# Grad* IDE
 .gradle/
 build/
 out/
 .idea/
 *.iml
+
+# Allow decompiled_sample as proof (small, 1-2 files)
+!decompiled_sample/
+!decompiled_sample/**
+
