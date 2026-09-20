@@ -71,9 +71,11 @@ Persistence and resolution:
   Browser storage (IndexedDB worlds, settings) is keyed by origin; with an
   ephemeral port every launch looked like a fresh install. The page also
   calls `navigator.storage.persist()` so the WebView won't evict the data.
-* `render_scale` (default 0 = auto) — multiplier on `devicePixelRatio` for
-  the game canvas. Auto caps the backing store around 1.1 MP; set `1.0` for
-  native resolution, `0.5` for maximum frame rate.
+* `render_scale` (default 0 = native / user choice) — the game canvas runs
+  at native resolution unless the player lowers it. The in-page menu
+  (`fetch('/__host/render_scale_menu')`, or the host's `show_render_scale_menu()`)
+  offers 100 / 75 / 50 %; the choice is remembered in `localStorage`. Setting
+  the property to a value > 0 forces that multiplier instead.
 
 Other runtime performance settings on the node:
 

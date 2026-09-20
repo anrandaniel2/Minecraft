@@ -105,6 +105,7 @@ public:
 	void evaluate_javascript(const String &p_script);
 	void show_banner(const String &p_message, const Dictionary &p_buttons);
 	void hide_banner();
+	void show_render_scale_menu();
 
 	void _ready() override;
 	void _process(double p_delta) override;
@@ -189,7 +190,7 @@ private:
 	bool sustained_performance_ = true;
 	bool stop_host_render_loop_ = true;
 	int server_port_ = 28018; // fixed so the browser origin (and its IndexedDB) is stable
-	double render_scale_ = 0.0; // 0 = auto (cap the canvas at ~1080p-equivalent), else devicePixelRatio multiplier
+	double render_scale_ = 0.0; // 0 = native / user choice in-page; else forced devicePixelRatio multiplier
 	int watchdog_dumps_ = 0;
 	double watchdog_timer_ = 0.0;
 };

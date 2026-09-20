@@ -31,7 +31,7 @@ namespace {
 constexpr const char *kBundleStampFile = ".eagler_bundle_stamp";
 // Bump whenever BundleUnpacker changes the generated index.html so an
 // already-unpacked install is regenerated on the next launch.
-constexpr const char *kUnpackTemplateVersion = "unpack-template:5\n";
+constexpr const char *kUnpackTemplateVersion = "unpack-template:6\n";
 
 // android.view.View#SYSTEM_UI_FLAG_* combination for sticky immersive mode.
 constexpr int kImmersiveFlags = 0x00000100 /*LAYOUT_STABLE*/
@@ -218,6 +218,7 @@ void EaglerHost::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_update_error", "message"), &EaglerHost::_on_update_error);
 	ClassDB::bind_method(D_METHOD("show_banner", "message", "buttons"), &EaglerHost::show_banner);
 	ClassDB::bind_method(D_METHOD("hide_banner"), &EaglerHost::hide_banner);
+	ClassDB::bind_method(D_METHOD("show_render_scale_menu"), &EaglerHost::show_render_scale_menu);
 
 	ADD_SIGNAL(MethodInfo("page_command", PropertyInfo(Variant::STRING, "command")));
 
@@ -1022,6 +1023,10 @@ void EaglerHost::show_banner(const String &p_message, const Dictionary &p_button
 	evaluate_javascript(js);
 }
 
+void EaglerHost::show_render_scale_menu() {
+	_on_page_command("render_scale_menu");
+}
+
 void EaglerHost::hide_banner() {
 	evaluate_javascript("(function(){var b=document.getElementById('__eagler_update_banner');if(b)b.remove();})();");
 }
@@ -1036,6 +1041,16 @@ void EaglerHost::_on_page_command(const String &p_command) {
 		upd->call("install_update");
 	} else if (p_command == "update_check" && upd) {
 		upd->call("check_for_update");
+	} else if (p_command.begins_with("scale_")) {
+		hide_banner();
+		evaluate_javascript("window.__eaglerSetRenderScale && window.__eaglerSetRenderScale(" + p_command.trim_prefix("scale_") + ");");
+	} else if (p_command == "render_scale_menu") {
+		Dictionary b;
+		b["100%"] = "scale_1.0";
+		b["75%"] = "scale_0.75";
+		b["50%"] = "scale_0.5";
+		b["Cancel"] = "dismiss";
+		show_banner("Render resolution (lower = faster)", b);
 	} else if (p_command == "dismiss") {
 		hide_banner();
 	}

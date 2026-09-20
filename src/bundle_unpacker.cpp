@@ -421,14 +421,14 @@ bool BundleUnpacker::unpack(const Options &opts, UnpackStats *stats, std::string
 				"  }).catch(function(e){window.__eaglerHostLog('gpu probe failed: '+e+' -> webgl2');if(mode==='auto'){window.__eaglerWebGPU=false;}});}catch(e){window.__eaglerHostLog('gpu probe threw: '+e);if(mode==='auto'){window.__eaglerWebGPU=false;}}}\n"
 				"  window.__eaglerWebGPUFailed=function(why){try{localStorage.setItem('eaglerHostWebGPUFailed','1');}catch(e){}window.__eaglerHostLog('WEBGPU-FAILED '+why);};\n"
 				"})();\n"
-				// Render scale. The game sizes its backing canvas from window.devicePixelRatio,
-				// so a 2560x1600 tablet at DPR 2 renders 4M px per frame. ?scale=<f> multiplies
-				// the DPR; auto (no param) caps the backing store around 1.1 MP (~1440x800)
-				// which is where mid-range mobile GPUs hold 60 fps in this client.
+				// Render scale. The game sizes its backing canvas from window.devicePixelRatio.
+				// Default is native (100%). ?scale=<f> or the persisted user choice
+				// (localStorage eaglerHostRenderScale, set from the in-page menu) lowers it.
 				"(function(){var p=new URLSearchParams(location.search||'');var real=window.devicePixelRatio||1;var s=parseFloat(p.get('scale'));\n"
-				"  var dpr;if(s>0){dpr=real*s;}else{var px=screen.width*screen.height*real*real;var cap=1100000;dpr=px>cap?real*Math.sqrt(cap/px):real;}\n"
-				"  dpr=Math.max(0.5,Math.min(dpr,real));if(Math.abs(dpr-real)>0.001){try{Object.defineProperty(window,'devicePixelRatio',{get:function(){return dpr;},configurable:true});}catch(e){}}\n"
-				"  window.__eaglerHostLog('render scale dpr='+real.toFixed(2)+' -> '+dpr.toFixed(2)+' css='+screen.width+'x'+screen.height+' backing~'+Math.round(screen.width*dpr)+'x'+Math.round(screen.height*dpr));\n"
+				"  if(!(s>0)){try{s=parseFloat(localStorage.getItem('eaglerHostRenderScale'));}catch(e){}}if(!(s>0))s=1.0;s=Math.max(0.25,Math.min(s,1.0));\n"
+				"  var dpr=real*s;if(s<0.999){try{Object.defineProperty(window,'devicePixelRatio',{get:function(){return dpr;},configurable:true});}catch(e){}}\n"
+				"  window.__eaglerRenderScale=s;window.__eaglerSetRenderScale=function(v){try{localStorage.setItem('eaglerHostRenderScale',String(v));}catch(e){}location.reload();};\n"
+				"  window.__eaglerHostLog('render scale '+Math.round(s*100)+'% dpr='+real.toFixed(2)+' -> '+dpr.toFixed(2)+' backing~'+Math.round(screen.width*dpr)+'x'+Math.round(screen.height*dpr));\n"
 				"})();\n"
 				// Persistent storage: without navigator.storage.persist() the WebView may evict
 				// the origin's IndexedDB (worlds/settings) under storage pressure.
