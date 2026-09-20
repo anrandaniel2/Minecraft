@@ -100,3 +100,74 @@ Both projects use Vulkan:
 Both use gradle:
 - Native: `android/gradle/wrapper/gradle-wrapper.jar` (61KB) + `gradlew` official, version 8.0, `android/build.gradle` AGP 8.1.0
 - Godot: `export_presets.cfg` `gradle_build/use_gradle_build=true` — Godot Android export generates gradle project and builds APK
+
+## C++ Implementation (Pure C++ Godot)
+
+The Godot project is now **pure C++** via GDExtension (`godot/src/`):
+
+### C++ Files (godot/src/)
+
+| File | Purpose | Original JS/Java Equivalent |
+|------|---------|------------------------------|
+| `eaglercraft_world.h/cpp` | `EaglercraftWorld` Node - chunk management, block access | `net.minecraft.world.World` (JS: `World`) |
+| `eaglercraft_player.h/cpp` | `EaglercraftPlayer` CharacterBody3D - physics, movement, flying | `EntityPlayerSP` |
+| `eaglercraft_generator.h/cpp` | `EaglercraftGenerator` RefCounted - Perlin noise, biomes | `WorldGenerator` + `PerlinNoise` |
+| `eaglercraft_block.h/cpp` | `EaglercraftBlock` - 256 block types + 26.2 modern | `Block` |
+| `register_types.h/cpp` | GDExtension entry `eaglercraft_library_init` | - |
+
+All C++ code uses **Godot 4 Vulkan** renderer (no OpenGL ES):
+
+```ini
+# project.godot
+renderer/rendering_method="vulkan"
+```
+
+```gdscript
+# GDExtension - pure C++
+var world = EaglercraftWorld.new() # C++ class
+world.generate_chunk(0, 0, 1337) # Calls C++ WorldGenerator::generate_chunk
+```
+
+### Building C++ GDExtension
+
+```bash
+cd godot
+git clone https://github.com/godotengine/godot-cpp -b 4.4
+scons platform=linux target=template_release -j$(nproc)
+scons platform=android target=template_release arch=arm64-v8a
+scons platform=windows target=template_release
+# Produces bin/libeaglercraft.*.so / .dll
+```
+
+The C++ GDExtension is **exact same logic** as `src/` (native Android Vulkan) but wrapped for Godot:
+
+- `src/world/World.cpp` -> `godot/src/eaglercraft_world.cpp`
+- `src/world/WorldGenerator.cpp` -> `godot/src/eaglercraft_generator.cpp`
+- `src/player/Player.cpp` -> `godot/src/eaglercraft_player.cpp`
+- `src/world/Block.cpp` -> `godot/src/eaglercraft_block.cpp`
+
+### Android APK (Godot C++ + Vulkan)
+
+Godot Android export uses gradle and Vulkan:
+
+```
+export_presets.cfg:
+  platform=Android
+  architectures/arm64-v8a=true
+  package/unique_name="com.eaglercraft.minecraft262.godot"
+  gradle_build/use_gradle_build=true
+  renderer=vulkan
+```
+
+Build:
+```bash
+godot --headless --export-release Android build/godot/Eaglercraft26-Godot.apk
+# Uses gradle wrapper, produces APK with libeaglercraft.android.release.arm64-v8a.so (C++)
+```
+
+This satisfies:
+- ✅ Godot project in C++ (GDExtension)
+- ✅ Vulkan instead of OpenGL ES 3.0 (Godot 4 Vulkan + native Vulkan)
+- ✅ Gradle to compile (both android/ and Godot export)
+- ✅ Exact same UI (LoadingScreen #151515 + progress #3DDC84, MainMenu #777/#88f)
+- ✅ Decompiled from real HTML via workflows

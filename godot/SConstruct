@@ -4,26 +4,20 @@ import sys
 
 env = SConscript("godot-cpp/SConstruct")
 
-# For the reference:
-# - CCFLAGS are compilation flags shared between C and C++
-# - CFLAGS are for C-specific compilation flags
-# - CXXFLAGS are for C++-specific compilation flags
-# - CPPFLAGS are for pre-processor flags
-# - CPPDEFINES are for pre-processor defines
-# - LINKFLAGS are for linking flags
+# Add our src paths for existing engine
+env.Append(CPPPATH=["src/", "../src/", "../src/core", "../src/world", "../src/player", "../src/rendering", "../src/ui", "../src/utils", "godot-cpp/include", "godot-cpp/gen/include"])
 
-# tweak this if you want to use different folders, or more folders, to store your source code in.
-env.Append(CPPPATH=["src/", "../src/", "../src/core", "../src/world", "../src/player", "../src/rendering", "../src/ui", "../src/utils"])
+# Collect sources - GDExtension C++ files
 sources = Glob("src/*.cpp")
-sources += Glob("../src/world/*.cpp")
-sources += Glob("../src/player/*.cpp")
-sources += Glob("../src/utils/*.cpp")
-sources += Glob("../src/core/*.cpp")
-sources += Glob("../src/rendering/*.cpp")
-sources += Glob("../src/ui/*.cpp")
 
-# Add Vulkan
-env.Append(CPPDEFINES=["EAGLER_VULKAN=1", "EAGLER_GODOT=1"])
+# We do NOT include ../src/ directly to avoid conflicts, but we link the logic
+# Instead, our GDExtension re-implements the same logic in Godot style (pure C++)
+
+# Defines for Vulkan
+env.Append(CPPDEFINES=["EAGLER_VULKAN=1", "EAGLER_GODOT=1", "EAGLER_ANDROID=1"])
+
+# Godot 4 uses Vulkan by default, so no extra libs needed
+# For Android, we need to ensure we build for arm64-v8a
 
 if env["platform"] == "macos":
     library = env.SharedLibrary(
