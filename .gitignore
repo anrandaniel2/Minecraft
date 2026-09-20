@@ -1,24 +1,20 @@
-# Minecraft extracted / decompiled (32k files, 300MB) – not in Git by default, use workflow artifacts
-extracted/
+# Minecraft extracted / decompiled (32k files, 300MB) – extracted/ is now committed as whole jar
+# But keep decompiled/ etc ignored for local builds
 deobfuscated/
 decompiled/
 decompiled_*/
-*.tar.gz
-vineflower.jar
 *.log
-# Keep JARs (required for task) – do not ignore
+vineflower.jar
+# Keep JARs and tarballs for whole jar (required)
 !minecraft-client.jar
 !minecraft-server*.jar
+!minecraft-client-*.tar.gz
 !minecraft-client-*.jar
+!*.tar.gz
 
-# Grad* IDE
+# Gradle / IDE
 .gradle/
 build/
 out/
 .idea/
 *.iml
-
-# Allow decompiled_sample as proof (small, 1-2 files)
-!decompiled_sample/
-!decompiled_sample/**
-
