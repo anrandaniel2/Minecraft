@@ -61,6 +61,8 @@ public:
 	bool get_use_hardware_layer() const;
 
 	void set_immersive(bool p_enabled);
+	void set_safe_mode(bool p_enabled);
+	bool get_safe_mode() const;
 	bool get_immersive() const;
 
 	void set_cross_origin_isolation(bool p_enabled);
@@ -124,6 +126,8 @@ private:
 	int _android_sdk_int();
 	void _throttle_host_renderer();
 	void _tick_offline_guard(double p_delta);
+	void _tick_boot_watchdog(double p_delta);
+	String _page_url() const;
 	void _on_page_command(const String &p_command);
 	void _on_update_available(const String &p_version, const String &p_notes);
 	void _on_update_progress(int64_t p_bytes, int64_t p_total);
@@ -168,6 +172,10 @@ private:
 	bool fullscreen_dirty_ = false;
 	double fullscreen_timer_ = 0.0;
 	double guard_timer_ = 0.0;
+	std::atomic<bool> page_ready_{ false };
+	bool safe_mode_ = false; // load the page with ?singlethread (workers off)
+	int watchdog_dumps_ = 0;
+	double watchdog_timer_ = 0.0;
 };
 
 } // namespace godot

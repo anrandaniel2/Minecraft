@@ -346,7 +346,43 @@ bool BundleUnpacker::unpack(const Options &opts, UnpackStats *stats, std::string
 		replace_all("singleThreadMode: true,", "singleThreadMode: false,");
 	}
 
-	// 5) Marker so the host / tests can tell this is the unpacked variant.
+	// 5) Host diagnostics bridge: the page already keeps a structured boot log
+	//    (window.__log) and a crash journal; mirror stage changes, boot
+	//    percentages, console errors and uncaught errors to the native host
+	//    via the loopback control endpoint so they show up in logcat.
+	replace_all("window.__eaglerBoot = function (pct, text) {",
+			"window.__eaglerBoot = function (pct, text) {\n"
+			"\t\t\ttry { window.__eaglerHostLog && window.__eaglerHostLog(\"boot \" + pct + \"% \" + text); } catch (e) {}");
+	replace_all("\t\t\t\t\tstage: function (name) {",
+			"\t\t\t\t\tstage: function (name) {\n"
+			"\t\t\t\t\t\ttry { window.__eaglerHostLog && window.__eaglerHostLog(\"stage \" + name); } catch (e) {}");
+	replace_all("\t\t\t\tfunction fatal(kind, error) {",
+			"\t\t\t\tfunction fatal(kind, error) {\n"
+			"\t\t\t\t\ttry { window.__eaglerHostLog && window.__eaglerHostLog(\"FATAL \" + kind + \": \" + (error && (error.stack || error.message || error))); } catch (e) {}");
+	{
+		// Install the bridge itself as the very first script in <head>.
+		static const char kBridge[] =
+				"\n<script>(function(){\n"
+				"var q=[],busy=false;\n"
+				"function flush(){if(busy||!q.length)return;busy=true;var m=q.shift();\n"
+				"  var x=new XMLHttpRequest();x.open('GET','/__host/log?'+encodeURIComponent(m).slice(0,6000),true);\n"
+				"  x.onloadend=function(){busy=false;flush();};try{x.send();}catch(e){busy=false;}}\n"
+				"window.__eaglerHostLog=function(m){q.push(String(m));if(q.length>200)q.shift();flush();};\n"
+				"window.addEventListener('error',function(ev){window.__eaglerHostLog('window.error '+(ev&&ev.message)+' @'+(ev&&ev.filename)+':'+(ev&&ev.lineno));});\n"
+				"window.addEventListener('unhandledrejection',function(ev){var r=ev&&ev.reason;window.__eaglerHostLog('unhandledrejection '+(r&&(r.stack||r.message)||r));});\n"
+				"var ce=console.error;console.error=function(){try{window.__eaglerHostLog('console.error '+Array.prototype.join.call(arguments,' '));}catch(e){}return ce.apply(console,arguments);};\n"
+				"var cw=console.warn;console.warn=function(){try{window.__eaglerHostLog('console.warn '+Array.prototype.join.call(arguments,' '));}catch(e){}return cw.apply(console,arguments);};\n"
+				"window.__eaglerHostDump=function(){try{var j=window.__eaglerCrashJournal&&window.__eaglerCrashJournal.snapshot();\n"
+				"  var l=(window.__log||[]).slice(-40);window.__eaglerHostLog('DUMP stage='+(j&&j.stage)+' state='+(j&&j.state)+' err='+window.__err+' ready='+window.__eaglerGameReady+' loaded='+window.__loaded+' xoi='+self.crossOriginIsolated+' workers='+(typeof Worker)+'\\n'+l.join('\\n'));}catch(e){window.__eaglerHostLog('DUMP failed '+e);}};\n"
+				"window.__eaglerHostLog('bridge ready ua='+navigator.userAgent+' cores='+navigator.hardwareConcurrency+' mem='+(navigator.deviceMemory||'?'));\n"
+				"})();</script>\n";
+		size_t head_tag = html.find("<head>");
+		if (head_tag != std::string::npos) {
+			html.insert(head_tag + 6, kBridge);
+		}
+	}
+
+	// 6) Marker so the host / tests can tell this is the unpacked variant.
 	size_t head = html.find("<head>");
 	if (head != std::string::npos) {
 		html.insert(head + 6, "\n<meta name=\"eagler-native-unpack\" content=\"1\">\n");

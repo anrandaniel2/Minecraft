@@ -32,7 +32,10 @@ std::string to_lower(std::string s) {
 	return s;
 }
 
-std::string url_decode(const std::string &in) {
+
+} // namespace
+
+std::string LocalHttpServer::url_decode(const std::string &in) {
 	std::string out;
 	out.reserve(in.size());
 	for (size_t i = 0; i < in.size(); ++i) {
@@ -50,8 +53,6 @@ std::string url_decode(const std::string &in) {
 	}
 	return out;
 }
-
-} // namespace
 
 const char *mime_type_for_extension(const std::string &ext) {
 	struct Entry {
@@ -484,11 +485,14 @@ bool LocalHttpServer::handle_one_request(int fd, bool *keep_alive) {
 		return send_response(fd, 405, "Method Not Allowed", "text/plain", kBody, sizeof(kBody) - 1, head_only, "Allow: GET, HEAD\r\n");
 	}
 
-	std::string rel = sanitize_path(target);
-	if (rel.rfind("/__host/", 0) == 0 && config_.control_handler) {
-		std::string body = config_.control_handler(rel.substr(8));
-		return send_response(fd, 200, "OK", "application/json", body.data(), body.size(), head_only);
+	// Control endpoint gets the *raw* target (command + query string) so the
+	// page can pass arbitrary encoded text after '?'.
+	if (target.rfind("/__host/", 0) == 0 && config_.control_handler) {
+		std::string body = config_.control_handler(target.substr(8));
+		return send_response(fd, 200, "OK", "application/json", body.data(), body.size(), head_only,
+				"Cache-Control: no-store\r\n");
 	}
+	std::string rel = sanitize_path(target);
 	if (rel.empty()) {
 		rel = "/" + config_.index_file;
 	}

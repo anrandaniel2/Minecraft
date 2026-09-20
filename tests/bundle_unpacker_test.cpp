@@ -44,6 +44,8 @@ int main(int argc, char **argv) {
 	assert(html.find("id=\"eag-inline-wasm-br\"") == std::string::npos);
 	assert(html.find("id=\"eag-inline-sounds\"") == std::string::npos);
 	assert(html.find("eagler-native-unpack") != std::string::npos);
+	assert(html.find("window.__eaglerHostLog=function") != std::string::npos); // diagnostics bridge installed
+	assert(html.find("__eaglerHostLog(\"stage \" + name)") != std::string::npos); // crash-journal stages forwarded
 	assert(html.find("singleThreadMode: false") != std::string::npos);
 	assert(!eagler::BundleUnpacker::is_single_file_bundle(d + "index.html"));
 	printf("index.html = %zu KB (was %zu KB)\n", fsize(d + "index.html") / 1024, fsize(argv[1]) / 1024);

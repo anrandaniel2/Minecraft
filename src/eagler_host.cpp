@@ -189,6 +189,9 @@ void EaglerHost::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_ui_reapply_fullscreen"), &EaglerHost::_ui_reapply_fullscreen);
 	ClassDB::bind_method(D_METHOD("_on_page_command", "command"), &EaglerHost::_on_page_command);
 	ClassDB::bind_method(D_METHOD("_connect_updater"), &EaglerHost::_connect_updater);
+	ClassDB::bind_method(D_METHOD("set_safe_mode", "enabled"), &EaglerHost::set_safe_mode);
+	ClassDB::bind_method(D_METHOD("get_safe_mode"), &EaglerHost::get_safe_mode);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "safe_mode"), "set_safe_mode", "get_safe_mode");
 	ClassDB::bind_method(D_METHOD("_on_update_available", "version", "notes"), &EaglerHost::_on_update_available);
 	ClassDB::bind_method(D_METHOD("_on_update_progress", "bytes", "total"), &EaglerHost::_on_update_progress);
 	ClassDB::bind_method(D_METHOD("_on_update_downloaded", "apk_path"), &EaglerHost::_on_update_downloaded);
@@ -224,6 +227,8 @@ PackedStringArray EaglerHost::get_extra_web_files() const { return extra_web_fil
 void EaglerHost::set_use_hardware_layer(bool p_enabled) { use_hardware_layer_ = p_enabled; }
 bool EaglerHost::get_use_hardware_layer() const { return use_hardware_layer_; }
 void EaglerHost::set_immersive(bool p_enabled) { immersive_ = p_enabled; }
+void EaglerHost::set_safe_mode(bool p_enabled) { safe_mode_ = p_enabled; }
+bool EaglerHost::get_safe_mode() const { return safe_mode_; }
 bool EaglerHost::get_immersive() const { return immersive_; }
 void EaglerHost::set_cross_origin_isolation(bool p_enabled) { cross_origin_isolation_ = p_enabled; }
 bool EaglerHost::get_cross_origin_isolation() const { return cross_origin_isolation_; }
@@ -315,8 +320,45 @@ void EaglerHost::_tick_offline_guard(double p_delta) {
 	}
 }
 
+void EaglerHost::_tick_boot_watchdog(double p_delta) {
+	// If the page has not reported "game-ready" after a while, ask it to dump
+	// its boot log + crash journal so a stuck splash screen is diagnosable
+	// from logcat alone. Repeats a few times, then stops.
+	if (!is_android_ || webview_.is_null() || state_.load() != STATE_WEBVIEW_READY || page_ready_.load() || watchdog_dumps_ >= 4) {
+		return;
+	}
+	watchdog_timer_ += p_delta;
+	const double due = watchdog_dumps_ == 0 ? 30.0 : 60.0;
+	if (watchdog_timer_ >= due) {
+		watchdog_timer_ = 0.0;
+		watchdog_dumps_++;
+		_log("page not ready after " + String::num_int64(watchdog_dumps_ == 1 ? 30 : 30 + 60 * (watchdog_dumps_ - 1)) + " s; requesting boot dump");
+		_run_on_ui_thread(Callable(this, "_ui_eval_js").bind(String("window.__eaglerHostDump && window.__eaglerHostDump();")));
+		// Second strike (90 s): most likely the mesh/server workers never came
+		// up on this WebView. Reload once in the bundle's own single-thread
+		// mode (its "?singlethread" switch) before giving up.
+		if (watchdog_dumps_ == 2 && !safe_mode_ && enable_game_workers_) {
+			safe_mode_ = true;
+			UtilityFunctions::push_warning("[EaglerHost] boot stalled; reloading in single-thread safe mode (?singlethread)");
+			reload();
+		}
+	}
+}
+
+String EaglerHost::_page_url() const {
+	String url = get_base_url();
+	if (url.is_empty()) {
+		return url;
+	}
+	if (safe_mode_) {
+		url += "?singlethread";
+	}
+	return url;
+}
+
 void EaglerHost::_process(double p_delta) {
 	_tick_offline_guard(p_delta);
+	_tick_boot_watchdog(p_delta);
 	if (immersive_ && is_android_ && webview_.is_valid()) {
 		// Cheap periodic re-assert: system UI can reappear after the soft
 		// keyboard, dialogs or notification shade; sticky immersive hides it
@@ -556,8 +598,23 @@ bool EaglerHost::_start_server() {
 	// server workers can use SharedArrayBuffer and high-resolution timers.
 	cfg.cross_origin_isolation = cross_origin_isolation_ || (unpacked_ && enable_game_workers_);
 	cfg.immutable_assets = unpacked_;
-	cfg.control_handler = [this](const std::string &cmd) -> std::string {
-		// Runs on an HTTP worker thread: hop to the main thread.
+	cfg.control_handler = [this](const std::string &raw) -> std::string {
+		// Runs on an HTTP worker thread.
+		std::string cmd = raw, arg;
+		size_t q = raw.find('?');
+		if (q != std::string::npos) {
+			cmd = raw.substr(0, q);
+			arg = eagler::LocalHttpServer::url_decode(raw.substr(q + 1));
+		}
+		if (cmd == "log") {
+			// Page diagnostics -> logcat (thread-safe, no engine objects touched).
+			UtilityFunctions::print("[EaglerHost/page] ", String::utf8(arg.c_str(), static_cast<int>(arg.size())));
+			if (arg.rfind("stage game-ready", 0) == 0) {
+				page_ready_.store(true);
+			}
+			return "{\"ok\":true}";
+		}
+		// Everything else hops to the main thread.
 		call_deferred("_on_page_command", String(cmd.c_str()));
 		return "{\"ok\":true}";
 	};
@@ -681,7 +738,7 @@ void EaglerHost::_ui_create_webview() {
 
 	_apply_immersive_mode();
 
-	const String url = get_base_url();
+	const String url = _page_url();
 	wv->call("loadUrl", url);
 	// The offline guard is (re-)injected from _process() once the page has
 	// installed its own fetch shim, see _tick_offline_guard().
@@ -915,8 +972,11 @@ void EaglerHost::_connect_updater() {
 void EaglerHost::reload() {
 	guard_injections_ = 0;
 	guard_timer_ = 0.0;
+	page_ready_.store(false);
+	watchdog_dumps_ = 0;
+	watchdog_timer_ = 0.0;
 	if (is_android_ && webview_.is_valid()) {
-		_run_on_ui_thread(Callable(this, "_ui_load_url").bind(get_base_url()));
+		_run_on_ui_thread(Callable(this, "_ui_load_url").bind(_page_url()));
 	}
 }
 

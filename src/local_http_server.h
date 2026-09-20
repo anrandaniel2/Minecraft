@@ -40,8 +40,9 @@ public:
 		bool cross_origin_isolation = false; // COOP/COEP headers (SharedArrayBuffer).
 		int keep_alive_timeout_sec = 15;
 		bool immutable_assets = false; // Long-lived caching for non-HTML files.
-		// Optional: requests to "/__host/<command>" are routed here (from any
-		// worker thread) instead of the filesystem. Return the response body.
+		// Optional: requests to "/__host/<command>[?query]" are routed here
+		// (from any worker thread) instead of the filesystem; the argument is
+		// the raw, still URL-encoded "<command>[?query]". Return the body.
 		std::function<std::string(const std::string &command)> control_handler;
 	};
 
@@ -63,6 +64,9 @@ public:
 	uint64_t requests_served() const { return requests_.load(); }
 	uint64_t bytes_sent() const { return bytes_sent_.load(); }
 	unsigned worker_count() const { return static_cast<unsigned>(workers_.size()); }
+
+	// Percent-decoding helper (public so control-handler users can decode query text).
+	static std::string url_decode(const std::string &in);
 
 private:
 	void accept_loop();

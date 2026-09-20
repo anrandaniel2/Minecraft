@@ -145,3 +145,17 @@ otherwise the dev key it generates once and commits to `ci/release.keystore`
 + `.<run number>` for branch builds, or the `vX.Y.Z` tag) and a monotonically
 increasing `version/code` into the export before building, so every build is
 an upgrade over the previous one.
+
+## Diagnosing a stuck loading screen
+
+The unpacked page carries a tiny diagnostics bridge: the bundle's own boot
+stages (`window.__eaglerCrashJournal`), boot percentages, `console.error`/
+`warn`, uncaught errors and unhandled promise rejections are forwarded to the
+native host and printed to logcat as `[EaglerHost/page] …`. If the game has
+not reported `game-ready` after 30 s the host asks the page for a full dump
+(last 40 boot-log lines + journal); after 90 s it reloads once in the
+bundle's single-thread safe mode (`?singlethread`, workers off).
+
+```
+adb logcat -s godot:* | grep -E "EaglerHost|AppUpdater"
+```
