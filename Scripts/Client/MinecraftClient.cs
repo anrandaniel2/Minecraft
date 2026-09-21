@@ -15,7 +15,7 @@ namespace Minecraft.Client
     {
         public static MinecraftClient Instance { get; private set; }
 
-        public global::Minecraft.World.Entity.global::Minecraft.World.Entity.Player Player { get; private set; }
+        public global::Minecraft.World.Entity.Player Player { get; private set; }
         public global::Minecraft.World.Level.Level Level { get; private set; }
         public GameRenderer GameRenderer { get; private set; }
         public bool IsPaused { get; set; } = false;
@@ -87,7 +87,7 @@ namespace Minecraft.Client
             if (Player == null || Level == null || GameRenderer?.Camera == null) return;
 
             // Raycast from eye position along view vector - 5 blocks reach (creative 6)
-            float reach = Player.Mode == Player.GameMode.Creative ? 6f : 5f;
+            float reach = this.Player.Mode == global::Minecraft.World.Entity.Player.GameMode.Creative ? 6f : 5f;
             Vector3 from = Player.GetEyePosition();
             Vector3 view = Player.GetViewVector(PartialTick);
             Vector3 to = from + view * reach;
@@ -113,7 +113,7 @@ namespace Minecraft.Client
                 if (!state.IsAir)
                 {
                     // Check if can break (survival vs creative)
-                    if (Player.Mode == Player.GameMode.Creative || !state.Block.BlockProperties.RequiresCorrectTool)
+                    if (this.Player.Mode == global::Minecraft.World.Entity.Player.GameMode.Creative || !state.Block.BlockProperties.RequiresCorrectTool)
                     {
                         Level.SetBlockState(pos, global::Minecraft.World.Level.Block.BlockState.AIR);
                         // Spawn particles, play sound
@@ -127,7 +127,7 @@ namespace Minecraft.Client
         {
             if (HitResult.Hit)
             {
-                var selected = Player.GetSelectedItem();
+                var selected = this.Player.GetSelectedItem();
                 if (selected.IsEmpty || !selected.Item.IsBlockItem) return;
 
                 Vector3I placePos = HitResult.BlockPos + new Vector3I((int)HitResult.Normal.X, (int)HitResult.Normal.Y, (int)HitResult.Normal.Z);
@@ -136,7 +136,7 @@ namespace Minecraft.Client
                 {
                     var blockState = new global::Minecraft.World.Level.Block.BlockState(selected.Item.Block.Id);
                     Level.SetBlockState(placePos, blockState);
-                    if (Player.Mode != Player.GameMode.Creative)
+                    if (this.Player.Mode != global::Minecraft.World.Entity.Player.GameMode.Creative)
                     {
                         selected.Shrink(1);
                     }
