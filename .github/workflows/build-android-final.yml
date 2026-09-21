@@ -142,8 +142,15 @@ jobs:
         run: |
           set -x
           godot --headless --import --path . 2>&1 | tail -n 100 || true
-          dotnet restore Minecraft.csproj 2>&1 | tail -n 20 || true
-          dotnet build Minecraft.csproj --configuration ExportRelease 2>&1 | tail -n 100 || true
+          dotnet restore Minecraft.csproj 2>&1 | tail -n 20
+          echo "=== DOTNET BUILD ==="
+          dotnet build Minecraft.csproj --configuration ExportRelease 2>&1 | tee /tmp/dotnet_build.log | tail -n 200
+          BUILD_EXIT=${PIPESTATUS[0]}
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "C# BUILD FAILED with exit $BUILD_EXIT - failing fast to avoid 40m stuck gradle"
+            cat /tmp/dotnet_build.log | tail -n 100
+            exit 1
+          fi
           godot --headless --build-solutions --path . 2>&1 | tail -n 100 || true
 
       - name: Export APK arm64 (gradle)
