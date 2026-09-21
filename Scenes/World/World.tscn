@@ -1,0 +1,69 @@
+[gd_scene load_steps=8 format=3 uid="uid://world001"]
+
+[ext_resource type="Script" path="res://Scripts/World/Level/Chunk/ChunkManager.cs" id="1"]
+[ext_resource type="Script" path="res://Scripts/Client/Renderer/WorldRenderer.cs" id="2"]
+[ext_resource type="Script" path="res://Scripts/Client/Camera/GameCamera.cs" id="3"]
+[ext_resource type="Script" path="res://Scripts/Client/Input/TouchControls.cs" id="4"]
+[ext_resource type="Script" path="res://Scripts/Client/Gui/Hud/Hud.cs" id="5"]
+[ext_resource type="Script" path="res://Scripts/World/WorldManager.cs" id="6"]
+
+[node name="World" type="Node3D"]
+
+[node name="WorldManager" type="Node" parent="."]
+script = ExtResource("6")
+WorldSeed = 12345
+WorldType = "default"
+
+[node name="ChunkManager" type="Node" parent="."]
+script = ExtResource("1")
+RenderDistance = 6
+SimulationDistance = 6
+MaxChunksPerFrame = 4
+EnableFrustumCulling = true
+
+[node name="WorldRenderer" type="Node3D" parent="."]
+script = ExtResource("2")
+EnableFrustumCulling = true
+MaxMeshUpdatesPerFrame = 2
+
+[node name="Player" type="Node3D" parent="."]
+
+[node name="GameCamera" type="Camera3D" parent="Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)
+current = true
+fov = 70.0
+near = 0.05
+far = 1000.0
+script = ExtResource("3")
+MouseSensitivity = 0.3
+TouchSensitivity = 0.5
+InvertY = false
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 10, 0)
+light_energy = 1.0
+shadow_enabled = false
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="TouchControls" type="CanvasLayer" parent="CanvasLayer"]
+layer = 10
+script = ExtResource("4")
+
+[node name="Hud" type="CanvasLayer" parent="CanvasLayer"]
+layer = 5
+script = ExtResource("5")
+
+[node name="Crosshair" type="Control" parent="CanvasLayer/Hud"]
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -8.0
+offset_top = -8.0
+offset_right = 8.0
+offset_bottom = 8.0
+grow_horizontal = 2
+grow_vertical = 2
