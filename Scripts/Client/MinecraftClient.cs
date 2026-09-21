@@ -84,12 +84,12 @@ namespace Minecraft.Client
 
         private void UpdateHitResult()
         {
-            if (Player == null || Level == null || GameRenderer?.Camera == null) return;
+            if (this.Player == null || Level == null || GameRenderer?.Camera == null) return;
 
             // Raycast from eye position along view vector - 5 blocks reach (creative 6)
             float reach = this.Player.Mode == global::Minecraft.World.Entity.Player.GameMode.Creative ? 6f : 5f;
-            Vector3 from = Player.GetEyePosition();
-            Vector3 view = Player.GetViewVector(PartialTick);
+            Vector3 from = this.Player.GetEyePosition();
+            Vector3 view = this.Player.GetViewVector(PartialTick);
             Vector3 to = from + view * reach;
 
             var context = new global::Minecraft.World.Level.ClipContext(from, to, global::Minecraft.World.Level.ClipContext.BlockMode.Outline, global::Minecraft.World.Level.ClipContext.FluidMode.None);
