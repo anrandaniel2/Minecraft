@@ -2,6 +2,7 @@ using Godot;
 using System;
 using Minecraft.World.Inventory;
 using Minecraft.World.Inventory.Crafting;
+using InventoryClass = global::Minecraft.World.Inventory.Inventory;
 
 namespace Minecraft.Client.Gui.Screens
 {
@@ -11,7 +12,7 @@ namespace Minecraft.Client.Gui.Screens
     /// </summary>
     public partial class InventoryScreen : Screen
     {
-        private global::Minecraft.World.Inventory.global::Minecraft.World.Inventory.Inventory _playerInventory;
+        private InventoryClass _playerInventory;
         private CraftingContainer _craftingContainer;
         private CraftingManager _craftingManager;
 
@@ -19,7 +20,7 @@ namespace Minecraft.Client.Gui.Screens
         private GridContainer _craftingGrid;
         private TextureRect _resultSlot;
 
-        public InventoryScreen(global::Minecraft.World.Inventory.Inventory inventory) : base("Inventory")
+        public InventoryScreen(InventoryClass inventory) : base("Inventory")
         {
             _playerInventory = inventory;
             _craftingContainer = new CraftingContainer(2, 2); // inventory crafting 2x2

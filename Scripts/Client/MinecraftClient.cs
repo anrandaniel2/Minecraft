@@ -3,6 +3,11 @@ using System;
 using Minecraft.World;
 using Minecraft.World.Entity;
 using Minecraft.Core;
+using PlayerClass = global::Minecraft.World.Entity.Player;
+using GameLevel = global::Minecraft.World.Level.Level;
+using BlockStateClass = global::Minecraft.World.Level.Block.BlockState;
+using ClipContextClass = global::Minecraft.World.Level.ClipContext;
+using BlockHitResultClass = global::Minecraft.World.Level.BlockHitResult;
 
 namespace Minecraft.Client
 {
@@ -15,8 +20,8 @@ namespace Minecraft.Client
     {
         public static MinecraftClient Instance { get; private set; }
 
-        public global::Minecraft.World.Entity.Player Player { get; private set; }
-        public global::Minecraft.World.Level.Level Level { get; private set; }
+        public PlayerClass Player { get; private set; }
+        public GameLevel Level { get; private set; }
         public GameRenderer GameRenderer { get; private set; }
         public bool IsPaused { get; set; } = false;
 
@@ -32,7 +37,7 @@ namespace Minecraft.Client
         public Gui.Screens.Screen CurrentScreen { get; private set; } = null;
 
         // Hit result - from Minecraft.hitResult
-        public global::Minecraft.World.Level.BlockHitResult HitResult { get; private set; }
+        public BlockHitResultClass HitResult { get; private set; }
 
         // Options - from net.minecraft.client.Options
         public ClientOptions Options { get; } = new ClientOptions();
@@ -48,7 +53,7 @@ namespace Minecraft.Client
         {
             WorldManager.Instance.InitializeWorld(seed, worldType);
             Level = WorldManager.Instance.GameLevel;
-            Player = new global::Minecraft.World.Entity.Player(Level);
+            Player = new PlayerClass(Level);
             Player.SetPos(0, 80, 0);
             Level.AddEntity(Player);
             GD.Print($"[MinecraftClient] Level initialized - Seed {seed}, Player at {Player.Position}");
@@ -87,12 +92,12 @@ namespace Minecraft.Client
             if (this.Player == null || Level == null || GameRenderer?.Camera == null) return;
 
             // Raycast from eye position along view vector - 5 blocks reach (creative 6)
-            float reach = this.Player.Mode == global::Minecraft.World.Entity.Player.GameMode.Creative ? 6f : 5f;
+            float reach = this.Player.Mode == PlayerClass.GameMode.Creative ? 6f : 5f;
             Vector3 from = this.Player.GetEyePosition();
             Vector3 view = this.Player.GetViewVector(PartialTick);
             Vector3 to = from + view * reach;
 
-            var context = new global::Minecraft.World.Level.ClipContext(from, to, global::Minecraft.World.Level.ClipContext.BlockMode.Outline, global::Minecraft.World.Level.ClipContext.FluidMode.None);
+            var context = new ClipContextClass(from, to, ClipContextClass.BlockMode.Outline, ClipContextClass.FluidMode.None);
             HitResult = Level.Clip(context);
         }
 
@@ -113,9 +118,9 @@ namespace Minecraft.Client
                 if (!state.IsAir)
                 {
                     // Check if can break (survival vs creative)
-                    if (this.Player.Mode == global::Minecraft.World.Entity.Player.GameMode.Creative || !state.Block.BlockProperties.RequiresCorrectTool)
+                    if (this.Player.Mode == PlayerClass.GameMode.Creative || !state.Block.BlockProperties.RequiresCorrectTool)
                     {
-                        Level.SetBlockState(pos, global::Minecraft.World.Level.Block.BlockState.AIR);
+                        Level.SetBlockState(pos, BlockStateClass.AIR);
                         // Spawn particles, play sound
                         GD.Print($"[MinecraftClient] Broke block {state.Block.Name} at {pos}");
                     }
@@ -134,9 +139,9 @@ namespace Minecraft.Client
                 var current = Level.GetBlockState(placePos);
                 if (current.IsAir)
                 {
-                    var blockState = new global::Minecraft.World.Level.Block.BlockState(selected.Item.Block.Id);
+                    var blockState = new BlockStateClass(selected.Item.Block.Id);
                     Level.SetBlockState(placePos, blockState);
-                    if (this.Player.Mode != global::Minecraft.World.Entity.Player.GameMode.Creative)
+                    if (this.Player.Mode != PlayerClass.GameMode.Creative)
                     {
                         selected.Shrink(1);
                     }
