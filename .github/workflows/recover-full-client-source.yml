@@ -8,7 +8,7 @@ on:
       - '.github/workflows/recover-full-client-source.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   decompile-full-client:
