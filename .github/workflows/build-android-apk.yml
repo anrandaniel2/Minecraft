@@ -1,0 +1,72 @@
+name: Build Godot Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'godot_extension/**'
+      - '.github/workflows/build-android-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  android-debug-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GODOT_VERSION: 4.7.2-stable
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java for Android export
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK components
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Install Godot editor and Android export templates
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            -o "$RUNNER_TEMP/godot.zip" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          curl --fail --location --retry 3 \
+            -o "$RUNNER_TEMP/templates.tpz" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}"
+          unzip -q "$RUNNER_TEMP/templates.tpz" -d "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_*' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Export Android arm64 debug APK
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          "$GODOT_BIN" --headless --path godot_extension --import --quit
+          "$GODOT_BIN" --headless --path godot_extension \
+            --export-debug 'Android Debug' "$PWD/build/MinecraftGodot-debug.apk"
+          test -s build/MinecraftGodot-debug.apk
+          unzip -l build/MinecraftGodot-debug.apk | grep -q 'AndroidManifest.xml'
+          ls -lh build/MinecraftGodot-debug.apk
+
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-godot-android-arm64-debug
+          path: build/MinecraftGodot-debug.apk
+          if-no-files-found: error
+          retention-days: 30

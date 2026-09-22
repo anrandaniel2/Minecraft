@@ -76,3 +76,15 @@ The checked-in descriptor targets Linux x86_64 because `.so` is the requested
 format. Native Image outputs are platform-specific. Build each target on that
 platform and add the matching `macos.*` or `windows.*` library entry to
 `minecraft.gdextension` when you need those exports.
+
+### Android APK workflow
+
+`.github/workflows/build-android-apk.yml` exports a Godot **4.7.2 Android
+arm64 debug APK** and uploads it as `minecraft-godot-android-arm64-debug`.
+It includes the Godot 4.7 built-in VirtualJoystick, movement actions, and the
+jump/sneak controls.
+
+The current GraalVM libraries are Linux x86_64 only, so Android intentionally
+uses `MobileInputFallback.gd`; it does not pretend to run the desktop Java
+client. The full viewport-port milestone must provide a separately built
+Android arm64 GDExtension before `MinecraftTouch` can be enabled on Android.
