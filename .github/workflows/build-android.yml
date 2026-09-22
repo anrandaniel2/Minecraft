@@ -118,68 +118,88 @@ jobs:
           EOF
           cat ~/.config/godot/editor_settings-4.4.tres
           echo "=== Installing Android build template (required for C# export, must be real not placeholder) ==="
-          # Search for android_source.zip in all possible locations
-          echo "Searching for android_source.zip..."
-          find $HOME -name "android_source.zip" 2>/dev/null | head -n 20 || true
+          # Search for android_source.zip in ALL possible locations (runner has it in different places)
+          echo "Searching for android_source.zip in HOME and ROOT..."
+          find $HOME /root -name "android_source.zip" 2>/dev/null | head -n 20 || true
+          echo "Listing export_templates dirs:"
           ls -la $HOME/.local/share/godot/export_templates/ 2>/dev/null | head -n 20 || true
-          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable.mono"
-          ls -la $TEMPLATE_DIR/ | head -n 100 || true
-          # Try alternative template dirs
-          for dir in "$HOME/.local/share/godot/export_templates/4.4.1.stable" "$HOME/.local/share/godot/export_templates/4.4.1.stable.mono" "/root/.local/share/godot/export_templates/4.4.1.stable.mono" "/root/.local/share/godot/export_templates/4.4.1.stable"; do
+          ls -la /root/.local/share/godot/export_templates/ 2>/dev/null | head -n 20 || true
+          ls -la $HOME/.local/share/godot/export_templates/4.4.1.stable.mono/ 2>/dev/null | head -n 100 || true
+          ls -la /root/.local/share/godot/export_templates/4.4.1.stable.mono/ 2>/dev/null | head -n 100 || true
+          # Try to find template dir with android_source.zip
+          TEMPLATE_DIR=""
+          for dir in "$HOME/.local/share/godot/export_templates/4.4.1.stable.mono" "$HOME/.local/share/godot/export_templates/4.4.1.stable" "/root/.local/share/godot/export_templates/4.4.1.stable.mono" "/root/.local/share/godot/export_templates/4.4.1.stable" "$HOME/.local/share/godot/export_templates/4.4.1.stable.mono" "/home/runner/.local/share/godot/export_templates/4.4.1.stable.mono"; do
             if [ -f "$dir/android_source.zip" ]; then
               echo "Found android_source.zip at $dir"
               TEMPLATE_DIR="$dir"
               break
             fi
           done
+          # If still not found, search whole filesystem for it (may take time but worth it)
+          if [ -z "$TEMPLATE_DIR" ]; then
+            echo "Not found in common dirs, searching entire home..."
+            FOUND=$(find $HOME /root /home -name "android_source.zip" 2>/dev/null | head -n 1 || true)
+            if [ -n "$FOUND" ]; then
+              echo "Found via find: $FOUND"
+              TEMPLATE_DIR=$(dirname "$FOUND")
+            fi
+          fi
           echo "Using TEMPLATE_DIR=$TEMPLATE_DIR"
-          if [ -f "$TEMPLATE_DIR/android_source.zip" ]; then
+          if [ -n "$TEMPLATE_DIR" ] && [ -f "$TEMPLATE_DIR/android_source.zip" ]; then
             echo "Found android_source.zip, extracting to android/build"
             mkdir -p android
-            rm -rf android/build
+            rm -rf android/build /tmp/android_template
+            mkdir -p /tmp/android_template
             unzip -q $TEMPLATE_DIR/android_source.zip -d /tmp/android_template || true
-            ls -la /tmp/android_template/ | head -n 50 || true
-            # The zip contains build/ folder or android_source/ folder
+            ls -la /tmp/android_template/ | head -n 100 || true
+            # The zip contains build/ folder or android_source/ folder or files directly
             if [ -d "/tmp/android_template/build" ]; then
               mv /tmp/android_template/build android/build
             elif [ -d "/tmp/android_template/android_source" ]; then
               mv /tmp/android_template/android_source android/build
             elif [ -d "/tmp/android_template/android" ]; then
-              mv /tmp/android_template/android/build android/build 2>/dev/null || mv /tmp/android_template/android android/build || true
+              if [ -d "/tmp/android_template/android/build" ]; then
+                mv /tmp/android_template/android/build android/build
+              else
+                mv /tmp/android_template/android android/build || true
+              fi
             else
-              # Unzip directly to android/
+              # Unzip directly to android/ as fallback
               rm -rf android/build
               unzip -q $TEMPLATE_DIR/android_source.zip -d android/ || true
               if [ -d "android/android_source" ]; then
                 mv android/android_source android/build
+              elif [ -d "android/build" ]; then
+                echo "build exists after direct unzip"
+              else
+                # Last resort: the zip might contain files directly, move them to build/
+                mkdir -p android/build
+                mv android/*.gradle android/build/ 2>/dev/null || true
+                mv android/gradlew android/build/ 2>/dev/null || true
               fi
             fi
-            # Ensure gradlew is executable
             chmod +x android/build/gradlew 2>/dev/null || true
-            chmod +x android/build/gradle/wrapper/gradle-wrapper.jar 2>/dev/null || true
             echo "Android build template installed at android/build"
             ls -la android/build/ | head -n 100 || true
-            echo "Checking for gradlew and build.gradle"
             ls -lh android/build/gradlew 2>&1 | head -n 5 || echo "no gradlew"
             ls -lh android/build/build.gradle 2>&1 | head -n 5 || echo "no build.gradle"
           else
-            echo "ERROR: android_source.zip not found anywhere!"
-            echo "Listing all export_templates:"
-            find $HOME -type f -name "*.zip" 2>/dev/null | head -n 20 || true
-            # Keep minimal template from repo but warn it's placeholder and will fail
+            echo "ERROR: android_source.zip not found anywhere after exhaustive search!"
+            echo "Listing all zips in HOME:"
+            find $HOME /root -type f -name "*.zip" 2>/dev/null | head -n 30 || true
             if [ -d "android/build" ]; then
-              echo "Using existing android/build from repo (minimal placeholder, may fail)"
-              ls -la android/build/ | head -n 20 || true
+              echo "Using existing android/build from repo (minimal placeholder, will produce 4KB APK)"
+              ls -la android/build/ | head -n 30 || true
             else
               mkdir -p android/build
             fi
           fi
-          echo "Final android/ structure (must have gradlew for real APK):"
+          echo "Final android/ structure:"
           find android -type f | head -n 200 || true
-          # Fail if gradlew not found - indicates placeholder, not real APK
           if [ ! -f "android/build/gradlew" ]; then
-            echo "WARNING: android/build/gradlew not found - export will produce placeholder APK, not real!"
-            echo "This happens when android_source.zip not found"
+            echo "WARNING: gradlew not found - will produce placeholder 4KB APK!"
+          else
+            echo "SUCCESS: gradlew found - should produce real APK"
           fi
 
       - name: Setup export_presets arm64 only
@@ -255,11 +275,12 @@ jobs:
           set -x
           echo "=== DOTNET SDKs before cleanup ==="
           dotnet --list-sdks
-          ls /usr/share/dotnet/sdk/ | head -n 20 || true
+          ls /usr/share/dotnet/sdk/ | head -n 30 || true
           echo "DOTNET_ROOT=$DOTNET_ROOT"
-          # Remove .NET 10 SDK which causes Godot to find wrong SDK (10.0.400) and fail to load assembly
-          sudo rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/sdk/10.0.100 /usr/share/dotnet/sdk/9.0.* 2>/dev/null || true
-          echo "=== DOTNET SDKs after cleanup ==="
+          # Remove ALL .NET 9 and 10 SDKs which cause Godot to find wrong SDK (10.0.303 etc) and fail to load assembly
+          sudo rm -rf /usr/share/dotnet/sdk/10.* /usr/share/dotnet/sdk/9.* 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/sdk/10.0.303 /usr/share/dotnet/sdk/10.0.100 2>/dev/null || true
+          echo "=== DOTNET SDKs after cleanup (should only have 8.0.x) ==="
           dotnet --list-sdks
           dotnet --version
           echo "=== RESTORE ==="
@@ -281,7 +302,6 @@ jobs:
           timeout 120 godot --headless --import --path . 2>&1 | tail -n 100 || echo "import timed out, continuing"
           ls -la .godot/ | head -n 20 || true
           echo "=== Check if autoloads now compile ==="
-          cat .godot/mono/temp/bin/Debug/Minecraft.dll 2>&1 | head -n 5 || echo "Debug DLL exists check"
           ls -lh .godot/mono/temp/bin/Debug/ | head -n 20 || true
 
       - name: Export APK (arm64 only) - must be real >20MB not placeholder 2.4K
