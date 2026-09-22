@@ -79,6 +79,39 @@ export_path="builds/Minecraft-26.3-Android-arm64.apk"
 
 The verification step checks the APK really contains `lib/arm64-v8a/` only.
 
+## Install troubleshooting: "Failure to parse package archive"
+
+If the phone's package installer reports `Failure to parse package archive`
+(e.g. `ApkLiteParseUtils` / `PackageManager.getPackageArchiveInfo` warnings in
+logcat), the APK built by this pipeline is verified structurally sound
+(CRC, manifest, signing block, SDK tools), so the usual cause is **a truncated
+or corrupt download** on the device.
+
+Symptoms / evidence to look for in logcat:
+
+- `W PackageManager: Failure to parse package archive apkFile=/storage/...apk`
+- `DeviceStorageMonitorService` / `PackageManagerService.freeStorage` warnings —
+  the device is low on storage (the file may have been cut off mid-download, and
+  installing the game needs well over 200 MB free afterwards)
+
+What to do:
+
+1. Compare the file size with the release page (exact byte count and SHA-256 are
+   published in every release body and as a `.sha256` asset):
+   `adb shell ls -l /sdcard/Download/Minecraft-26.3-Android-arm64.apk`
+2. On a PC: `sha256sum Minecraft-26.3-Android-arm64.apk` must match the release.
+3. If it doesn't match, free storage and re-download; or `adb install -r <apk>`.
+4. If the size/hash match and it still fails, capture the **complete** logcat
+   around the install (including the exception message and type above the
+   `at ...` stack frames) and open an issue.
+
+Packaging note: with `gradle_build/min_sdk=21` the Godot template forces legacy
+native-library packaging (`extractNativeLibs=true`, compressed `.so`) — the most
+compatible mode; 16 KB page alignment does not apply to it. If the min SDK is
+ever raised to ≥ 23, uncompressed `.so` must be 16 KB-page-aligned
+(`zipalign -P 16`); the verify script enforces the consistency rules for both
+modes and will fail the build on a mismatch.
+
 ## Building locally
 
 ```sh

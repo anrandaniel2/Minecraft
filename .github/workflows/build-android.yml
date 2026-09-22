@@ -231,6 +231,51 @@ jobs:
       - name: Verify APK is a real build with actual assets
         run: python3 .github/scripts/verify_android_apk.py "$APK_PATH"
 
+      - name: SDK tool checks (apksigner, zipalign, aapt2)
+        run: |
+          set -euo pipefail
+          BT="${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools/34.0.0"
+          {
+            echo "== apksigner verify =="
+            "$BT/apksigner" verify --verbose --print-certs "$APK_PATH"
+            echo "== zipalign check =="
+            if "$BT/zipalign" 2>&1 | grep -q -- '-P'; then
+              "$BT/zipalign" -c -P 16 4 "$APK_PATH"
+            else
+              "$BT/zipalign" -c 4 "$APK_PATH"
+            fi
+            echo "== aapt2 dump badging =="
+            "$BT/aapt2" dump badging "$APK_PATH" | sed -n 1,20p
+            echo "== manifest flags =="
+            "$BT/aapt2" dump xmltree "$APK_PATH" --file AndroidManifest.xml \
+              | grep -iE 'extractNativeLibs|uses-sdk|minSdkVersion|targetSdkVersion|versionCode|versionName|package=' \
+              | head -30
+          } | tee builds/sdk-checks.txt
+          {
+            echo ""
+            echo "<details><summary>SDK tool checks (apksigner / zipalign / aapt2)</summary>"
+            echo ""
+            echo '```'
+            cat builds/sdk-checks.txt
+            echo '```'
+            echo "</details>"
+          } >> builds/apk-report.md
+          echo "::notice title=SDK checks::apksigner + zipalign + aapt2 validation passed"
+
+      - name: Compose release notes
+        run: |
+          {
+            echo "Godot 4.4.1 Mono Android APK - arm64-v8a only (verified real build)"
+            echo
+            echo "- Arch: arm64-v8a only"
+            echo "- Version: 26.3 Wilderness Bound (26300)"
+            echo "- Commit: ${{ github.sha }}"
+            echo "- Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            cat builds/apk-report.md
+          } > builds/release-notes.md
+          mv builds/release-notes.md builds/apk-report.md
+
       - name: Upload export log
         if: always()
         uses: actions/upload-artifact@v4
@@ -244,7 +289,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Minecraft-26.3-Android-arm64-APK
-          path: builds/*.apk
+          path: |
+            builds/*.apk
+            builds/*.sha256
+            builds/apk-report.md
           retention-days: 14
           if-no-files-found: error
 
@@ -253,17 +301,10 @@ jobs:
         with:
           tag_name: android-arm64-${{ github.run_number }}
           name: Minecraft 26.3 Android arm64 Build ${{ github.run_number }}
-          body: |
-            Godot 4.4.1 Mono Android APK - arm64-v8a only (verified real build)
-
-            - Arch: arm64-v8a only
-            - Version: 26.3 Wilderness Bound (26300)
-            - Commit: ${{ github.sha }}
-            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            - APK: builds/Minecraft-26.3-Android-arm64.apk
-            - Contents verified: real ELF libs (Godot + .NET runtime), DEX, full game assets, signed
+          body_path: builds/apk-report.md
           files: |
             builds/*.apk
+            builds/*.sha256
           draft: false
           prerelease: true
           fail_on_unmatched_files: true

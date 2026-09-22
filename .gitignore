@@ -25,3 +25,4 @@ out/
 builds/*
 *.apk
 *.aab
+__pycache__/
