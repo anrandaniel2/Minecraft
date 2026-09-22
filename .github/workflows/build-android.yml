@@ -11,6 +11,7 @@ on:
       - '**.tscn'
       - 'project.godot'
       - 'export_presets.cfg'
+      - 'global.json'
       - '.github/workflows/build-android.yml'
 
 permissions:
@@ -21,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      image: barichello/godot-ci:mono-4.4
+      image: barichello/godot-ci:mono-4.4.1
 
     env:
       GODOT_VERSION: 4.4
@@ -45,7 +46,32 @@ jobs:
       - name: Setup .NET 8 (even in container, to ensure 8.0 not 10)
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 8.0.416
+
+      - name: Pin DOTNET_ROOT to 8.0 only
+        run: |
+          set -x
+          dotnet --list-sdks || true
+          SDK_8_PATH=$(dotnet --list-sdks | grep "8.0" | head -n 1 | awk -F'[][]' '{print $2}' | tr -d '[]' || echo "")
+          echo "SDK_8_PATH=$SDK_8_PATH"
+          if [ -z "$SDK_8_PATH" ]; then
+            SDK_8_PATH=$(find /opt/hostedtoolcache /usr/share/dotnet -type d -name "8.0.*" 2>/dev/null | head -n 1 || echo "/usr/share/dotnet")
+          fi
+          DOTNET_ROOT_CANDIDATE=$(dirname "$SDK_8_PATH" 2>/dev/null | xargs dirname 2>/dev/null || echo "/usr/share/dotnet")
+          if [ ! -d "$DOTNET_ROOT_CANDIDATE" ]; then
+            DOTNET_ROOT_CANDIDATE="/usr/share/dotnet"
+          fi
+          echo "DOTNET_ROOT_CANDIDATE=$DOTNET_ROOT_CANDIDATE"
+          echo "DOTNET_ROOT=$DOTNET_ROOT_CANDIDATE" >> $GITHUB_ENV
+          echo "DOTNET_HOST_PATH=$DOTNET_ROOT_CANDIDATE/dotnet" >> $GITHUB_ENV
+          echo "DOTNET_ROOT=$DOTNET_ROOT_CANDIDATE"
+          ls $DOTNET_ROOT_CANDIDATE/host/fxr/ 2>/dev/null | head -n 20 || true
+          # Nuke 10.x from everywhere, including DOTNET_ROOT itself
+          rm -rf $DOTNET_ROOT_CANDIDATE/sdk/10* $DOTNET_ROOT_CANDIDATE/sdk/9* $DOTNET_ROOT_CANDIDATE/host/fxr/10* $DOTNET_ROOT_CANDIDATE/host/fxr/9* $DOTNET_ROOT_CANDIDATE/shared/*/*10* $DOTNET_ROOT_CANDIDATE/shared/*/*9* 2>/dev/null || true
+          rm -rf /usr/share/dotnet/sdk/10* /usr/share/dotnet/host/fxr/10* /usr/share/dotnet/shared/*/*10* 2>/dev/null || true
+          rm -rf /usr/local/share/dotnet/sdk/10* /usr/local/share/dotnet/host/fxr/10* 2>/dev/null || true
+          rm -rf /root/.dotnet/sdk/10* /root/.dotnet/host/fxr/10* 2>/dev/null || true
+          dotnet --list-sdks || true
 
       - name: Setup Android SDK + NDK
         run: |
@@ -172,31 +198,29 @@ jobs:
           CFG
           cat export_presets.cfg
 
-      - name: Import and Build C# (container + exhaustive .NET 10 cleanup via sudo find)
+      - name: Import and Build C# (container + exhaustive .NET 10 cleanup via DOTNET_ROOT)
         run: |
           set -x
           GODOT_BIN=$(which godot 2>/dev/null || echo "/usr/local/bin/godot")
           $GODOT_BIN --version
           echo "=== DOTNET before cleanup ==="
-          dotnet --list-sdks 2>&1 | head -n 30 || true
           echo "DOTNET_ROOT=$DOTNET_ROOT"
+          echo "DOTNET_HOST_PATH=$DOTNET_HOST_PATH"
+          dotnet --list-sdks 2>&1 | head -n 30 || true
+          dotnet --version 2>&1 | head -n 10 || true
           which dotnet || true
+          ls $DOTNET_ROOT/host/fxr/ 2>/dev/null | head -n 20 || true
           ls /usr/share/dotnet/sdk/ 2>/dev/null | head -n 30 || true
-          ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
-          echo "Finding all 10.x dirs..."
-          find /usr /root /home /opt -type d -name "10.0.*" 2>/dev/null | head -n 30 || true
-          # Exhaustive removal via sudo find (container may need sudo)
-          sudo find /usr/share/dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
-          sudo find /usr/share/dotnet -type d -name "9.*" -exec rm -rf {} + 2>/dev/null || true
-          sudo find /usr/local/share/dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
-          sudo find /root/.dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
-          sudo find /home -type d -name "10.0.*" -exec rm -rf {} + 2>/dev/null || true
-          sudo find /opt -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
-          sudo rm -rf /usr/share/dotnet/sdk/10.* /usr/share/dotnet/sdk/9.* /usr/share/dotnet/host/fxr/10.* /usr/share/dotnet/host/fxr/9.* /usr/share/dotnet/shared/*/*10.* /usr/share/dotnet/shared/*/*9.* 2>/dev/null || true
-          sudo rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/sdk/10.0.303 /usr/share/dotnet/host/fxr/10.0.12 /usr/share/dotnet/host/fxr/10.0.8 2>/dev/null || true
+          # Final nuke of 10.x from DOTNET_ROOT and common paths
+          rm -rf $DOTNET_ROOT/sdk/10* $DOTNET_ROOT/host/fxr/10* $DOTNET_ROOT/shared/*/*10* 2>/dev/null || true
+          rm -rf /usr/share/dotnet/sdk/10* /usr/share/dotnet/host/fxr/10* /usr/share/dotnet/shared/*/*10* 2>/dev/null || true
+          rm -rf /usr/local/share/dotnet/sdk/10* /usr/local/share/dotnet/host/fxr/10* 2>/dev/null || true
+          rm -rf /root/.dotnet/sdk/10* /root/.dotnet/host/fxr/10* 2>/dev/null || true
+          find /usr /opt -type d -name "10.0.*" 2>/dev/null | xargs rm -rf 2>/dev/null || true
           echo "=== After cleanup (should only have 8.0.x) ==="
           dotnet --list-sdks 2>&1 | head -n 30 || true
           dotnet --version 2>&1 | head -n 10 || true
+          ls $DOTNET_ROOT/host/fxr/ 2>/dev/null | head -n 20 || true
           ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
           echo "=== RESTORE + BUILD DEBUG ==="
           dotnet restore Minecraft.csproj 2>&1 | tail -n 20 || true
@@ -213,9 +237,13 @@ jobs:
           find .godot -name "*.dll" 2>/dev/null | head -n 20 || true
 
       - name: Export APK (real, not placeholder) - remove autoloads to fix assembly load
+        env:
+          DOTNET_ROOT: ${{ env.DOTNET_ROOT }}
         run: |
           set -x
           GODOT_BIN=$(which godot 2>/dev/null || echo "/usr/local/bin/godot")
+          echo "DOTNET_ROOT=$DOTNET_ROOT"
+          dotnet --list-sdks || true
           mkdir -p builds
           echo "=== FIX: Temporarily remove C# autoloads (they cause Failed to load assembly) ==="
           cp project.godot project.godot.bak
