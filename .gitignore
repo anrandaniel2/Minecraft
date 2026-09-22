@@ -18,3 +18,10 @@ build/
 out/
 .idea/
 *.iml
+
+# Godot / Android build outputs - CI builds, verifies and publishes the APK.
+# Never commit APKs or export logs again (the old 2.4KB placeholder APK must not return).
+.godot/
+builds/*
+*.apk
+*.aab

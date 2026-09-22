@@ -100,6 +100,8 @@ common/physics_jitter_fix=0.0
 
 renderer/rendering_method="mobile"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_s3tc_bptc=true
+textures/vram_compression/import_etc2_astc=true
 textures/canvas_textures/default_texture_filter=0
 textures/canvas_textures/default_texture_repeat=0
 environment/defaults/default_clear_color=Color(0.54509807, 0.7647059, 0.99215686, 1)
