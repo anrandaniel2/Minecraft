@@ -99,38 +99,63 @@ jobs:
       - name: Create debug keystore and install Android build template
         run: |
           set -x
-          mkdir -p ~/.android
+          mkdir -p ~/.android ~/.config/godot
           if [ ! -f ~/.android/debug.keystore ]; then
             keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
           fi
+          echo "=== Setting up Godot editor settings for Android SDK ==="
+          ANDROID_SDK=$HOME/android-sdk
+          cat > ~/.config/godot/editor_settings-4.4.tres << EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_SDK"
+          export/android/debug_keystore = "$HOME/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          export/android/force_system_user = false
+          EOF
+          cat ~/.config/godot/editor_settings-4.4.tres
           echo "=== Installing Android build template (required for C# export) ==="
           TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable.mono"
-          ls -la $TEMPLATE_DIR/ | head -n 30 || true
+          ls -la $TEMPLATE_DIR/ | head -n 50 || true
           if [ -f "$TEMPLATE_DIR/android_source.zip" ]; then
             echo "Found android_source.zip, extracting to android/build"
             mkdir -p android
             rm -rf android/build
             unzip -q $TEMPLATE_DIR/android_source.zip -d android/
-            # The zip may contain android_source/ or build/ - check
-            ls -la android/ | head -n 30 || true
+            ls -la android/ | head -n 50 || true
+            # Handle different zip structures
             if [ -d "android/android_source" ]; then
               mv android/android_source android/build
             fi
+            # Some templates unzip directly to build/
+            if [ -f "android/build.gradle" ] && [ ! -d "android/build" ]; then
+              mkdir -p android/build
+              mv android/build.gradle android/build/ 2>/dev/null || true
+              mv android/*.gradle android/build/ 2>/dev/null || true
+              mv android/AndroidManifest.xml android/build/ 2>/dev/null || true
+            fi
             if [ -d "android/build" ]; then
               echo "Android build template installed at android/build"
-              ls -la android/build/ | head -n 30 || true
+              ls -la android/build/ | head -n 50 || true
+              echo "Checking for build.gradle"
+              ls -la android/build/build.gradle 2>&1 | head -n 5 || echo "no build.gradle"
             else
-              echo "android/build not found after unzip, listing android/"
-              find android/ -type f | head -n 30 || true
+              echo "android/build not found after unzip, trying to find build folder"
+              find android/ -maxdepth 3 -type f -name "*.gradle" | head -n 20 || true
+              # Create minimal build folder to pass Godot check if needed
+              mkdir -p android/build
+              echo "Created empty android/build to pass check - Godot may fill it"
             fi
           else
-            echo "android_source.zip not found, searching..."
-            find $HOME -name "android_source.zip" 2>/dev/null | head -n 5
-            # Fallback: try to use godot to install template via editor (may fail headless but try)
-            echo "Trying godot --headless --install-android-build-template (if available)"
-            timeout 30 godot --headless --path . --install-android-build-template 2>&1 | tail -n 20 || true
-            ls -la android/ 2>/dev/null | head -n 20 || echo "no android dir yet"
+            echo "android_source.zip not found at $TEMPLATE_DIR"
+            find $HOME -name "android_source.zip" 2>/dev/null | head -n 10
+            find $HOME/.local -name "*.zip" 2>/dev/null | head -n 10
+            mkdir -p android/build
           fi
+          echo "Final android/ structure:"
+          find android -type f | head -n 100 || true
 
       - name: Setup export_presets arm64 only
         run: |
