@@ -43,6 +43,18 @@ jobs:
           rm -rf full-client-java full-client-source.zip source-recovery-report.txt
           mkdir -p full-client-java
           java -Xmx12g -jar vineflower.jar -dgs=1 -log=ERROR minecraft-client.jar full-client-java
+          # Vineflower emits a decompiled JAR when its input is a JAR. Unpack it
+          # before counting and archiving source; otherwise a class archive can
+          # be mislabeled as recovered source (which happened previously).
+          java_count="$(find full-client-java -type f -name '*.java' | wc -l)"
+          if [ "$java_count" -eq 0 ]; then
+            recovered_jar="$(find full-client-java -maxdepth 1 -type f -name '*.jar' -print -quit)"
+            test -n "$recovered_jar"
+            mkdir -p full-client-java-unpacked
+            unzip -q "$recovered_jar" -d full-client-java-unpacked
+            rm -rf full-client-java
+            mv full-client-java-unpacked full-client-java
+          fi
           java_count="$(find full-client-java -type f -name '*.java' | wc -l)"
           class_count="$(find extracted -type f -name '*.class' | wc -l)"
           printf 'Java source files: %s\nOriginal class files: %s\n' "$java_count" "$class_count" | tee source-recovery-report.txt
