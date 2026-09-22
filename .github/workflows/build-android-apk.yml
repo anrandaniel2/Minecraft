@@ -28,12 +28,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK command-line tools
+        uses: android-actions/setup-android@v3
+
       - name: Install Android SDK components
         run: |
           set -euo pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
 
       - name: Install Godot editor and Android export templates
         run: |
