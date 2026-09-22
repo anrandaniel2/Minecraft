@@ -325,3 +325,4 @@ namespace Minecraft.World.Level.Chunk
     }
 }
 // trigger build Tue Sep 22 10:31:30 UTC 2026
+// trigger for global.json Tue Sep 22 13:30:49 UTC 2026
