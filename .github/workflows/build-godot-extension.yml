@@ -52,6 +52,19 @@ jobs:
           readelf -d godot_extension/bin/libminecraft_godot.so | grep -q 'libminecraft_java.so'
           ldd godot_extension/bin/libminecraft_godot.so
 
+      - name: Load and run the demo in Godot headless
+        run: |
+          set -euo pipefail
+          GODOT_VERSION=4.5.1-stable
+          curl --fail --location --retry 3 \
+            -o "$RUNNER_TEMP/godot.zip" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_*' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          timeout 30 "$GODOT_BIN" --headless --path godot_extension --quit-after 5
+
       - name: Upload Linux GDExtension bundle
         uses: actions/upload-artifact@v4
         with:

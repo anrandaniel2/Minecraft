@@ -61,7 +61,7 @@ The generated header and intermediate build directory are not committed.
 ## Run in Godot
 
 1. Build the libraries above.
-2. Import/open `godot_extension/project.godot` in **Godot 4.1 or newer**.
+2. Import/open `godot_extension/project.godot` in **Godot 4.2 or newer**.
 3. Run the project on a touch device (or enable **Emulate Touch From Mouse** in
    Project Settings → Input Devices → Pointing).
 4. Press/drag the visual controls. The status text shows the mask returned by
