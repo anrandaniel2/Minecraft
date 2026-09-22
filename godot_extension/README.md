@@ -1,5 +1,7 @@
 # GraalVM Java → Godot GDExtension
 
+**Godot requirement:** This project uses Godot 4.7.2’s built-in `VirtualJoystick`, so it requires Godot 4.7.2 or newer.
+
 This is a **Linux x86_64** GDExtension project which compiles the usable Java
 surface in `decompiled_sample/net/minecraft/client/Minecraft.java` into a GraalVM
 Native Image shared library and loads it from Godot.
@@ -28,15 +30,13 @@ The Java class contains generic, synchronized methods:
 - `touchMove(pointerId, x, y, viewportWidth, viewportHeight)`
 - `touchUp(pointerId)`
 - `resetTouchControls()`
+- `setVirtualJoystickMask(actionMask)`
 - `getTouchMask()` and `getActiveTouchCount()`
 
 The mask uses these bits: `FORWARD=1`, `BACKWARD=2`, `LEFT=4`, `RIGHT=8`,
 `JUMP=16`, `SNEAK=32`, `ACTIVE=64`.
 
-`MinecraftTouch` exposes the equivalent snake-case methods to Godot. The demo
-scene's `TouchControls.gd` receives screen touch/drag events and calls that
-class. Touches on the left half act as a movement pad. The bottom-right button
-is jump, and the lower-middle-right button is sneak.
+`MinecraftTouch` exposes the equivalent snake-case methods to Godot. The demo scene uses Godot 4.7's built-in `VirtualJoystick` to drive four Input Map actions. `TouchControls.gd` samples those actions and calls `MinecraftTouch.set_virtual_joystick_mask()`. The Java layer remains Godot-free. The on-screen buttons set jump and sneak bits.
 
 ## Build
 
@@ -61,7 +61,7 @@ The generated header and intermediate build directory are not committed.
 ## Run in Godot
 
 1. Build the libraries above.
-2. Import/open `godot_extension/project.godot` in **Godot 4.2 or newer**.
+2. Import/open `godot_extension/project.godot` in **Godot 4.7.2 or newer**.
 3. Run the project on a touch device (or enable **Emulate Touch From Mouse** in
    Project Settings → Input Devices → Pointing).
 4. Press/drag the visual controls. The status text shows the mask returned by

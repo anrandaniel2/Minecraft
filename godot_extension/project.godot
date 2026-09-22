@@ -6,7 +6,24 @@ config_version=5
 config/name="Minecraft Java Touch GDExtension"
 run/main_scene="res://scenes/main.tscn"
 
-[display]
+[input]
+
+minecraft_forward={
+"deadzone": 0.18,
+"events": []
+}
+minecraft_backward={
+"deadzone": 0.18,
+"events": []
+}
+minecraft_left={
+"deadzone": 0.18,
+"events": []
+}
+minecraft_right={
+"deadzone": 0.18,
+"events": []
+}
 
 [display/window]
 size/viewport_width=1280

@@ -1,12 +1,68 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/TouchControls.gd" id="1_touch"]
+[ext_resource type="Script" path="res://scripts/TouchControls.gd" id="1_controls"]
 
-[node name="TouchControls" type="Control"]
+[node name="MinecraftViewportControls" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_touch")
+script = ExtResource("1_controls")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="HUD" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="VirtualJoystick" type="VirtualJoystick" parent="CanvasLayer/HUD"]
+layout_mode = 0
+offset_left = 34.0
+offset_top = 468.0
+offset_right = 234.0
+offset_bottom = 668.0
+joystick_mode = 0
+visibility_mode = 0
+joystick_size = 180.0
+tip_size = 82.0
+deadzone_ratio = 0.18
+clampzone_ratio = 1.0
+action_up = &"minecraft_forward"
+action_down = &"minecraft_backward"
+action_left = &"minecraft_left"
+action_right = &"minecraft_right"
+
+[node name="JumpButton" type="Button" parent="CanvasLayer/HUD"]
+layout_mode = 0
+offset_left = 1085.0
+offset_top = 555.0
+offset_right = 1245.0
+offset_bottom = 655.0
+theme_override_font_sizes/font_size = 23
+text = "JUMP"
+
+[node name="SneakButton" type="Button" parent="CanvasLayer/HUD"]
+layout_mode = 0
+offset_left = 890.0
+offset_top = 586.0
+offset_right = 1040.0
+offset_bottom = 655.0
+theme_override_font_sizes/font_size = 19
+text = "SNEAK"
+
+[node name="Status" type="Label" parent="CanvasLayer/HUD"]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 20.0
+offset_right = 680.0
+offset_bottom = 54.0
+theme_override_font_sizes/font_size = 20
+text = "Loading Java input layer..."

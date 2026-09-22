@@ -206,6 +206,24 @@ static void method_reset(void *userdata, GDExtensionClassInstancePtr instance,
     return_nil(result);
 }
 
+static void method_set_virtual_joystick_mask(void *userdata, GDExtensionClassInstancePtr instance,
+        const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
+        GDExtensionVariantPtr result, GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    if (argument_count != 1) {
+        set_argument_error(error, (int)argument_count, 1);
+        return_nil(result);
+        return;
+    }
+    graal_isolatethread_t *thread = java_thread();
+    if (thread != NULL) {
+        minecraft_set_virtual_joystick_mask(thread, (int)variant_int(args[0]));
+    }
+    set_call_ok(error);
+    return_nil(result);
+}
+
 static void method_get_touch_mask(void *userdata, GDExtensionClassInstancePtr instance,
         const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
         GDExtensionVariantPtr result, GDExtensionCallError *error) {
@@ -275,6 +293,15 @@ static void ptrcall_reset(void *userdata, GDExtensionClassInstancePtr instance,
     graal_isolatethread_t *thread = java_thread();
     if (thread != NULL) {
         minecraft_touch_reset(thread);
+    }
+}
+
+static void ptrcall_set_virtual_joystick_mask(void *userdata, GDExtensionClassInstancePtr instance,
+        const GDExtensionConstTypePtr *args, GDExtensionTypePtr result) {
+    (void)userdata; (void)instance; (void)result;
+    graal_isolatethread_t *thread = java_thread();
+    if (thread != NULL) {
+        minecraft_set_virtual_joystick_mask(thread, (int)*(const int64_t *)args[0]);
     }
 }
 
@@ -349,6 +376,8 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
     register_method("touch_move", 5, method_touch_move, ptrcall_touch_move, 0);
     register_method("touch_up", 1, method_touch_up, ptrcall_touch_up, 0);
     register_method("reset", 0, method_reset, ptrcall_reset, 0);
+    register_method("set_virtual_joystick_mask", 1, method_set_virtual_joystick_mask,
+            ptrcall_set_virtual_joystick_mask, 0);
     register_method("get_touch_mask", 0, method_get_touch_mask, ptrcall_get_touch_mask, 1);
     register_method("get_active_touch_count", 0, method_get_active_touch_count,
             ptrcall_get_active_touch_count, 1);

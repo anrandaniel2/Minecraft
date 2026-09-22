@@ -36,6 +36,11 @@ public final class MinecraftNativeEntrypoints {
         Minecraft.resetTouchControls();
     }
 
+    @CEntryPoint(name = "minecraft_set_virtual_joystick_mask")
+    public static void setVirtualJoystickMask(IsolateThread thread, int actionMask) {
+        Minecraft.setVirtualJoystickMask(actionMask);
+    }
+
     @CEntryPoint(name = "minecraft_touch_mask")
     public static int touchMask(IsolateThread thread) {
         return Minecraft.getTouchMask();

@@ -1,0 +1,29 @@
+name: Full Client Godot Port Preflight
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'extracted/**'
+      - 'tools/full_client_inventory.py'
+      - 'full_client_port/**'
+      - '.github/workflows/full-client-port-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify complete Java 25 client input
+        run: |
+          python3 tools/full_client_inventory.py --output full-client-inventory.json
+          cat full-client-inventory.json
+      - name: Upload full-client port inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-client-port-inventory
+          path: full-client-inventory.json
+          retention-days: 30

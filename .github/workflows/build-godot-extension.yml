@@ -16,6 +16,9 @@ on:
       - 'godot_extension/java/**'
       - 'godot_extension/src/**'
       - 'godot_extension/minecraft.gdextension'
+      - 'godot_extension/project.godot'
+      - 'godot_extension/scenes/**'
+      - 'godot_extension/scripts/**'
       - '.github/workflows/build-godot-extension.yml'
 
 permissions:
@@ -55,7 +58,7 @@ jobs:
       - name: Load and run the demo in Godot headless
         run: |
           set -euo pipefail
-          GODOT_VERSION=4.5.1-stable
+          GODOT_VERSION=4.7.2-stable
           curl --fail --location --retry 3 \
             -o "$RUNNER_TEMP/godot.zip" \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"

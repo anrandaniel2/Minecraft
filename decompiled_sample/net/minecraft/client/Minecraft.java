@@ -34,6 +34,9 @@ public final class Minecraft implements Runnable {
 
     private static final TouchPoint[] TOUCHES = new TouchPoint[MAX_TOUCHES];
     private static int touchMask;
+    // Input actions supplied by a host UI such as Godot 4.7 VirtualJoystick.
+    // This stays independent of the host renderer and can be merged with raw touches.
+    private static int virtualJoystickMask;
     private static boolean initialized;
 
     static {
@@ -84,11 +87,26 @@ public final class Minecraft implements Runnable {
             point.pointerId = -1;
         }
         touchMask = 0;
+        virtualJoystickMask = 0;
+    }
+
+    /**
+     * Sets directional/action bits supplied by an on-screen joystick. The
+     * method accepts the same public action mask as {@link #getTouchMask()},
+     * so a host need not manufacture fake screen coordinates for a joystick.
+     */
+    public static synchronized void setVirtualJoystickMask(int actionMask) {
+        int allowedActions = TOUCH_FORWARD | TOUCH_BACKWARD | TOUCH_LEFT | TOUCH_RIGHT
+                | TOUCH_JUMP | TOUCH_SNEAK;
+        virtualJoystickMask = actionMask & allowedActions;
+        if (virtualJoystickMask != 0) {
+            virtualJoystickMask |= TOUCH_ACTIVE;
+        }
     }
 
     /** Returns a stable bit mask of the current movement/action state. */
     public static synchronized int getTouchMask() {
-        return touchMask;
+        return touchMask | virtualJoystickMask;
     }
 
     /** Returns the number of contacts currently known to the touch controller. */
