@@ -220,7 +220,7 @@ namespace Minecraft.World.Inventory
         private ItemStack[] _items;
         public int Size => _items.Length;
 
-        public Inventory(int size)
+        public InventoryContainer(int size)
         {
             _items = new ItemStack[size];
             for (int i = 0; i < size; i++) _items[i] = ItemStack.Empty;
