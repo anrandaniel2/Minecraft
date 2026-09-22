@@ -225,16 +225,16 @@ jobs:
           cp export_presets.cfg Android/export_presets.cfg
           cat export_presets.cfg
 
-      - name: Import project
-        run: |
-          godot --headless --import --path . 2>&1 | tail -n 100 || true
-          ls -la .godot/ | head -n 20 || true
-
-      - name: Build C# solution
+      - name: Import project and Build C# (fix SDK + autoloads)
         run: |
           set -x
+          dotnet --list-sdks
+          dotnet --version
+          echo "=== RESTORE ==="
           dotnet restore Minecraft.csproj 2>&1 | tail -n 20
-          echo "=== DOTNET BUILD ==="
+          echo "=== BUILD DEBUG (for editor import, fixes autoload compile errors) ==="
+          dotnet build Minecraft.csproj --configuration Debug 2>&1 | tee /tmp/dotnet_debug.log | tail -n 100
+          echo "=== BUILD EXPORTRELEASE (for export) ==="
           dotnet build Minecraft.csproj --configuration ExportRelease 2>&1 | tee /tmp/dotnet_build.log | tail -n 200
           BUILD_EXIT=${PIPESTATUS[0]}
           if [ $BUILD_EXIT -ne 0 ]; then
@@ -242,7 +242,12 @@ jobs:
             cat /tmp/dotnet_build.log | tail -n 100
             exit 1
           fi
-          echo "C# BUILD SUCCEEDED - skipping godot --build-solutions (known to hang headless, dotnet build already built it)"
+          echo "C# BUILD SUCCEEDED"
+          ls -lh .godot/mono/temp/bin/Debug/ 2>/dev/null | head -n 20 || true
+          ls -lh .godot/mono/temp/bin/ExportRelease/ 2>/dev/null | head -n 20 || true
+          echo "=== GODOT IMPORT (after C# build so autoloads compile) ==="
+          timeout 120 godot --headless --import --path . 2>&1 | tail -n 100 || echo "import timed out, continuing"
+          ls -la .godot/ | head -n 20 || true
 
       - name: Export APK (arm64 only)
         run: |
