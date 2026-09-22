@@ -48,37 +48,51 @@ jobs:
         with:
           dotnet-version: 8.0.416
 
-      - name: Pin DOTNET_ROOT to 8.0 only
+      - name: Pin DOTNET_ROOT to 8.0 only - REPLACE /usr/share/dotnet with 8.0 only
         run: |
           set -x
           mkdir -p builds
           dotnet --list-sdks 2>&1 | tee builds/dotnet_before.log || true
+          ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 30 || true
+          ls /opt/hostedtoolcache/dotnet/ 2>/dev/null | head -n 20 || true
           SDK_8_PATH=$(dotnet --list-sdks | grep "8.0" | head -n 1 | awk -F'[][]' '{print $2}' | tr -d '[]' || echo "")
           echo "SDK_8_PATH=$SDK_8_PATH"
           if [ -z "$SDK_8_PATH" ]; then
             SDK_8_PATH=$(find /opt/hostedtoolcache /usr/share/dotnet -type d -name "8.0.*" 2>/dev/null | head -n 1 || echo "/usr/share/dotnet")
           fi
-          DOTNET_ROOT_CANDIDATE=$(dirname "$SDK_8_PATH" 2>/dev/null | xargs dirname 2>/dev/null || echo "/usr/share/dotnet")
-          if [ ! -d "$DOTNET_ROOT_CANDIDATE" ]; then
-            DOTNET_ROOT_CANDIDATE="/usr/share/dotnet"
+          # Find the 8.0 dotnet root (hostedtoolcache)
+          DOTNET_8_ROOT=$(find /opt/hostedtoolcache/dotnet -maxdepth 3 -type d -name "8.0.*" 2>/dev/null | head -n 1 | xargs dirname 2>/dev/null | xargs dirname 2>/dev/null || echo "")
+          if [ -z "$DOTNET_8_ROOT" ]; then
+            DOTNET_8_ROOT=$(dirname "$SDK_8_PATH" | xargs dirname 2>/dev/null || echo "/usr/share/dotnet")
           fi
-          echo "DOTNET_ROOT_CANDIDATE=$DOTNET_ROOT_CANDIDATE"
-          echo "DOTNET_ROOT=$DOTNET_ROOT_CANDIDATE" >> $GITHUB_ENV
-          echo "DOTNET_HOST_PATH=$DOTNET_ROOT_CANDIDATE/dotnet" >> $GITHUB_ENV
-          echo "DOTNET_MULTILEVEL_LOOKUP=0" >> $GITHUB_ENV
-          echo "DOTNET_ROOT=$DOTNET_ROOT_CANDIDATE"
-          ls $DOTNET_ROOT_CANDIDATE/host/fxr/ 2>/dev/null | head -n 20 || true
-          ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
-          # Nuke 10.x from everywhere, including DOTNET_ROOT itself - aggressive
-          rm -rf $DOTNET_ROOT_CANDIDATE/sdk/10* $DOTNET_ROOT_CANDIDATE/sdk/9* $DOTNET_ROOT_CANDIDATE/host/fxr/10* $DOTNET_ROOT_CANDIDATE/host/fxr/9* $DOTNET_ROOT_CANDIDATE/shared/*/*10* $DOTNET_ROOT_CANDIDATE/shared/*/*9* 2>/dev/null || true
+          echo "DOTNET_8_ROOT=$DOTNET_8_ROOT"
+          ls $DOTNET_8_ROOT/host/fxr/ 2>/dev/null | head -n 20 || true
+          # CRITICAL: Replace /usr/share/dotnet with 8.0 only - Godot hardcodes this path
+          echo "=== REPLACING /usr/share/dotnet with 8.0 only ==="
           rm -rf /usr/share/dotnet/sdk/10* /usr/share/dotnet/host/fxr/10* /usr/share/dotnet/shared/*/*10* 2>/dev/null || true
-          rm -rf /usr/local/share/dotnet/sdk/10* /usr/local/share/dotnet/host/fxr/10* 2>/dev/null || true
-          rm -rf /root/.dotnet/sdk/10* /root/.dotnet/host/fxr/10* 2>/dev/null || true
-          rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/sdk/10.0.303 /usr/share/dotnet/host/fxr/10.0.12 /usr/share/dotnet/host/fxr/10.0.8 /usr/share/dotnet/host/fxr/10.0.4 2>/dev/null || true
+          rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/host/fxr/10.0.12 2>/dev/null || true
+          # If hostedtoolcache has 8.0, copy it to /usr/share/dotnet to ensure Godot finds 8.0
+          if [ -d "$DOTNET_8_ROOT/sdk" ]; then
+            echo "Copying 8.0 SDK from $DOTNET_8_ROOT to /usr/share/dotnet"
+            rm -rf /usr/share/dotnet/sdk/10* /usr/share/dotnet/host/fxr/10* 2>/dev/null || true
+            # Ensure 8.0 exists in /usr/share/dotnet
+            mkdir -p /usr/share/dotnet/sdk /usr/share/dotnet/host/fxr /usr/share/dotnet/shared
+            cp -r $DOTNET_8_ROOT/sdk/8* /usr/share/dotnet/sdk/ 2>/dev/null || true
+            cp -r $DOTNET_8_ROOT/host/fxr/8* /usr/share/dotnet/host/fxr/ 2>/dev/null || true
+            cp -r $DOTNET_8_ROOT/shared/* /usr/share/dotnet/shared/ 2>/dev/null || true
+            cp $DOTNET_8_ROOT/dotnet /usr/share/dotnet/dotnet 2>/dev/null || true
+          fi
+          # Final nuke of 10.x after copy
+          rm -rf /usr/share/dotnet/sdk/10* /usr/share/dotnet/host/fxr/10* /usr/share/dotnet/shared/*/*10* 2>/dev/null || true
+          rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/host/fxr/10.0.12 /usr/share/dotnet/sdk/10.0.303 /usr/share/dotnet/host/fxr/10.0.8 2>/dev/null || true
+          echo "DOTNET_ROOT=/usr/share/dotnet" >> $GITHUB_ENV
+          echo "DOTNET_HOST_PATH=/usr/share/dotnet/dotnet" >> $GITHUB_ENV
+          echo "DOTNET_MULTILEVEL_LOOKUP=0" >> $GITHUB_ENV
+          echo "DOTNET_ROOT=/usr/share/dotnet"
           dotnet --list-sdks 2>&1 | tee builds/dotnet_after.log || true
           dotnet --version 2>&1 | tee -a builds/dotnet_after.log || true
           ls /usr/share/dotnet/host/fxr/ 2>/dev/null | tee -a builds/dotnet_after.log || true
-          ls $DOTNET_ROOT_CANDIDATE/host/fxr/ 2>/dev/null | tee -a builds/dotnet_after.log || true
+          ls /usr/share/dotnet/sdk/ 2>/dev/null | tee -a builds/dotnet_after.log || true
           cat builds/dotnet_after.log
 
       - name: Setup Android SDK + NDK
@@ -221,19 +235,15 @@ jobs:
           dotnet --list-sdks 2>&1 | head -n 30 || true
           dotnet --version 2>&1 | head -n 10 || true
           which dotnet || true
-          ls $DOTNET_ROOT/host/fxr/ 2>/dev/null | head -n 20 || true
-          ls /usr/share/dotnet/sdk/ 2>/dev/null | head -n 30 || true
-          # Final nuke of 10.x from DOTNET_ROOT and common paths - must happen before Godot loads hostfxr
-          rm -rf $DOTNET_ROOT/sdk/10* $DOTNET_ROOT/host/fxr/10* $DOTNET_ROOT/shared/*/*10* 2>/dev/null || true
+          ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
+          # Nuke 10.x RIGHT BEFORE Godot - Godot hardcodes /usr/share/dotnet
           rm -rf /usr/share/dotnet/sdk/10* /usr/share/dotnet/host/fxr/10* /usr/share/dotnet/shared/*/*10* 2>/dev/null || true
           rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/host/fxr/10.0.12 2>/dev/null || true
-          rm -rf /usr/local/share/dotnet/sdk/10* /usr/local/share/dotnet/host/fxr/10* 2>/dev/null || true
-          rm -rf /root/.dotnet/sdk/10* /root/.dotnet/host/fxr/10* 2>/dev/null || true
+          rm -rf $DOTNET_ROOT/sdk/10* $DOTNET_ROOT/host/fxr/10* $DOTNET_ROOT/shared/*/*10* 2>/dev/null || true
           find /usr /opt -type d -name "10.0.*" 2>/dev/null | xargs rm -rf 2>/dev/null || true
           echo "=== After cleanup (should only have 8.0.x) ==="
           dotnet --list-sdks 2>&1 | head -n 30 || true
           dotnet --version 2>&1 | head -n 10 || true
-          ls $DOTNET_ROOT/host/fxr/ 2>/dev/null | head -n 20 || true
           ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
           echo "DOTNET_ROOT=$DOTNET_ROOT" | tee -a builds/dotnet_after.log || true
           echo "=== RESTORE + BUILD DEBUG ==="
@@ -261,12 +271,13 @@ jobs:
           echo "DOTNET_MULTILEVEL_LOOKUP=$DOTNET_MULTILEVEL_LOOKUP"
           dotnet --list-sdks 2>&1 | head -n 30 || true
           dotnet --version 2>&1 | head -n 10 || true
-          # Critical: nuke 10.x RIGHT BEFORE Godot export - Godot probes /usr/share/dotnet directly ignoring DOTNET_ROOT
+          # Critical: nuke 10.x RIGHT BEFORE Godot export - Godot hardcodes /usr/share/dotnet
           rm -rf /usr/share/dotnet/sdk/10* /usr/share/dotnet/host/fxr/10* /usr/share/dotnet/shared/*/*10* 2>/dev/null || true
-          rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/host/fxr/10.0.12 2>/dev/null || true
+          rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/host/fxr/10.0.12 /usr/share/dotnet/sdk/10.0.303 /usr/share/dotnet/host/fxr/10.0.8 2>/dev/null || true
           rm -rf $DOTNET_ROOT/sdk/10* $DOTNET_ROOT/host/fxr/10* 2>/dev/null || true
-          ls /usr/share/dotnet/host/fxr/ 2>/dev/null || true
-          ls $DOTNET_ROOT/host/fxr/ 2>/dev/null || true
+          ls /usr/share/dotnet/host/fxr/ 2>/dev/null | tee -a builds/dotnet_after.log || true
+          ls /usr/share/dotnet/sdk/ 2>/dev/null | tee -a builds/dotnet_after.log || true
+          dotnet --list-sdks 2>&1 | tee -a builds/dotnet_after.log || true
           mkdir -p builds
           echo "=== FIX: Temporarily remove C# autoloads (they cause Failed to load assembly) ==="
           cp project.godot project.godot.bak
