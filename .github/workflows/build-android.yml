@@ -211,25 +211,42 @@ jobs:
           dotnet build Minecraft.csproj --configuration ExportRelease 2>&1 | tail -n 100 || true
           ls -lh .godot/mono/temp/bin/ExportRelease/ 2>/dev/null | head -n 20 || true
 
-      - name: Export APK (real, not placeholder)
+      - name: Export APK (real, not placeholder) - remove autoloads to fix assembly load
         run: |
           set -x
           GODOT_BIN=$(which godot 2>/dev/null || echo "/usr/local/bin/godot")
           mkdir -p builds
+          echo "=== FIX: Temporarily remove C# autoloads (they cause Failed to load assembly -> export fails) ==="
+          cp project.godot project.godot.bak
+          python3 << 'PY'
+          import re
+          with open('project.godot','r') as f:
+              content=f.read()
+          # Remove [autoload] section entirely for export
+          content=re.sub(r'\[autoload\][^\[]*', '', content, flags=re.DOTALL)
+          with open('project.godot','w') as f:
+              f.write(content)
+          print("Removed autoloads for export")
+          PY
+          cat project.godot | grep -A2 "autoload" || echo "No autoloads (good, prevents Failed to create autoload errors)"
           echo "Pre-export checks:"
           ls -la android/build/ | head -n 20 || echo "no android/build"
           ls -lh android/build/gradlew 2>&1 | head -n 5 || echo "no gradlew"
-          echo "=== EXPORT DEBUG (should take 20-30m) ==="
+          echo "=== EXPORT DEBUG (without autoloads, should allow gradle to run) ==="
           timeout 1800 $GODOT_BIN --headless --path . --export-debug "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee builds/export.log | tail -n 1000
           EXPORT_EXIT=${PIPESTATUS[0]}
           echo "Export exit: $EXPORT_EXIT"
+          mv project.godot.bak project.godot || true
           ls -lh builds/ || true
           if [ -f builds/Minecraft-26.3-Android-arm64.apk ]; then
-            SIZE=$(stat -c%s builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null || stat -f%z builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null || echo 0)
-            echo "APK size: $SIZE bytes"
+            SIZE=$(stat -c%s builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null || echo 0)
+            echo "APK size: $SIZE"
             if [ "$SIZE" -lt 5000000 ]; then
-              echo "Placeholder <5MB, trying release..."
+              echo "Placeholder <5MB, trying release without autoloads..."
+              cp project.godot project.godot.bak2
+              python3 -c "import re; c=open('project.godot').read(); open('project.godot','w').write(re.sub(r'\[autoload\][^\[]*','',c,flags=re.DOTALL))" || true
               timeout 1800 $GODOT_BIN --headless --path . --export-release "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee -a builds/export.log | tail -n 1000
+              mv project.godot.bak2 project.godot || true
               SIZE=$(stat -c%s builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null || echo 0)
               echo "After release size: $SIZE"
             fi
@@ -240,6 +257,7 @@ jobs:
             fi
             echo "Real APK: $(du -h builds/Minecraft-26.3-Android-arm64.apk)"
             unzip -l builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null | grep lib/ | head -n 30 || true
+            unzip -l builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null | grep -E "arm64|armeabi|x86" | head -n 20 || true
           else
             echo "No APK"
             cat builds/export.log | tail -n 1000 || true
