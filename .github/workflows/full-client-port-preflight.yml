@@ -18,6 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Java for neutral RenderPearl protocol tests
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
       - name: Verify complete Java 25 client input
         run: |
           python3 tools/full_client_inventory.py --output full-client-inventory.json
@@ -27,6 +32,16 @@ jobs:
         run: |
           python3 tools/renderpearl_abi_inventory.py \
             --verify full_client_port/renderpearl_backend/renderpearl-26.3-abi.json
+
+      - name: Compile and test neutral Java RenderPearl command writer
+        run: |
+          set -euo pipefail
+          mkdir -p build/renderpearl-command-protocol
+          javac -Xlint:all -Werror \
+            -d build/renderpearl-command-protocol \
+            $(find full_client_port/renderpearl_backend/java -type f -name '*.java' | sort)
+          java -cp build/renderpearl-command-protocol \
+            net.minecraft.godot.renderpearl.RenderCommandWriterTest
 
       - name: Upload full-client port inventory
         uses: actions/upload-artifact@v4

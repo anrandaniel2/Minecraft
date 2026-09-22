@@ -69,9 +69,12 @@ resource lifetime/upload, pipeline compilation, render-pass state and draw
 operations. It validates complete frame/pass nesting before a future Godot
 executor is permitted to touch GPU resources.
 
-The Java RenderPearl implementation will encode this stream; the C
-GDExtension will consume it and map packets to Godot. This is intentionally not
-an OpenGL/Vulkan context-sharing layer.
+`java/net/minecraft/godot/renderpearl/RenderCommandWriter.java` now encodes
+this stream in Java without any Godot imports; its protocol test is compiled in
+full-client preflight CI. The eventual `GpuDevice`/`CommandEncoder` classes
+will use this writer rather than talking to Godot directly. The C GDExtension
+will consume it and map packets to Godot. This is intentionally not an
+OpenGL/Vulkan context-sharing layer.
 
 ## Implementation order
 
