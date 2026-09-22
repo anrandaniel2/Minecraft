@@ -28,14 +28,25 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK command-line tools
-        uses: android-actions/setup-android@v3
-
       - name: Install Android SDK components
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo 'Android command-line tools are not preinstalled; installing an isolated copy.'
+            mkdir -p "$RUNNER_TEMP/android-cmdline-tools"
+            curl --fail --location --retry 3 \
+              -o "$RUNNER_TEMP/cmdline-tools.zip" \
+              'https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip'
+            unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/android-cmdline-tools"
+            mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+            mv "$RUNNER_TEMP/android-cmdline-tools/cmdline-tools"/* "$ANDROID_HOME/cmdline-tools/latest/"
+            SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --version
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
+            'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
 
       - name: Install Godot editor and Android export templates
         run: |
