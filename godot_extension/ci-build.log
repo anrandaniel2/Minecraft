@@ -1,0 +1,77 @@
+openjdk version "21.0.2" 2024-01-16
+OpenJDK Runtime Environment GraalVM CE 21.0.2+13.1 (build 21.0.2+13-jvmci-23.1-b30)
+OpenJDK 64-Bit Server VM GraalVM CE 21.0.2+13.1 (build 21.0.2+13-jvmci-23.1-b30, mixed mode, sharing)
+native-image 21.0.2 2024-01-16
+GraalVM Runtime Environment GraalVM CE 21.0.2+13.1 (build 21.0.2+13-jvmci-23.1-b30)
+Substrate VM GraalVM CE 21.0.2+13.1 (build 21.0.2+13, serial gc)
+Warning: The option '-H:Name=minecraft_java' is experimental and must be enabled via '-H:+UnlockExperimentalVMOptions' in the future.
+Warning: The option '-H:Path=/home/runner/work/Minecraft/Minecraft/godot_extension/build/native' is experimental and must be enabled via '-H:+UnlockExperimentalVMOptions' in the future.
+Warning: Please re-evaluate whether any experimental option is required, and either remove or unlock it. The build output lists all active experimental options, including where they come from and possible alternatives. If you think an experimental option should be considered as stable, please file an issue.
+========================================================================================================================
+GraalVM Native Image: Generating 'minecraft_java' (shared library)...
+========================================================================================================================
+For detailed information and explanations on the build output, visit:
+https://github.com/oracle/graal/blob/master/docs/reference-manual/native-image/BuildOutput.md
+------------------------------------------------------------------------------------------------------------------------
+[1/8] Initializing...                                                                                    (3.5s @ 0.11GB)
+ Java version: 21.0.2+13, vendor version: GraalVM CE 21.0.2+13.1
+ Graal compiler: optimization level: 2, target machine: x86-64-v3
+ C compiler: gcc (linux, x86_64, 13.3.0)
+ Garbage collector: Serial GC (max heap size: 80% of RAM)
+ 1 user-specific feature(s):
+ - com.oracle.svm.thirdparty.gson.GsonFeature
+------------------------------------------------------------------------------------------------------------------------
+ 2 experimental option(s) unlocked:
+ - '-H:Name' (alternative API option(s): -o minecraft_java; origin(s): command line)
+ - '-H:Path' (origin(s): command line)
+------------------------------------------------------------------------------------------------------------------------
+Build resources:
+ - 8.80GB of memory (56.4% of 15.61GB system memory, determined at start)
+ - 4 thread(s) (100.0% of 4 available processor(s), determined at start)
+[2/8] Performing analysis...  [*****]                                                                   (16.7s @ 0.26GB)
+    3,219 reachable types   (72.4% of    4,449 total)
+    3,838 reachable fields  (49.8% of    7,708 total)
+   15,659 reachable methods (45.5% of   34,406 total)
+    1,009 types,    90 fields, and   674 methods registered for reflection
+       57 types,    57 fields, and    52 methods registered for JNI access
+        4 native libraries: dl, pthread, rt, z
+[3/8] Building universe...                                                                               (2.6s @ 0.31GB)
+[4/8] Parsing methods...      [*]                                                                        (1.8s @ 0.33GB)
+[5/8] Inlining methods...     [***]                                                                      (1.6s @ 0.36GB)
+[6/8] Compiling methods...    [****]                                                                    (15.5s @ 0.27GB)
+[7/8] Layouting methods...    [*]                                                                        (1.1s @ 0.33GB)
+[8/8] Creating image...       [*]                                                                        (1.5s @ 0.42GB)
+   5.43MB (38.56%) for code area:     8,917 compilation units
+   7.99MB (56.81%) for image heap:  108,766 objects and 37 resources
+ 667.41kB ( 4.63%) for other data
+  14.07MB in total
+------------------------------------------------------------------------------------------------------------------------
+Top 10 origins of code area:                                Top 10 object types in image heap:
+   4.08MB java.base                                            1.61MB byte[] for code metadata
+ 967.26kB svm.jar (Native Image)                               1.42MB byte[] for java.lang.String
+ 113.48kB java.logging                                         1.08MB java.lang.String
+  65.00kB org.graalvm.nativeimage.base                       748.18kB java.lang.Class
+  47.59kB jdk.proxy1                                         351.14kB java.util.HashMap$Node
+  45.84kB jdk.proxy3                                         276.63kB com.oracle.svm.core.hub.DynamicHubCompanion
+  27.06kB jdk.internal.vm.ci                                 247.14kB byte[] for general heap data
+  22.06kB org.graalvm.collections                            231.82kB java.lang.String[]
+  11.42kB jdk.proxy2                                         217.28kB java.lang.Object[]
+   8.07kB jdk.internal.vm.compiler                           166.53kB java.util.HashMap$Node[]
+   8.02kB for 3 more packages                                  1.69MB for 902 more object types
+------------------------------------------------------------------------------------------------------------------------
+Recommendations:
+ INIT: Adopt '--strict-image-heap' to prepare for the next GraalVM release.
+ HEAP: Set max heap for improved and more predictable memory usage.
+ CPU:  Enable more CPU features with '-march=native' for improved performance.
+------------------------------------------------------------------------------------------------------------------------
+                        2.9s (6.3% of total time) in 196 GCs | Peak RSS: 0.84GB | CPU load: 3.60
+------------------------------------------------------------------------------------------------------------------------
+Produced artifacts:
+ /home/runner/work/Minecraft/Minecraft/godot_extension/build/native/graal_isolate.h (c_header)
+ /home/runner/work/Minecraft/Minecraft/godot_extension/build/native/graal_isolate_dynamic.h (c_header)
+ /home/runner/work/Minecraft/Minecraft/godot_extension/build/native/minecraft_java.h (c_header)
+ /home/runner/work/Minecraft/Minecraft/godot_extension/build/native/minecraft_java.so (shared_library)
+ /home/runner/work/Minecraft/Minecraft/godot_extension/build/native/minecraft_java_dynamic.h (c_header)
+========================================================================================================================
+Finished generating 'minecraft_java' in 44.6s.
+native-image did not produce the expected .so and C header.
