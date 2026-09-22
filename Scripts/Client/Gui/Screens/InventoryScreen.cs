@@ -1,32 +1,27 @@
 using Godot;
 using System;
-using Minecraft.World.Inventory;
-using Minecraft.World.Inventory.Crafting;
 
 namespace Minecraft.Client.Gui.Screens
 {
-    /// <summary>
-    /// Translation of net.minecraft.client.gui.screens.inventory.InventoryScreen / CraftingScreen
-    /// </summary>
     public partial class InventoryScreen : Screen
     {
-        private InventoryContainer _playerInventory;
-        private CraftingContainer _craftingContainer;
-        private CraftingManager _craftingManager;
+        private global::Minecraft.World.Inventory.InventoryContainer _playerInventory;
+        private global::Minecraft.World.Inventory.Crafting.CraftingContainer _craftingContainer;
+        private global::Minecraft.World.Inventory.Crafting.CraftingManager _craftingManager;
 
         private GridContainer _inventoryGrid;
         private GridContainer _craftingGrid;
         private TextureRect _resultSlot;
 
-        public InventoryScreen(InventoryContainer inventory) : base("Inventory")
+        public InventoryScreen(global::Minecraft.World.Inventory.InventoryContainer inventory) : base("Inventory")
         {
             _playerInventory = inventory;
-            _craftingContainer = new CraftingContainer(2, 2);
-            _craftingManager = new CraftingManager();
+            _craftingContainer = new global::Minecraft.World.Inventory.Crafting.CraftingContainer(2, 2);
+            _craftingManager = new global::Minecraft.World.Inventory.Crafting.CraftingManager();
         }
+
         protected override void Init()
         {
-            // Background - from container/inventory.png (176x166)
             var bg = new ColorRect();
             bg.Color = new Color(0.6f, 0.6f, 0.6f, 1f);
             bg.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -40,7 +35,6 @@ namespace Minecraft.Client.Gui.Screens
             panel.CustomMinimumSize = new Vector2(400, 400);
             container.AddChild(panel);
 
-            // Crafting grid - 2x2
             CreateLabel("Crafting", new Vector2(20, 20));
             _craftingGrid = new GridContainer();
             _craftingGrid.Position = new Vector2(20, 50);
@@ -54,14 +48,12 @@ namespace Minecraft.Client.Gui.Screens
                 _craftingGrid.AddChild(slot);
             }
 
-            // Result slot
             _resultSlot = new TextureRect();
             _resultSlot.Position = new Vector2(150, 70);
             _resultSlot.Size = new Vector2(40, 40);
             _resultSlot.Modulate = new Color(0.8f, 0.8f, 0.8f);
             panel.AddChild(_resultSlot);
 
-            // Inventory grid - 9x3 + hotbar
             CreateLabel("Inventory", new Vector2(20, 180));
             _inventoryGrid = new GridContainer();
             _inventoryGrid.Position = new Vector2(20, 210);
@@ -75,7 +67,6 @@ namespace Minecraft.Client.Gui.Screens
                 _inventoryGrid.AddChild(slot);
             }
 
-            // Hotbar
             var hotbarGrid = new GridContainer();
             hotbarGrid.Position = new Vector2(20, 320);
             hotbarGrid.Size = new Vector2(360, 40);
@@ -108,7 +99,6 @@ namespace Minecraft.Client.Gui.Screens
             var stack = isCrafting ? _craftingContainer.GetItem(index) : _playerInventory.GetItem(index);
             if (!stack.IsEmpty)
             {
-                // Would set texture from item
                 var label = new Label();
                 label.Text = stack.Item.Name.Substring(0, Math.Min(3, stack.Item.Name.Length));
                 label.AddThemeFontSizeOverride("font_size", 10);
@@ -131,13 +121,13 @@ namespace Minecraft.Client.Gui.Screens
 
     public partial class CraftingScreen : Screen
     {
-        private CraftingContainer _container;
-        private CraftingManager _manager;
+        private global::Minecraft.World.Inventory.Crafting.CraftingContainer _container;
+        private global::Minecraft.World.Inventory.Crafting.CraftingManager _manager;
 
         public CraftingScreen() : base("Crafting")
         {
-            _container = new CraftingContainer(3, 3);
-            _manager = new CraftingManager();
+            _container = new global::Minecraft.World.Inventory.Crafting.CraftingContainer(3, 3);
+            _manager = new global::Minecraft.World.Inventory.Crafting.CraftingManager();
         }
 
         protected override void Init()
