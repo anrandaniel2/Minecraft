@@ -215,7 +215,7 @@ namespace Minecraft.World.Entity
         public int DeathTime { get; set; } = 0;
         public bool IsDead => Health <= 0;
 
-        public global::Minecraft.World.Inventory.Inventory Inventory { get; } = new global::Minecraft.World.Inventory.Inventory(36);
+        public global::Minecraft.World.Inventory.InventoryContainer Inventory { get; } = new global::Minecraft.World.Inventory.InventoryContainer(36);
 
         protected LivingEntity(string type, global::Minecraft.World.Level.Level level) : base(type, level) {}
 

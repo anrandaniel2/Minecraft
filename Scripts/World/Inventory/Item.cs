@@ -215,7 +215,7 @@ namespace Minecraft.World.Inventory
         public static IReadOnlyList<Item> All => _all;
     }
 
-    public class Inventory
+    public class InventoryContainer
     {
         private ItemStack[] _items;
         public int Size => _items.Length;

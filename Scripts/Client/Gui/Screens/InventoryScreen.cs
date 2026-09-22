@@ -2,17 +2,15 @@ using Godot;
 using System;
 using Minecraft.World.Inventory;
 using Minecraft.World.Inventory.Crafting;
-using InventoryClass = global::Minecraft.World.Inventory.Inventory;
 
 namespace Minecraft.Client.Gui.Screens
 {
     /// <summary>
     /// Translation of net.minecraft.client.gui.screens.inventory.InventoryScreen / CraftingScreen
-    /// Recreates inventory UI with exact texture slices from container/inventory.png etc.
     /// </summary>
     public partial class InventoryScreen : Screen
     {
-        private InventoryClass _playerInventory;
+        private InventoryContainer _playerInventory;
         private CraftingContainer _craftingContainer;
         private CraftingManager _craftingManager;
 
@@ -20,13 +18,12 @@ namespace Minecraft.Client.Gui.Screens
         private GridContainer _craftingGrid;
         private TextureRect _resultSlot;
 
-        public InventoryScreen(InventoryClass inventory) : base("Inventory")
+        public InventoryScreen(InventoryContainer inventory) : base("Inventory")
         {
             _playerInventory = inventory;
-            _craftingContainer = new CraftingContainer(2, 2); // inventory crafting 2x2
+            _craftingContainer = new CraftingContainer(2, 2);
             _craftingManager = new CraftingManager();
         }
-
         protected override void Init()
         {
             // Background - from container/inventory.png (176x166)
