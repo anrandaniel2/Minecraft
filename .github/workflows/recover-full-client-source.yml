@@ -39,6 +39,7 @@ jobs:
       - name: Decompile the complete extracted client
         run: |
           set -euo pipefail
+          exec > >(tee source-recovery.log) 2>&1
           python3 tools/full_client_inventory.py
           rm -rf full-client-java full-client-source.zip source-recovery-report.txt
           mkdir -p full-client-java
@@ -62,6 +63,17 @@ jobs:
           # original classes instead of recovered Java source.
           test "$java_count" -ge 10000
           tar -czf full-client-source.tar.gz -C full-client-java .
+
+      - name: Commit source-recovery diagnostics on failure
+        if: failure()
+        run: |
+          set -euo pipefail
+          cp source-recovery.log full_client_port/source-recovery-failure.log
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f full_client_port/source-recovery-failure.log
+          git commit -m 'Record full-client source recovery failure' || exit 0
+          git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Upload recovered source for renderer-port work
         uses: actions/upload-artifact@v4
