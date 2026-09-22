@@ -7,8 +7,9 @@
  * the Java side emits RenderPearl operations and only the C GDExtension layer
  * maps them to Godot rendering commands.
  *
- * All packets begin at an 8-byte boundary. packet_size includes the header and
- * padding, which makes a frame safe to validate before touching GPU resources.
+ * All packet fields use little-endian byte order. Packets begin at an 8-byte
+ * boundary; packet_size includes the header and padding, which makes a frame
+ * safe to validate before touching GPU resources.
  */
 
 #include <stdbool.h>
@@ -21,6 +22,7 @@ extern "C" {
 
 #define MINECRAFT_RENDER_ABI_VERSION 1u
 #define MINECRAFT_RENDER_PACKET_ALIGNMENT 8u
+#define MINECRAFT_RENDER_PACKET_HEADER_BYTES 8u
 
 typedef enum MinecraftRenderOpcode {
     MINECRAFT_RENDER_FRAME_BEGIN = 1,

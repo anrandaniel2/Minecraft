@@ -7,10 +7,24 @@
 
 #define MINECRAFT_RENDER_MAX_FRAME_BYTES (64u * 1024u * 1024u)
 
+_Static_assert(sizeof(MinecraftRenderPacketHeader) == MINECRAFT_RENDER_PACKET_HEADER_BYTES,
+               "Minecraft render packet header must match the wire format");
+
 static pthread_mutex_t latest_frame_mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint8_t *latest_frame_bytes;
 static size_t latest_frame_size;
 static int latest_submission_status = MINECRAFT_RENDER_INVALID_ARGUMENT;
+
+static uint16_t read_u16_le(const uint8_t *bytes) {
+    return (uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8);
+}
+
+static uint32_t read_u32_le(const uint8_t *bytes) {
+    return (uint32_t)bytes[0] |
+           ((uint32_t)bytes[1] << 8) |
+           ((uint32_t)bytes[2] << 16) |
+           ((uint32_t)bytes[3] << 24);
+}
 
 static bool is_known_opcode(uint16_t opcode) {
     return opcode >= MINECRAFT_RENDER_FRAME_BEGIN && opcode <= MINECRAFT_RENDER_DRAW_INDEXED;
@@ -51,9 +65,13 @@ int minecraft_render_visit_frame(
             return MINECRAFT_RENDER_TRUNCATED_PACKET;
         }
 
-        MinecraftRenderPacketHeader header;
-        memcpy(&header, frame_bytes + offset, sizeof(header));
-        if (header.packet_size < sizeof(header) ||
+        const uint8_t *packet_bytes = frame_bytes + offset;
+        MinecraftRenderPacketHeader header = {
+            .opcode = read_u16_le(packet_bytes),
+            .reserved = read_u16_le(packet_bytes + 2),
+            .packet_size = read_u32_le(packet_bytes + 4),
+        };
+        if (header.reserved != 0 || header.packet_size < sizeof(header) ||
             (header.packet_size % MINECRAFT_RENDER_PACKET_ALIGNMENT) != 0) {
             return MINECRAFT_RENDER_BAD_ALIGNMENT;
         }
@@ -100,7 +118,7 @@ int minecraft_render_visit_frame(
                 break;
         }
 
-        if (!visitor(&header, frame_bytes + offset, user_data)) {
+        if (!visitor(&header, packet_bytes, user_data)) {
             return MINECRAFT_RENDER_VISITOR_REJECTED;
         }
         if (packet_count == INT_MAX) {
