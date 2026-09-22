@@ -60,7 +60,6 @@ _update_scan_actions: begin: Scanning actions... steps: 17
 _update_scan_actions: end
 ERROR: Cannot export project with preset "Android" due to configuration errors:
 Exporting to Android when using C#/.NET is experimental.
-Android build template not installed in the project. Install it from the Project menu.
 
    at: _fs_changed (editor/editor_node.cpp:1087)
 ERROR: Project export for preset "Android" failed.
