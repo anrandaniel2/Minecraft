@@ -58,8 +58,17 @@ jobs:
             -o "$RUNNER_TEMP/templates.tpz" \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
           unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
-          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}"
-          unzip -q "$RUNNER_TEMP/templates.tpz" -d "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}"
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}"
+          mkdir -p "$TEMPLATE_DIR"
+          unzip -q "$RUNNER_TEMP/templates.tpz" -d "$TEMPLATE_DIR"
+          # The .tpz itself contains a templates/ root, whereas Godot expects
+          # android_debug.apk and android_release.apk directly in TEMPLATE_DIR.
+          if [ -d "$TEMPLATE_DIR/templates" ]; then
+            mv "$TEMPLATE_DIR/templates"/* "$TEMPLATE_DIR/"
+            rmdir "$TEMPLATE_DIR/templates"
+          fi
+          test -f "$TEMPLATE_DIR/android_debug.apk"
+          test -f "$TEMPLATE_DIR/android_release.apk"
           GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_*' -print -quit)"
           test -n "$GODOT_BIN"
           chmod +x "$GODOT_BIN"
