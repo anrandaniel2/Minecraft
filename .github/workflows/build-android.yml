@@ -162,34 +162,53 @@ jobs:
           CFG
           cat export_presets.cfg
 
-      - name: Import and Build C# (container + cleanup .NET 10)
+      - name: Import and Build C# (container + exhaustive .NET 10 cleanup + fix autoloads)
         run: |
           set -x
           GODOT_BIN=$(which godot 2>/dev/null || echo "/usr/local/bin/godot")
           $GODOT_BIN --version
-          echo "=== DOTNET SDKs before cleanup (container may have .NET 10) ==="
+          echo "=== DOTNET SDKs before cleanup (container has .NET 10) ==="
           dotnet --list-sdks || true
-          dotnet --list-runtimes | head -n 20 || true
+          dotnet --list-runtimes | head -n 30 || true
+          echo "Searching for all dotnet installations..."
+          find /usr -type d -name "10.0.*" 2>/dev/null | head -n 20 || true
+          find /root -type d -name "10.0.*" 2>/dev/null | head -n 20 || true
           ls /usr/share/dotnet/sdk/ 2>/dev/null | head -n 20 || true
           ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
+          ls /root/.dotnet/sdk/ 2>/dev/null | head -n 20 || true
+          # Exhaustive cleanup of ALL .NET 9 and 10 from all possible locations
           sudo rm -rf /usr/share/dotnet/sdk/10.* /usr/share/dotnet/sdk/9.* 2>/dev/null || true
           sudo rm -rf /usr/share/dotnet/host/fxr/10.* /usr/share/dotnet/host/fxr/9.* 2>/dev/null || true
           sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/10.* /usr/share/dotnet/shared/Microsoft.NETCore.App/9.* 2>/dev/null || true
-          echo "=== After cleanup ==="
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/10.* /usr/share/dotnet/shared/Microsoft.AspNetCore.App/9.* 2>/dev/null || true
+          sudo rm -rf /usr/local/share/dotnet/sdk/10.* /usr/local/share/dotnet/sdk/9.* 2>/dev/null || true
+          sudo rm -rf /root/.dotnet/sdk/10.* /root/.dotnet/sdk/9.* 2>/dev/null || true
+          sudo rm -rf /home/runner/.dotnet/sdk/10.* /home/runner/.dotnet/sdk/9.* 2>/dev/null || true
+          sudo rm -rf /opt/dotnet/sdk/10.* /opt/dotnet/sdk/9.* 2>/dev/null || true
+          echo "=== After cleanup (should only have 8.0.x) ==="
           dotnet --list-sdks || true
+          dotnet --list-runtimes | head -n 20 || true
+          ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
           dotnet --version || true
-          echo "=== IMPORT ==="
-          $GODOT_BIN --headless --import --path . 2>&1 | tail -n 100 || true
-          echo "=== BUILD SOLUTIONS ==="
-          timeout 120 $GODOT_BIN --headless --build-solutions --path . 2>&1 | tail -n 200 || echo "build-solutions timed out"
-          ls -lh .godot/mono/temp/bin/Debug/ 2>/dev/null | head -n 20 || true
-          ls -lh .godot/mono/temp/bin/ExportRelease/ 2>/dev/null | head -n 20 || true
-          echo "=== DOTNET BUILD FALLBACK ==="
+          echo "=== RESTORE + BUILD DEBUG (fixes autoloads) ==="
           dotnet restore Minecraft.csproj 2>&1 | tail -n 20 || true
-          dotnet build Minecraft.csproj --configuration Debug 2>&1 | tail -n 50 || true
+          dotnet build Minecraft.csproj --configuration Debug 2>&1 | tee /tmp/dotnet_debug.log | tail -n 100 || true
+          ls -lh .godot/mono/temp/bin/Debug/ 2>/dev/null | head -n 20 || true
+          echo "=== IMPORT (after Debug build so autoloads have DLL) ==="
+          $GODOT_BIN --headless --import --path . 2>&1 | tail -n 100 || true
+          echo "=== BUILD SOLUTIONS (container's Godot handles .NET) ==="
+          timeout 120 $GODOT_BIN --headless --build-solutions --path . 2>&1 | tail -n 200 || echo "build-solutions timed out"
+          echo "=== BUILD EXPORTRELEASE ==="
           dotnet build Minecraft.csproj --configuration ExportRelease 2>&1 | tail -n 100 || true
           ls -lh .godot/mono/temp/bin/Debug/ 2>/dev/null | head -n 20 || true
           ls -lh .godot/mono/temp/bin/ExportRelease/ 2>/dev/null | head -n 20 || true
+          echo "=== Check DLL exists ==="
+          if [ -f ".godot/mono/temp/bin/Debug/Minecraft.dll" ]; then
+            echo "Debug DLL exists"
+          else
+            echo "Debug DLL missing, listing .godot/mono:"
+            find .godot -name "*.dll" 2>/dev/null | head -n 20 || true
+          fi
 
       - name: Export APK (real, not placeholder)
         run: |
@@ -226,17 +245,23 @@ jobs:
             exit 1
           fi
 
-      - name: Commit export log
+      - name: Commit export log (event-based, no sleep, force push)
         if: always()
         run: |
           set -x
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin arena/01a0c03a-minecraft 2>/dev/null || true
           git add -f builds/export.log export_presets.cfg 2>/dev/null || true
+          git add -f android/build/build.gradle 2>/dev/null || true
           if ! git diff --cached --quiet; then
-            git commit -m "Add export log - run ${{ github.run_number }}"
-            git push origin HEAD:arena/01a0c03a-minecraft || true
+            git commit -m "Add export log - run ${{ github.run_number }} - $(date -u +%Y%m%d%H%M%S)" || true
+            git push origin HEAD:arena/01a0c03a-minecraft --force 2>&1 | tail -n 20 || true
+          else
+            echo "No diff to commit"
           fi
+          echo "Export log tail:"
+          cat builds/export.log 2>/dev/null | tail -n 100 || echo "no export.log"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
