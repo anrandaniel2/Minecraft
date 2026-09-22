@@ -1,0 +1,62 @@
+name: Recover Full Minecraft Client Source
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'minecraft-client.jar'
+      - '.github/workflows/recover-full-client-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  decompile-full-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Client 26.3 classes are Java 25 (class-file major 69). Source recovery
+      # must use a JDK which can read that class level; Java 21 is not enough.
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Fetch Vineflower
+        run: |
+          set -euo pipefail
+          asset_url="$(curl --fail --silent --show-error --location \
+            https://api.github.com/repos/Vineflower/vineflower/releases/latest \
+            | jq -r '.assets[] | select(.name | test("^vineflower-.*\\.jar$")) | .browser_download_url' \
+            | head -n 1)"
+          test -n "$asset_url"
+          curl --fail --location --retry 3 -o vineflower.jar "$asset_url"
+          java -jar vineflower.jar --version || true
+
+      - name: Decompile the complete extracted client
+        run: |
+          set -euo pipefail
+          python3 tools/full_client_inventory.py
+          rm -rf full-client-java full-client-source.zip source-recovery-report.txt
+          mkdir -p full-client-java
+          java -Xmx12g -jar vineflower.jar -dgs=1 -log=ERROR minecraft-client.jar full-client-java
+          java_count="$(find full-client-java -type f -name '*.java' | wc -l)"
+          class_count="$(find extracted -type f -name '*.class' | wc -l)"
+          printf 'Java source files: %s\nOriginal class files: %s\n' "$java_count" "$class_count" | tee source-recovery-report.txt
+          # This guards against the old mislabeled archive which contained the
+          # original classes instead of recovered Java source.
+          test "$java_count" -ge 10000
+          tar -czf full-client-source.tar.gz -C full-client-java .
+
+      - name: Upload recovered source for renderer-port work
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-26.3-full-java-source
+          path: |
+            full-client-source.tar.gz
+            source-recovery-report.txt
+          retention-days: 14
+          if-no-files-found: error
