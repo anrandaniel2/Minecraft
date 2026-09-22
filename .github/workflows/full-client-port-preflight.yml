@@ -57,7 +57,10 @@ jobs:
           curl --fail --location --retry 3 \
             -o build/renderpearl-dependencies/lwjgl.jar \
             'https://repo1.maven.org/maven2/org/lwjgl/lwjgl/3.3.6/lwjgl-3.3.6.jar'
-          RENDERPEARL_CLASSPATH="extracted:build/renderpearl-dependencies/joml.jar:build/renderpearl-dependencies/lwjgl.jar"
+          curl --fail --location --retry 3 \
+            -o build/renderpearl-dependencies/fastutil.jar \
+            'https://repo1.maven.org/maven2/it/unimi/dsi/fastutil/8.5.16/fastutil-8.5.16.jar'
+          RENDERPEARL_CLASSPATH="extracted:build/renderpearl-dependencies/joml.jar:build/renderpearl-dependencies/lwjgl.jar:build/renderpearl-dependencies/fastutil.jar"
           javac -Xlint:all -Werror \
             -cp "$RENDERPEARL_CLASSPATH:build/renderpearl-command-protocol" \
             -d build/renderpearl-resource-adapters \
