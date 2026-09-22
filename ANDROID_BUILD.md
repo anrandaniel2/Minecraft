@@ -46,6 +46,15 @@ Pipeline:
    attached to a GitHub Release (`android-arm64-<run number>`). If verification
    fails, nothing is published.
 
+### Why `project.godot` needs `dotnet/project/assembly_name`
+
+Godot's C# export expects `res://<assembly_name>.sln` + `res://<assembly_name>.csproj`.
+Without `dotnet/project/assembly_name` set (see the `[dotnet]` section in
+`project.godot`) it falls back to a wrong default ("UnnamedProject"), then treats
+the project as non-C#: no `dotnet publish`, `assembleStandardRelease` instead of
+`assembleMonoRelease`, and raw `.cs` sources get packed into the APK without the
+.NET runtime. The verification step rejects any APK without managed assemblies.
+
 ### Why `project.godot` must import ETC2/ASTC
 
 `rendering/textures/vram_compression/import_etc2_astc=true` is set in

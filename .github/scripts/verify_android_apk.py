@@ -132,6 +132,22 @@ def main() -> None:
         if not assets or max(i.file_size for i in assets) < MIN_LARGEST_ASSET_BYTES:
             errors.append("no large asset file (pck/assemblies) found under assets/")
 
+        # Compiled C# must be shipped as managed assemblies - if raw game source
+        # ends up in the APK the C# export plugin failed (e.g. solution not found)
+        # and the game would not run.
+        assemblies = [i for i in assets if i.filename.endswith(".dll")]
+        if not assemblies:
+            errors.append(
+                "no managed .dll assemblies under assets/ (the C# game code is not embedded; "
+                "dotnet publish output is missing)"
+            )
+        leaked_sources = [i for i in assets if i.filename.endswith(".cs") and i.file_size > 16]
+        if leaked_sources:
+            errors.append(
+                f"{len(leaked_sources)} raw .cs source files were packed into assets/ instead of "
+                f"compiled assemblies (e.g. {leaked_sources[0].filename}) - C# export plugin failed"
+            )
+
         # Signed
         signed = [n for n in names if n.startswith("META-INF/") and n.endswith((".RSA", ".EC", ".DSA"))]
         if not signed:

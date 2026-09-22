@@ -22,6 +22,10 @@ GameManager="*res://Scripts/Core/GameManager.cs"
 AssetManager="*res://Scripts/Assets/AssetManager.cs"
 WorldManager="*res://Scripts/World/WorldManager.cs"
 
+[dotnet]
+
+project/assembly_name="Minecraft"
+
 [display]
 
 window/size/viewport_width=1280
