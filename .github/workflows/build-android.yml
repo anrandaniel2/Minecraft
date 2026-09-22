@@ -42,6 +42,11 @@ jobs:
           find Scripts -name "*.cs" | wc -l
           mkdir -p builds
 
+      - name: Setup .NET 8 (even in container, to ensure 8.0 not 10)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
       - name: Setup Android SDK + NDK
         run: |
           set -x
@@ -55,8 +60,13 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
           yes | sdkmanager --licenses || true
           sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.1.8937393" || true
+          echo "DOTNET_ROOT=$DOTNET_ROOT"
+          echo "PATH=$PATH"
+          dotnet --list-sdks || true
+          dotnet --version || true
 
       - name: Create keystore and editor settings + install Android build template
         run: |
