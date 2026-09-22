@@ -41,16 +41,20 @@ rm -f "$BIN_DIR"/libminecraft_godot.so "$BIN_DIR"/libminecraft_java.so
   --no-fallback \
   -O2 \
   -cp "$CLASSES" \
+  -H:+UnlockExperimentalVMOptions \
   -H:Name=minecraft_java \
   -H:Path="$NATIVE_DIR"
 
-JAVA_LIBRARY="$(find "$NATIVE_DIR" -maxdepth 1 -type f -name 'libminecraft_java.so' -print -quit)"
-JAVA_HEADER="$(find "$NATIVE_DIR" -maxdepth 1 -type f -name '*.h' -print -quit)"
-[[ -n "$JAVA_LIBRARY" && -n "$JAVA_HEADER" ]] || {
-  echo "native-image did not produce the expected .so and C header." >&2
+# Native Image 21 emits minecraft_java.so (without a lib prefix) plus a
+# minecraft_java.h that includes its graal_isolate*.h siblings. Keep the
+# runtime bundle conventionally named libminecraft_java.so for the linker.
+JAVA_LIBRARY="$NATIVE_DIR/minecraft_java.so"
+JAVA_HEADER="$NATIVE_DIR/minecraft_java.h"
+[[ -f "$JAVA_LIBRARY" && -f "$JAVA_HEADER" ]] || {
+  echo "native-image did not produce minecraft_java.so and minecraft_java.h." >&2
   exit 1
 }
-cp "$JAVA_HEADER" "$GENERATED_DIR/minecraft_java.h"
+cp "$NATIVE_DIR"/*.h "$GENERATED_DIR/"
 cp "$JAVA_LIBRARY" "$BIN_DIR/libminecraft_java.so"
 
 gcc -std=c11 -O2 -fPIC -shared -Wall -Wextra -Werror \
