@@ -192,15 +192,30 @@ jobs:
 
       - name: Export APK (arm64 only)
         run: |
+          set -x
           mkdir -p builds
-          echo "Exporting release..."
-          godot --headless --path . --export-release "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tail -n 500 || true
+          echo "Exporting debug (gradle_build=true required for C#)..."
+          godot --headless --path . --export-debug "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee builds/export.log | tail -n 500
+          EXPORT_EXIT=${PIPESTATUS[0]}
+          echo "Export debug exit code: $EXPORT_EXIT"
+          cat builds/export.log | tail -n 300 || true
           if [ ! -f "builds/Minecraft-26.3-Android-arm64.apk" ]; then
-            echo "Release failed, trying debug..."
-            godot --headless --path . --export-debug "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tail -n 500 || true
+            echo "Debug failed, trying release..."
+            godot --headless --path . --export-release "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee -a builds/export.log | tail -n 500
+            EXPORT_EXIT2=${PIPESTATUS[0]}
+            echo "Export release exit code: $EXPORT_EXIT2"
           fi
           ls -lh builds/ || true
           find . -maxdepth 3 -name "*.apk" | head -n 20 || true
+          if [ -f builds/Minecraft-26.3-Android-arm64.apk ]; then
+            echo "APK SUCCESS size=$(du -h builds/Minecraft-26.3-Android-arm64.apk)"
+            unzip -l builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null | grep lib/ | head -n 30 || true
+          else
+            echo "APK FAILED - export.log:"
+            cat builds/export.log || true
+            echo "Failing job to show log"
+            exit 1
+          fi
 
       - name: Verify APK arm64 only
         run: |
@@ -208,14 +223,26 @@ jobs:
           if [ ! -f "$APK" ]; then
             echo "APK not found!"
             ls -R builds/ || true
-            # Do not fail, create placeholder for artifact
-            echo "No APK" > builds/NO_APK.txt
+            cat builds/export.log | tail -n 200 || true
+            exit 1
           else
             echo "APK size: $(du -h $APK)"
             unzip -l "$APK" 2>/dev/null | grep -E "lib/" | head -n 100 || true
             echo "Checking arch..."
             unzip -l "$APK" 2>/dev/null | grep -c "arm64-v8a" || true
             unzip -l "$APK" 2>/dev/null | grep -c "armeabi-v7a" || true
+          fi
+
+      - name: Commit export log
+        if: always()
+        run: |
+          set -x
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f builds/export.log export_presets.cfg 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "Add export log - run ${{ github.run_number }}"
+            git push origin HEAD:arena/01a0c03a-minecraft || true
           fi
 
       - name: Upload APK artifact
