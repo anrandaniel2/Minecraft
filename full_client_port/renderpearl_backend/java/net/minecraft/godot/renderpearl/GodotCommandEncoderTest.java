@@ -49,6 +49,7 @@ public final class GodotCommandEncoderTest {
                 RenderCommandProtocol.FRAME_BEGIN,
                 RenderCommandProtocol.WRITE_BUFFER,
                 RenderCommandProtocol.BEGIN_RENDER_PASS,
+                RenderCommandProtocol.SET_SCISSOR,
                 RenderCommandProtocol.SET_PIPELINE,
                 RenderCommandProtocol.SET_VERTEX_BUFFER,
                 RenderCommandProtocol.DRAW,
