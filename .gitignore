@@ -18,3 +18,7 @@ build/
 out/
 .idea/
 *.iml
+
+# GraalVM/Godot extension build products and local toolchains
+.tools/
+godot_extension/build/

@@ -1,0 +1,75 @@
+name: Build GraalVM Godot Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_linux_binary:
+        description: 'Commit the verified Linux x86_64 .so files to this branch'
+        required: true
+        default: false
+        type: boolean
+  push:
+    paths:
+      - 'decompiled_sample/net/minecraft/client/Minecraft.java'
+      - 'godot_extension/**'
+      - '.github/workflows/build-godot-extension.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the current branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install GraalVM Community with Native Image
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm-community
+          java-version: '21'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image: true
+
+      - name: Build shared libraries
+        run: |
+          java -version
+          native-image --version
+          ./godot_extension/build.sh
+
+      - name: Verify exported extension and runtime dependency
+        run: |
+          set -euo pipefail
+          test -f godot_extension/bin/libminecraft_godot.so
+          test -f godot_extension/bin/libminecraft_java.so
+          readelf --dyn-syms --wide godot_extension/bin/libminecraft_godot.so | grep -q 'godot_gdextension_init'
+          readelf -d godot_extension/bin/libminecraft_godot.so | grep -q 'libminecraft_java.so'
+          ldd godot_extension/bin/libminecraft_godot.so
+
+      - name: Upload Linux GDExtension bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-godot-graalvm-linux-x86_64
+          path: |
+            godot_extension/bin/libminecraft_godot.so
+            godot_extension/bin/libminecraft_java.so
+            godot_extension/minecraft.gdextension
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish verified libraries to this branch
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_linux_binary
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add godot_extension/bin/libminecraft_godot.so godot_extension/bin/libminecraft_java.so
+          if git diff --cached --quiet; then
+            echo 'No binary changes to publish.'
+            exit 0
+          fi
+          git commit -m 'Build Linux GraalVM Godot extension'
+          git push origin "HEAD:${GITHUB_REF_NAME}"

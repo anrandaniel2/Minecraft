@@ -1,0 +1,20 @@
+; Engine configuration file.
+; Generated for the GraalVM Java / GDExtension touch input demonstration.
+config_version=5
+
+[application]
+config/name="Minecraft Java Touch GDExtension"
+run/main_scene="res://scenes/main.tscn"
+
+[display]
+
+[display/window]
+size/viewport_width=1280
+size/viewport_height=720
+size/window_width_override=1280
+size/window_height_override=720
+stretch/mode="canvas_items"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
