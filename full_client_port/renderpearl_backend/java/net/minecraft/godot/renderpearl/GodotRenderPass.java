@@ -27,12 +27,18 @@ final class GodotRenderPass implements RenderPass {
     private final RenderCommandWriter writer;
     private final int targetWidth;
     private final int targetHeight;
+    private final Runnable onClose;
     private boolean closed;
 
     GodotRenderPass(RenderCommandWriter writer, int targetWidth, int targetHeight) {
+        this(writer, targetWidth, targetHeight, () -> { });
+    }
+
+    GodotRenderPass(RenderCommandWriter writer, int targetWidth, int targetHeight, Runnable onClose) {
         this.writer = Objects.requireNonNull(writer, "writer");
         this.targetWidth = targetWidth;
         this.targetHeight = targetHeight;
+        this.onClose = Objects.requireNonNull(onClose, "onClose");
     }
 
     @Override
@@ -195,6 +201,7 @@ final class GodotRenderPass implements RenderPass {
         if (!closed) {
             writer.endRenderPass();
             closed = true;
+            onClose.run();
         }
     }
 

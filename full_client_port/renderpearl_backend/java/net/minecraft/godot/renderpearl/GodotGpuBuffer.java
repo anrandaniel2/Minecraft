@@ -45,6 +45,19 @@ final class GodotGpuBuffer implements GpuBuffer {
         return handle.id();
     }
 
+    void writeFrom(long offset, ByteBuffer source) {
+        requireOpen();
+        Objects.requireNonNull(source, "source");
+        ByteBuffer input = source.duplicate();
+        int length = input.remaining();
+        if (offset < 0 || offset > size - length) {
+            throw new IllegalArgumentException("Write range lies outside buffer bounds");
+        }
+        ByteBuffer destination = staging.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+        destination.position((int) offset);
+        destination.put(input);
+    }
+
     @Override
     public long size() {
         requireOpen();

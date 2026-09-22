@@ -109,6 +109,13 @@ them against the real Java-25 classes under `extracted/`. They are the resource
 half of the future `GpuDevice`, not a claim that command execution or Minecraft
 terrain is already routed through the backend.
 
+`GodotCommandEncoder` and `GodotRenderPass` now record descriptor-backed
+single-color render passes, buffer uploads, pipeline/buffer/scissor state, and
+direct indexed/non-indexed draws to the neutral command stream. Submission is
+abstracted through the Godot-free `RenderCommandTransport`; its production
+implementation will call the native frame mailbox. Unsupported operations fail
+explicitly rather than being lost.
+
 The manifest and CI checks remain hard gates so API assumptions cannot silently
-drift while `GpuBuffer`, `GpuDevice`, `CommandEncoder`, render-pass and native
-Godot executor implementations are added.
+drift while `GpuDevice`, texture uploads/uniforms, pipeline translation, and
+the native Godot executor are added.
