@@ -167,7 +167,7 @@ def main() -> None:
     # zip alignment, APK Signing Block schemes, binary-AXML manifest
     # fields, and a SHA-256 for download verification.
     # ------------------------------------------------------------
-    errors += deep_inspect(apk)
+    errors += deep_inspect(path)
 
     if errors:
         for e in errors:
