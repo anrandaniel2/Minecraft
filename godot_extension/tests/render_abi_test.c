@@ -1,0 +1,85 @@
+#include "minecraft_render_abi.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+_Static_assert(sizeof(MinecraftRenderPacketHeader) == 8, "render ABI packet header must remain 8 bytes");
+
+static void append_packet(uint8_t *bytes, size_t *offset, uint16_t opcode) {
+    MinecraftRenderPacketHeader header = {
+        .opcode = opcode,
+        .reserved = 0,
+        .packet_size = sizeof(MinecraftRenderPacketHeader),
+    };
+    memcpy(bytes + *offset, &header, sizeof(header));
+    *offset += sizeof(header);
+}
+
+static bool count_packet(
+    const MinecraftRenderPacketHeader *header,
+    const uint8_t *packet_bytes,
+    void *user_data
+) {
+    int *count = user_data;
+    if (header == NULL || packet_bytes == NULL) {
+        return false;
+    }
+    (*count)++;
+    return true;
+}
+
+int main(void) {
+    uint8_t frame[7 * sizeof(MinecraftRenderPacketHeader)] = {0};
+    size_t size = 0;
+    append_packet(frame, &size, MINECRAFT_RENDER_FRAME_BEGIN);
+    append_packet(frame, &size, MINECRAFT_RENDER_CREATE_BUFFER);
+    append_packet(frame, &size, MINECRAFT_RENDER_BEGIN_RENDER_PASS);
+    append_packet(frame, &size, MINECRAFT_RENDER_SET_PIPELINE);
+    append_packet(frame, &size, MINECRAFT_RENDER_DRAW_INDEXED);
+    append_packet(frame, &size, MINECRAFT_RENDER_END_RENDER_PASS);
+    append_packet(frame, &size, MINECRAFT_RENDER_FRAME_END);
+
+    int visitor_count = 0;
+    int result = minecraft_render_visit_frame(frame, size, count_packet, &visitor_count);
+    if (result != 7 || visitor_count != 7) {
+        fprintf(stderr, "valid frame was rejected: result=%d, visited=%d\n", result, visitor_count);
+        return 1;
+    }
+
+    /* Draw commands must be emitted only inside a render pass. */
+    MinecraftRenderPacketHeader invalid_draw = {
+        .opcode = MINECRAFT_RENDER_DRAW,
+        .reserved = 0,
+        .packet_size = sizeof(MinecraftRenderPacketHeader),
+    };
+    result = minecraft_render_visit_frame(
+        (const uint8_t *)&invalid_draw,
+        sizeof(invalid_draw),
+        count_packet,
+        &visitor_count
+    );
+    if (result != MINECRAFT_RENDER_BAD_FRAME_ORDER) {
+        fprintf(stderr, "out-of-pass draw returned %d\n", result);
+        return 1;
+    }
+
+    /* Packet payloads have to preserve the ABI's eight-byte alignment. */
+    MinecraftRenderPacketHeader invalid_alignment = {
+        .opcode = MINECRAFT_RENDER_FRAME_BEGIN,
+        .reserved = 0,
+        .packet_size = sizeof(MinecraftRenderPacketHeader) + 1,
+    };
+    result = minecraft_render_visit_frame(
+        (const uint8_t *)&invalid_alignment,
+        sizeof(invalid_alignment),
+        count_packet,
+        &visitor_count
+    );
+    if (result != MINECRAFT_RENDER_BAD_ALIGNMENT) {
+        fprintf(stderr, "misaligned packet returned %d\n", result);
+        return 1;
+    }
+
+    return 0;
+}

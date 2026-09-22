@@ -4,20 +4,29 @@ This directory defines the **real** port target: the complete class tree in
 `../extracted/`, not `decompiled_sample/` and not the small Java Native Image
 input demo.
 
-## Why a renderer port is required
+## Why a renderer backend port is required
 
-The full client owns a desktop Blaze3D/LWJGL/GLFW graphics context. Loading it
-as a library cannot make that context become a Godot `Viewport`. A real
-in-viewport port must replace the desktop platform layer:
+The 26.3 client contains Blaze3D plus the modern `com.mojang.renderpearl` GPU
+abstraction. Its stock OpenGL/Vulkan backends own native surfaces and
+presentation; loading either as a library cannot make that surface become a
+Godot `Viewport`. A real in-viewport port must replace that backend with a
+Godot-owned offscreen render target.
+
+[`renderpearl_backend/`](renderpearl_backend/) records the exact Java-25
+RenderPearl ABI extracted from this client and defines the port boundary:
+Minecraft's `LevelRenderer`/`GameRenderer` retain their RenderPearl calls, a
+Java backend remains Godot-free, and only a native GDExtension adapter calls
+Godot rendering APIs.
+
+A real port proceeds in this order:
 
 1. **Source recovery** — decompile the complete Java 25 class tree in CI. The
    checked-in `extracted/` directory has class files and resources, but no Java
    source to patch.
 2. **Dependency resolution** — resolve every library and platform native from
    Mojang's 26.3 version metadata. They are not bundled in `minecraft-client.jar`.
-3. **Renderer adapter** — translate/reimplement Blaze3D rendering, framebuffers,
-   shaders, textures, buffers, and frame lifecycle on Godot's renderer. This is
-   the work that places game pixels in a Godot `Viewport`.
+3. **RenderPearl backend** — implement device, surface, texture, buffer, command
+   encoder, render-pass and pipeline APIs over a Godot-owned offscreen target.
 4. **Platform adapters** — route Godot input, audio, window state, filesystem,
    clipboard, networking, and lifecycle into the recovered client.
 5. **Android** — compile a separate Android `arm64-v8a` GDExtension with the
@@ -38,8 +47,11 @@ python3 tools/full_client_inventory.py
 
 ## Current milestone
 
-The accompanying `godot_extension` now uses Godot **4.7.2**'s built-in
-`VirtualJoystick`. It forwards standard Godot Input Map actions through the
-native Java bridge. This gives the future full client port a single
-engine-agnostic input contract, but it does **not** claim that the existing
-Blaze3D desktop renderer is already a Godot viewport renderer.
+The accompanying `godot_extension` uses Godot **4.7.2**'s built-in
+`VirtualJoystick`, multi-touch action controls, fullscreen presentation, and a
+resource-pack renderer that reads real Minecraft models/textures. It forwards
+standard Godot Input Map actions through the native Java bridge.
+
+The RenderPearl ABI manifest is now a CI-verified hard gate for the next
+backend phase. It does **not** claim that the stock desktop OpenGL/Vulkan
+backend can already render the complete client inside Godot.

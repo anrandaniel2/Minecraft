@@ -6,6 +6,7 @@ on:
     paths:
       - 'extracted/**'
       - 'tools/full_client_inventory.py'
+      - 'tools/renderpearl_abi_inventory.py'
       - 'full_client_port/**'
       - '.github/workflows/full-client-port-preflight.yml'
 
@@ -21,9 +22,17 @@ jobs:
         run: |
           python3 tools/full_client_inventory.py --output full-client-inventory.json
           cat full-client-inventory.json
+
+      - name: Verify RenderPearl Godot-backend ABI lock
+        run: |
+          python3 tools/renderpearl_abi_inventory.py \
+            --verify full_client_port/renderpearl_backend/renderpearl-26.3-abi.json
+
       - name: Upload full-client port inventory
         uses: actions/upload-artifact@v4
         with:
           name: full-client-port-inventory
-          path: full-client-inventory.json
+          path: |
+            full-client-inventory.json
+            full_client_port/renderpearl_backend/renderpearl-26.3-abi.json
           retention-days: 30

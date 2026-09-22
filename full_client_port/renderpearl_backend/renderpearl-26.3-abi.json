@@ -1,0 +1,701 @@
+{
+  "classes": [
+    {
+      "access": 1537,
+      "fields": [],
+      "interfaces": [],
+      "methods": [
+        {
+          "access": 1025,
+          "descriptor": "(JLjava/util/function/BooleanSupplier;)Lcom/mojang/renderpearl/api/device/GpuSurface;",
+          "name": "createSurface"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Lcom/mojang/renderpearl/api/commands/CommandEncoder;",
+          "name": "createCommandEncoder"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/AddressMode;Lcom/mojang/renderpearl/api/textures/AddressMode;Lcom/mojang/renderpearl/api/textures/FilterMode;Lcom/mojang/renderpearl/api/textures/FilterMode;ILjava/util/OptionalDouble;)Lcom/mojang/renderpearl/api/textures/GpuSampler;",
+          "name": "createSampler"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/util/function/Supplier;ILcom/mojang/renderpearl/api/GpuFormat;IIII)Lcom/mojang/renderpearl/api/textures/GpuTexture;",
+          "name": "createTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/lang/String;ILcom/mojang/renderpearl/api/GpuFormat;IIII)Lcom/mojang/renderpearl/api/textures/GpuTexture;",
+          "name": "createTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;)Lcom/mojang/renderpearl/api/textures/GpuTextureView;",
+          "name": "createTextureView"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;II)Lcom/mojang/renderpearl/api/textures/GpuTextureView;",
+          "name": "createTextureView"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/util/function/Supplier;IJ)Lcom/mojang/renderpearl/api/buffers/GpuBuffer;",
+          "name": "createBuffer"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/util/function/Supplier;ILjava/nio/ByteBuffer;)Lcom/mojang/renderpearl/api/buffers/GpuBuffer;",
+          "name": "createBuffer"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Ljava/util/List;",
+          "name": "getLastDebugMessages"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Z",
+          "name": "isDebuggingEnabled"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;Lcom/mojang/renderpearl/api/pipeline/ShaderSource;Ljava/util/concurrent/Executor;)Ljava/util/concurrent/CompletableFuture;",
+          "name": "compilePipeline"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()V",
+          "name": "close"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(I)Lcom/mojang/renderpearl/api/commands/GpuQueryPool;",
+          "name": "createTimestampQueryPool"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Lcom/mojang/renderpearl/api/device/DeviceInfo;",
+          "name": "getDeviceInfo"
+        }
+      ],
+      "name": "com/mojang/renderpearl/api/device/GpuDevice",
+      "super": "java/lang/Object",
+      "version": {
+        "major": 69,
+        "minor": 0
+      }
+    },
+    {
+      "access": 1537,
+      "fields": [],
+      "interfaces": [
+        "com/mojang/renderpearl/util/UncheckedAutoCloseable"
+      ],
+      "methods": [
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/device/GpuSurface$Configuration;)V",
+          "name": "configure"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Ljava/util/Optional;",
+          "name": "currentConfiguration"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Ljava/util/Collection;",
+          "name": "supportedPresentModes"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Z",
+          "name": "isSuboptimal"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Z",
+          "name": "isAcquired"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()V",
+          "name": "acquireNextTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/commands/CommandEncoder;Lcom/mojang/renderpearl/api/textures/GpuTextureView;)V",
+          "name": "blitFromTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()V",
+          "name": "present"
+        }
+      ],
+      "name": "com/mojang/renderpearl/api/device/GpuSurface",
+      "super": "java/lang/Object",
+      "version": {
+        "major": 69,
+        "minor": 0
+      }
+    },
+    {
+      "access": 1537,
+      "fields": [],
+      "interfaces": [],
+      "methods": [
+        {
+          "access": 1025,
+          "descriptor": "()V",
+          "name": "submit"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Lcom/mojang/renderpearl/api/buffers/TransientMemory;",
+          "name": "transientMemory"
+        },
+        {
+          "access": 1,
+          "descriptor": "(Ljava/util/function/Supplier;Lcom/mojang/renderpearl/api/textures/GpuTextureView;Ljava/util/Optional;)Lcom/mojang/renderpearl/api/commands/RenderPass;",
+          "name": "createRenderPass"
+        },
+        {
+          "access": 1,
+          "descriptor": "(Ljava/util/function/Supplier;Lcom/mojang/renderpearl/api/textures/GpuTextureView;Ljava/util/Optional;Lcom/mojang/renderpearl/api/textures/GpuTextureView;Ljava/util/OptionalDouble;)Lcom/mojang/renderpearl/api/commands/RenderPass;",
+          "name": "createRenderPass"
+        },
+        {
+          "access": 1,
+          "descriptor": "(Ljava/util/function/Supplier;Lcom/mojang/renderpearl/api/textures/GpuTextureView;Ljava/util/Optional;Lcom/mojang/renderpearl/api/textures/GpuTextureView;Ljava/util/OptionalDouble;Lcom/mojang/renderpearl/api/commands/RenderPass$RenderArea;)Lcom/mojang/renderpearl/api/commands/RenderPass;",
+          "name": "createRenderPass"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/commands/RenderPassDescriptor;)Lcom/mojang/renderpearl/api/commands/RenderPass;",
+          "name": "createRenderPass"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;Lorg/joml/Vector4fc;)V",
+          "name": "clearColorTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;Lorg/joml/Vector4fc;Lcom/mojang/renderpearl/api/textures/GpuTexture;D)V",
+          "name": "clearColorAndDepthTextures"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;Lorg/joml/Vector4fc;Lcom/mojang/renderpearl/api/textures/GpuTexture;DIIIII)V",
+          "name": "clearColorAndDepthTextures"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;D)V",
+          "name": "clearDepthTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;Ljava/nio/ByteBuffer;)V",
+          "name": "writeToBuffer"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;)V",
+          "name": "copyToBuffer"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;Lcom/mojang/blaze3d/platform/NativeImage;)V",
+          "name": "writeToTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;Lcom/mojang/blaze3d/platform/NativeImage;IIII)V",
+          "name": "writeToTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;Ljava/nio/ByteBuffer;IIIIII)V",
+          "name": "writeToTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;IIIILcom/mojang/renderpearl/api/textures/GpuTexture;IIIIII)V",
+          "name": "copyBufferToTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;Lcom/mojang/renderpearl/api/buffers/GpuBuffer;JLjava/lang/Runnable;I)V",
+          "name": "copyTextureToBuffer"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;Lcom/mojang/renderpearl/api/buffers/GpuBuffer;JLjava/lang/Runnable;IIIII)V",
+          "name": "copyTextureToBuffer"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/textures/GpuTexture;Lcom/mojang/renderpearl/api/textures/GpuTexture;IIIIIII)V",
+          "name": "copyTextureToTexture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Lcom/mojang/renderpearl/api/commands/GpuFence;",
+          "name": "createFence"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/commands/GpuQueryPool;I)V",
+          "name": "writeTimestamp"
+        }
+      ],
+      "name": "com/mojang/renderpearl/api/commands/CommandEncoder",
+      "super": "java/lang/Object",
+      "version": {
+        "major": 69,
+        "minor": 0
+      }
+    },
+    {
+      "access": 1537,
+      "fields": [
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "MAX_VERTEX_BUFFERS"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "INDIRECT_DRAW_SIZE"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "INDIRECT_INDEXED_DRAW_SIZE"
+        }
+      ],
+      "interfaces": [
+        "com/mojang/renderpearl/util/UncheckedAutoCloseable"
+      ],
+      "methods": [
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/util/function/Supplier;)V",
+          "name": "pushDebugGroup"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()V",
+          "name": "popDebugGroup"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/commands/GpuQueryPool;I)V",
+          "name": "writeTimestamp"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/pipeline/CompiledRenderPipeline;)V",
+          "name": "setPipeline"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/lang/String;Lcom/mojang/renderpearl/api/textures/GpuTextureView;Lcom/mojang/renderpearl/api/textures/GpuSampler;)V",
+          "name": "setUniform"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/lang/String;Lcom/mojang/renderpearl/api/buffers/GpuBuffer;)V",
+          "name": "setUniform"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/lang/String;Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;)V",
+          "name": "setUniform"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/nio/ByteBuffer;)V",
+          "name": "pushConstants"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(IIII)V",
+          "name": "enableScissor"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()V",
+          "name": "disableScissor"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(ILcom/mojang/renderpearl/api/buffers/GpuBufferSlice;)V",
+          "name": "setVertexBuffer"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/buffers/GpuBuffer;Lcom/mojang/renderpearl/api/pipeline/IndexType;)V",
+          "name": "setIndexBuffer"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(IIIII)V",
+          "name": "drawIndexed"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/nio/IntBuffer;III)V",
+          "name": "multiDrawIndexed"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lorg/lwjgl/PointerBuffer;Ljava/nio/IntBuffer;Ljava/nio/IntBuffer;I)V",
+          "name": "multiDrawIndexed"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;I)V",
+          "name": "drawIndexedIndirect"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/util/Collection;Lcom/mojang/renderpearl/api/buffers/GpuBuffer;Lcom/mojang/renderpearl/api/pipeline/IndexType;Ljava/util/Collection;Ljava/lang/Object;)V",
+          "name": "drawMultipleIndexed"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(IIII)V",
+          "name": "draw"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/nio/IntBuffer;III)V",
+          "name": "multiDraw"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Ljava/nio/IntBuffer;Ljava/nio/IntBuffer;I)V",
+          "name": "multiDraw"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;I)V",
+          "name": "drawIndirect"
+        }
+      ],
+      "name": "com/mojang/renderpearl/api/commands/RenderPass",
+      "super": "java/lang/Object",
+      "version": {
+        "major": 69,
+        "minor": 0
+      }
+    },
+    {
+      "access": 1537,
+      "fields": [
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_MAP_READ"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_MAP_WRITE"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_HINT_CLIENT_STORAGE"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_COPY_DST"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_COPY_SRC"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_VERTEX"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_INDEX"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_UNIFORM"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_UNIFORM_TEXEL_BUFFER"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_INDIRECT_PARAMETERS"
+        }
+      ],
+      "interfaces": [
+        "com/mojang/renderpearl/util/UncheckedAutoCloseable"
+      ],
+      "methods": [
+        {
+          "access": 1025,
+          "descriptor": "()J",
+          "name": "size"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()I",
+          "name": "usage"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Z",
+          "name": "isClosed"
+        },
+        {
+          "access": 1,
+          "descriptor": "(JJ)Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;",
+          "name": "slice"
+        },
+        {
+          "access": 1,
+          "descriptor": "()Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;",
+          "name": "slice"
+        },
+        {
+          "access": 1,
+          "descriptor": "(ZZ)Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice$MappedView;",
+          "name": "map"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(JJZZ)Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice$MappedView;",
+          "name": "map"
+        }
+      ],
+      "name": "com/mojang/renderpearl/api/buffers/GpuBuffer",
+      "super": "java/lang/Object",
+      "version": {
+        "major": 69,
+        "minor": 0
+      }
+    },
+    {
+      "access": 1537,
+      "fields": [
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_COPY_DST"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_COPY_SRC"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_TEXTURE_BINDING"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_RENDER_ATTACHMENT"
+        },
+        {
+          "access": 25,
+          "descriptor": "I",
+          "name": "USAGE_CUBEMAP_COMPATIBLE"
+        }
+      ],
+      "interfaces": [
+        "com/mojang/renderpearl/util/UncheckedAutoCloseable"
+      ],
+      "methods": [
+        {
+          "access": 1025,
+          "descriptor": "(I)I",
+          "name": "getWidth"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(I)I",
+          "name": "getHeight"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()I",
+          "name": "getDepthOrLayers"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()I",
+          "name": "getMipLevels"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Lcom/mojang/renderpearl/api/GpuFormat;",
+          "name": "getFormat"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()I",
+          "name": "usage"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Ljava/lang/String;",
+          "name": "getLabel"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Z",
+          "name": "isClosed"
+        }
+      ],
+      "name": "com/mojang/renderpearl/api/textures/GpuTexture",
+      "super": "java/lang/Object",
+      "version": {
+        "major": 69,
+        "minor": 0
+      }
+    },
+    {
+      "access": 1537,
+      "fields": [],
+      "interfaces": [
+        "com/mojang/renderpearl/util/UncheckedAutoCloseable"
+      ],
+      "methods": [
+        {
+          "access": 1025,
+          "descriptor": "()Z",
+          "name": "isClosed"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Lcom/mojang/renderpearl/api/textures/GpuTexture;",
+          "name": "texture"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()I",
+          "name": "baseMipLevel"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()I",
+          "name": "mipLevels"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(I)I",
+          "name": "getWidth"
+        },
+        {
+          "access": 1025,
+          "descriptor": "(I)I",
+          "name": "getHeight"
+        }
+      ],
+      "name": "com/mojang/renderpearl/api/textures/GpuTextureView",
+      "super": "java/lang/Object",
+      "version": {
+        "major": 69,
+        "minor": 0
+      }
+    },
+    {
+      "access": 1537,
+      "fields": [],
+      "interfaces": [
+        "com/mojang/renderpearl/util/UncheckedAutoCloseable"
+      ],
+      "methods": [
+        {
+          "access": 1025,
+          "descriptor": "()Lcom/mojang/renderpearl/api/textures/AddressMode;",
+          "name": "getAddressModeU"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Lcom/mojang/renderpearl/api/textures/AddressMode;",
+          "name": "getAddressModeV"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Lcom/mojang/renderpearl/api/textures/FilterMode;",
+          "name": "getMinFilter"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Lcom/mojang/renderpearl/api/textures/FilterMode;",
+          "name": "getMagFilter"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()I",
+          "name": "getMaxAnisotropy"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Ljava/util/OptionalDouble;",
+          "name": "getMaxLod"
+        },
+        {
+          "access": 1025,
+          "descriptor": "()Z",
+          "name": "isClosed"
+        }
+      ],
+      "name": "com/mojang/renderpearl/api/textures/GpuSampler",
+      "super": "java/lang/Object",
+      "version": {
+        "major": 69,
+        "minor": 0
+      }
+    },
+    {
+      "access": 1537,
+      "fields": [],
+      "interfaces": [
+        "com/mojang/renderpearl/util/UncheckedAutoCloseable"
+      ],
+      "methods": [
+        {
+          "access": 1025,
+          "descriptor": "()Z",
+          "name": "isClosed"
+        }
+      ],
+      "name": "com/mojang/renderpearl/api/pipeline/CompiledRenderPipeline",
+      "super": "java/lang/Object",
+      "version": {
+        "major": 69,
+        "minor": 0
+      }
+    }
+  ],
+  "java_class_major": 69,
+  "minecraft_version": "26.3",
+  "schema": 1
+}

@@ -15,6 +15,7 @@ on:
       - 'godot_extension/include/**'
       - 'godot_extension/java/**'
       - 'godot_extension/src/**'
+      - 'godot_extension/tests/**'
       - 'godot_extension/minecraft.gdextension'
       - 'godot_extension/project.godot'
       - 'godot_extension/scenes/**'
@@ -48,6 +49,16 @@ jobs:
           java -version
           native-image --version
           ./godot_extension/build.sh
+
+      - name: Test neutral RenderPearl command ABI
+        run: |
+          set -euo pipefail
+          gcc -std=c11 -O2 -Wall -Wextra -Werror \
+            -Igodot_extension/include \
+            godot_extension/src/minecraft_render_abi.c \
+            godot_extension/tests/render_abi_test.c \
+            -o "$RUNNER_TEMP/render_abi_test"
+          "$RUNNER_TEMP/render_abi_test"
 
       - name: Verify exported extension and runtime dependency
         run: |
