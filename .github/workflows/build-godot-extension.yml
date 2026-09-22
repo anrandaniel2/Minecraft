@@ -40,9 +40,25 @@ jobs:
 
       - name: Build shared libraries
         run: |
-          java -version
-          native-image --version
-          ./godot_extension/build.sh
+          set -o pipefail
+          java -version 2>&1 | tee "$RUNNER_TEMP/graalvm-version.log"
+          native-image --version 2>&1 | tee -a "$RUNNER_TEMP/graalvm-version.log"
+          ./godot_extension/build.sh 2>&1 | tee "$RUNNER_TEMP/godot-extension-build.log"
+
+      # Keep the precise compiler output available on the branch if a remote
+      # runner fails. This is skipped on normal builds and removed by the next
+      # source commit after diagnosing a failure.
+      - name: Commit failed build log
+        if: failure()
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/graalvm-version.log" godot_extension/ci-build.log
+          cat "$RUNNER_TEMP/godot-extension-build.log" >> godot_extension/ci-build.log
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f godot_extension/ci-build.log
+          git commit -m 'Record GraalVM extension build failure' || exit 0
+          git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Verify exported extension and runtime dependency
         run: |
