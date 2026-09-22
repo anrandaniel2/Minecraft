@@ -264,3 +264,4 @@ namespace Minecraft.World.Inventory
         public ItemStack[] GetAll() => _items;
     }
 }
+// trigger Tue Sep 22 10:51:26 UTC 2026
