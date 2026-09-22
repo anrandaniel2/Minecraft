@@ -5,6 +5,9 @@ on:
   push:
     paths:
       - 'godot_extension/**'
+      - 'extracted/assets/**'
+      - 'tools/stage_minecraft_assets.py'
+      - 'tools/verify_minecraft_resource_pack.py'
       - '.github/workflows/build-android-apk.yml'
 
 permissions:
@@ -24,6 +27,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Stage complete Minecraft client resource pack for Godot
+        run: python3 tools/stage_minecraft_assets.py
+
+      - name: Verify Godot resource renderer inputs
+        run: python3 tools/verify_minecraft_resource_pack.py
 
       - name: Set up Java for Android export
         uses: actions/setup-java@v5

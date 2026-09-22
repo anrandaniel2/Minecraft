@@ -19,6 +19,9 @@ on:
       - 'godot_extension/project.godot'
       - 'godot_extension/scenes/**'
       - 'godot_extension/scripts/**'
+      - 'extracted/assets/**'
+      - 'tools/stage_minecraft_assets.py'
+      - 'tools/verify_minecraft_resource_pack.py'
       - '.github/workflows/build-godot-extension.yml'
 
 permissions:
@@ -55,7 +58,13 @@ jobs:
           readelf -d godot_extension/bin/libminecraft_godot.so | grep -q 'libminecraft_java.so'
           ldd godot_extension/bin/libminecraft_godot.so
 
-      - name: Load and run the demo in Godot headless
+      - name: Stage complete Minecraft client resource pack for Godot
+        run: python3 tools/stage_minecraft_assets.py
+
+      - name: Verify Godot resource renderer inputs
+        run: python3 tools/verify_minecraft_resource_pack.py
+
+      - name: Load and run the complete-resource renderer in Godot headless
         run: |
           set -euo pipefail
           GODOT_VERSION=4.7.2-stable

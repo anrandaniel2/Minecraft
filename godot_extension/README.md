@@ -38,14 +38,46 @@ The mask uses these bits: `FORWARD=1`, `BACKWARD=2`, `LEFT=4`, `RIGHT=8`,
 
 `MinecraftTouch` exposes the equivalent snake-case methods to Godot. The full-screen demo scene uses Godot 4.7's built-in `VirtualJoystick` for movement and `TouchScreenButton` nodes for independent multi-touch jump and sneak actions. Dragging any non-button region on the right half of the screen emits relative camera-look input. `TouchControls.gd` forwards generic action bits and look deltas to the Java bridge, so Java remains Godot-free.
 
-## Viewport renderer milestone
+## Godot viewport resource renderer
 
-`MinecraftGodotRenderer.gd` is a Godot-native viewport renderer baseline: it
-creates the world environment, directional lighting, voxel geometry, and the
-camera-look contract used by the touch overlay. It renders inside Godot's main
-viewport and stretches to fullscreen. It is the initial rendering target for
-the recovered Minecraft client draw-command port; it is not a claim that the
-complete Blaze3D renderer has already been replaced.
+`MinecraftGodotRenderer.gd` renders inside Godot's fullscreen main viewport. It
+uses `MinecraftResourcePack.gd` to read the complete 26.3 client resource pack:
+
+- blockstate selection;
+- block-model parent inheritance and texture variables;
+- model elements, element rotation, face geometry, and UVs; and
+- original Minecraft PNG block textures using nearest-neighbour sampling.
+
+It accepts engine-neutral block snapshots in this form:
+
+```gdscript
+renderer.apply_block_snapshot([
+    {"block": "minecraft:stone", "x": 0, "y": 64, "z": 0},
+])
+```
+
+The bootstrap terrain is a deterministic renderer smoke test, but it is built
+from real client block IDs/models/textures rather than colored demo cubes. It
+is replaced when a Java chunk/world adapter submits an authoritative snapshot.
+This is substantial Godot-side resource rendering, **not yet a completed port
+of every Blaze3D subsystem**: chunk extraction from the complete client,
+section mesh batching, fluids, entities, UI, post-processing, and an Android
+arm64 Java bridge remain separate work.
+
+### Stage the complete client assets
+
+Godot exports only files beneath `godot_extension/`; the authoritative asset
+source remains `extracted/assets/minecraft`. Stage it before running or
+exporting the project:
+
+```bash
+python3 tools/stage_minecraft_assets.py
+```
+
+The generated `godot_extension/minecraft_assets/` directory is ignored because
+it is a reproducible copy of the complete versioned client payload. Both CI
+workflows stage it automatically, so the Android APK packages the full client
+resource namespace needed by the Godot renderer.
 
 ## Build
 
@@ -69,11 +101,12 @@ The generated header and intermediate build directory are not committed.
 
 ## Run in Godot
 
-1. Build the libraries above.
-2. Import/open `godot_extension/project.godot` in **Godot 4.7.2 or newer**.
-3. Run the project on a touch device (or enable **Emulate Touch From Mouse** in
+1. Run `python3 tools/stage_minecraft_assets.py`.
+2. Build the libraries above.
+3. Import/open `godot_extension/project.godot` in **Godot 4.7.2 or newer**.
+4. Run the project on a touch device (or enable **Emulate Touch From Mouse** in
    Project Settings → Input Devices → Pointing).
-4. Drag the left virtual joystick to move, use the multi-touch jump/sneak
+5. Drag the left virtual joystick to move, use the multi-touch jump/sneak
    targets, and drag the right side of the screen to look around. The status
    text shows the input mask returned by the Java bridge.
 
