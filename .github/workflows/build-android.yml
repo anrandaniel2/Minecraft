@@ -172,29 +172,26 @@ jobs:
           CFG
           cat export_presets.cfg
 
-      - name: Import and Build C# (container + exhaustive .NET 10 cleanup)
+      - name: Import and Build C# (container + exhaustive .NET 10 cleanup via find)
         run: |
           set -x
           GODOT_BIN=$(which godot 2>/dev/null || echo "/usr/local/bin/godot")
           $GODOT_BIN --version
           echo "=== DOTNET before cleanup ==="
           dotnet --list-sdks 2>&1 | head -n 20 || true
+          which dotnet || true
           ls /usr/share/dotnet/sdk/ 2>/dev/null | head -n 20 || true
-          ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
-          echo "Finding all 10.x installations..."
-          find /usr /root /home /opt -type d -name "10.0.*" 2>/dev/null | head -n 30 || true
-          # Remove ALL .NET 10 and 9 from EVERYWHERE (container has them in /usr/share/dotnet)
+          echo "Finding all 10.x dirs..."
+          find /usr /root /opt -type d -name "10.*" 2>/dev/null | grep dotnet | head -n 30 || true
+          # Remove via find -exec (more reliable than wildcard in container)
+          find /usr/share/dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
+          find /usr/share/dotnet -type d -name "9.*" -exec rm -rf {} + 2>/dev/null || true
+          find /usr/local/share/dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
+          find /root/.dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
+          find /home -type d -name "10.0.*" -exec rm -rf {} + 2>/dev/null || true
           rm -rf /usr/share/dotnet/sdk/10.* /usr/share/dotnet/sdk/9.* 2>/dev/null || true
           rm -rf /usr/share/dotnet/host/fxr/10.* /usr/share/dotnet/host/fxr/9.* 2>/dev/null || true
-          rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/10.* /usr/share/dotnet/shared/Microsoft.NETCore.App/9.* 2>/dev/null || true
-          rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/10.* /usr/share/dotnet/shared/Microsoft.AspNetCore.App/9.* 2>/dev/null || true
-          rm -rf /usr/local/share/dotnet/sdk/10.* /usr/local/share/dotnet/sdk/9.* 2>/dev/null || true
-          rm -rf /root/.dotnet/sdk/10.* /root/.dotnet/sdk/9.* 2>/dev/null || true
-          rm -rf /home/runner/.dotnet/sdk/10.* 2>/dev/null || true
-          rm -rf /opt/dotnet/sdk/10.* 2>/dev/null || true
-          # Also remove specific versions that keep appearing
-          rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/sdk/10.0.303 /usr/share/dotnet/host/fxr/10.0.12 /usr/share/dotnet/host/fxr/10.0.8 2>/dev/null || true
-          sudo rm -rf /usr/share/dotnet/sdk/10.* /usr/share/dotnet/host/fxr/10.* /usr/share/dotnet/shared/Microsoft.NETCore.App/10.* 2>/dev/null || true
+          rm -rf /usr/share/dotnet/shared/*/*10.* /usr/share/dotnet/shared/*/*9.* 2>/dev/null || true
           echo "=== After cleanup (should only have 8.0.x) ==="
           dotnet --list-sdks 2>&1 | head -n 20 || true
           dotnet --version 2>&1 | head -n 5 || true
@@ -216,35 +213,51 @@ jobs:
           set -x
           GODOT_BIN=$(which godot 2>/dev/null || echo "/usr/local/bin/godot")
           mkdir -p builds
-          echo "=== FIX: Temporarily remove C# autoloads (they cause Failed to load assembly -> export fails) ==="
+          echo "=== FIX: Temporarily remove C# autoloads (they cause Failed to load assembly) ==="
           cp project.godot project.godot.bak
-          python3 << 'PY'
+          # Use python3 if available, else python, else sed fallback
+          if command -v python3 >/dev/null 2>&1; then
+            PYTHON=python3
+          elif command -v python >/dev/null 2>&1; then
+            PYTHON=python
+          else
+            PYTHON=""
+          fi
+          if [ -n "$PYTHON" ]; then
+            $PYTHON << 'PY'
           import re
           with open('project.godot','r') as f:
               content=f.read()
-          # Remove [autoload] section entirely for export
           content=re.sub(r'\[autoload\][^\[]*', '', content, flags=re.DOTALL)
           with open('project.godot','w') as f:
               f.write(content)
-          print("Removed autoloads for export")
+          print("Removed autoloads")
           PY
-          cat project.godot | grep -A2 "autoload" || echo "No autoloads (good, prevents Failed to create autoload errors)"
+          else
+            echo "No python, using sed fallback"
+            sed -i '/\[autoload\]/,/^\[.*\]/ { /\[autoload\]/!{ /^\[.*\]/!d } }' project.godot || true
+          fi
+          cat project.godot | grep -A2 "autoload" || echo "No autoloads (good)"
           echo "Pre-export checks:"
           ls -la android/build/ | head -n 20 || echo "no android/build"
           ls -lh android/build/gradlew 2>&1 | head -n 5 || echo "no gradlew"
-          echo "=== EXPORT DEBUG (without autoloads, should allow gradle to run) ==="
+          echo "=== EXPORT DEBUG (without autoloads) ==="
           timeout 1800 $GODOT_BIN --headless --path . --export-debug "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee builds/export.log | tail -n 1000
           EXPORT_EXIT=${PIPESTATUS[0]}
           echo "Export exit: $EXPORT_EXIT"
           mv project.godot.bak project.godot || true
           ls -lh builds/ || true
           if [ -f builds/Minecraft-26.3-Android-arm64.apk ]; then
-            SIZE=$(stat -c%s builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null || echo 0)
+            SIZE=$(stat -c%s builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null || stat -f%z builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null || echo 0)
             echo "APK size: $SIZE"
             if [ "$SIZE" -lt 5000000 ]; then
-              echo "Placeholder <5MB, trying release without autoloads..."
+              echo "Placeholder <5MB, trying release..."
               cp project.godot project.godot.bak2
-              python3 -c "import re; c=open('project.godot').read(); open('project.godot','w').write(re.sub(r'\[autoload\][^\[]*','',c,flags=re.DOTALL))" || true
+              if [ -n "$PYTHON" ]; then
+                $PYTHON -c "import re; c=open('project.godot').read(); open('project.godot','w').write(re.sub(r'\[autoload\][^\[]*','',c,flags=re.DOTALL))" || true
+              else
+                sed -i '/\[autoload\]/,/^\[.*\]/ { /\[autoload\]/!{ /^\[.*\]/!d } }' project.godot || true
+              fi
               timeout 1800 $GODOT_BIN --headless --path . --export-release "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee -a builds/export.log | tail -n 1000
               mv project.godot.bak2 project.godot || true
               SIZE=$(stat -c%s builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null || echo 0)
@@ -257,7 +270,6 @@ jobs:
             fi
             echo "Real APK: $(du -h builds/Minecraft-26.3-Android-arm64.apk)"
             unzip -l builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null | grep lib/ | head -n 30 || true
-            unzip -l builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null | grep -E "arm64|armeabi|x86" | head -n 20 || true
           else
             echo "No APK"
             cat builds/export.log | tail -n 1000 || true
