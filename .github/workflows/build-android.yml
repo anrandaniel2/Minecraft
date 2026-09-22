@@ -96,11 +96,40 @@ jobs:
           dotnet --version
           ls -la ~/.local/share/godot/export_templates/4.4.1.stable.mono/ | head -n 30 || true
 
-      - name: Create debug keystore
+      - name: Create debug keystore and install Android build template
         run: |
+          set -x
           mkdir -p ~/.android
           if [ ! -f ~/.android/debug.keystore ]; then
             keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
+          fi
+          echo "=== Installing Android build template (required for C# export) ==="
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable.mono"
+          ls -la $TEMPLATE_DIR/ | head -n 30 || true
+          if [ -f "$TEMPLATE_DIR/android_source.zip" ]; then
+            echo "Found android_source.zip, extracting to android/build"
+            mkdir -p android
+            rm -rf android/build
+            unzip -q $TEMPLATE_DIR/android_source.zip -d android/
+            # The zip may contain android_source/ or build/ - check
+            ls -la android/ | head -n 30 || true
+            if [ -d "android/android_source" ]; then
+              mv android/android_source android/build
+            fi
+            if [ -d "android/build" ]; then
+              echo "Android build template installed at android/build"
+              ls -la android/build/ | head -n 30 || true
+            else
+              echo "android/build not found after unzip, listing android/"
+              find android/ -type f | head -n 30 || true
+            fi
+          else
+            echo "android_source.zip not found, searching..."
+            find $HOME -name "android_source.zip" 2>/dev/null | head -n 5
+            # Fallback: try to use godot to install template via editor (may fail headless but try)
+            echo "Trying godot --headless --install-android-build-template (if available)"
+            timeout 30 godot --headless --path . --install-android-build-template 2>&1 | tail -n 20 || true
+            ls -la android/ 2>/dev/null | head -n 20 || echo "no android dir yet"
           fi
 
       - name: Setup export_presets arm64 only

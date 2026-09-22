@@ -58,12 +58,29 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" || true
 
-      - name: Create keystore and check templates
+      - name: Create keystore and check templates + install Android build template
         run: |
+          set -x
           mkdir -p ~/.android
           keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
           godot --version
-          ls -la ~/.local/share/godot/export_templates/4.4.1.stable.mono/ | head -n 30 || true
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable.mono"
+          ls -la $TEMPLATE_DIR/ | head -n 30 || true
+          echo "=== Installing Android build template (required for C# export) ==="
+          if [ -f "$TEMPLATE_DIR/android_source.zip" ]; then
+            echo "Found android_source.zip, extracting to android/build"
+            mkdir -p android
+            rm -rf android/build
+            unzip -q $TEMPLATE_DIR/android_source.zip -d android/
+            ls -la android/ | head -n 30 || true
+            if [ -d "android/android_source" ]; then
+              mv android/android_source android/build
+            fi
+            ls -la android/build/ | head -n 30 || true
+          else
+            echo "android_source.zip not found"
+            find $HOME -name "android_source.zip" 2>/dev/null | head -n 5
+          fi
 
       - name: Fast project setup - gradle_build=true required for C# Android
         run: |
