@@ -162,11 +162,20 @@ jobs:
           CFG
           cat export_presets.cfg
 
-      - name: Import and Build C# (container handles .NET 8 correctly)
+      - name: Import and Build C# (container + cleanup .NET 10)
         run: |
           set -x
           GODOT_BIN=$(which godot 2>/dev/null || echo "/usr/local/bin/godot")
           $GODOT_BIN --version
+          echo "=== DOTNET SDKs before cleanup (container may have .NET 10) ==="
+          dotnet --list-sdks || true
+          dotnet --list-runtimes | head -n 20 || true
+          ls /usr/share/dotnet/sdk/ 2>/dev/null | head -n 20 || true
+          ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
+          sudo rm -rf /usr/share/dotnet/sdk/10.* /usr/share/dotnet/sdk/9.* 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet/host/fxr/10.* /usr/share/dotnet/host/fxr/9.* 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/10.* /usr/share/dotnet/shared/Microsoft.NETCore.App/9.* 2>/dev/null || true
+          echo "=== After cleanup ==="
           dotnet --list-sdks || true
           dotnet --version || true
           echo "=== IMPORT ==="
@@ -177,7 +186,10 @@ jobs:
           ls -lh .godot/mono/temp/bin/ExportRelease/ 2>/dev/null | head -n 20 || true
           echo "=== DOTNET BUILD FALLBACK ==="
           dotnet restore Minecraft.csproj 2>&1 | tail -n 20 || true
+          dotnet build Minecraft.csproj --configuration Debug 2>&1 | tail -n 50 || true
           dotnet build Minecraft.csproj --configuration ExportRelease 2>&1 | tail -n 100 || true
+          ls -lh .godot/mono/temp/bin/Debug/ 2>/dev/null | head -n 20 || true
+          ls -lh .godot/mono/temp/bin/ExportRelease/ 2>/dev/null | head -n 20 || true
 
       - name: Export APK (real, not placeholder)
         run: |
