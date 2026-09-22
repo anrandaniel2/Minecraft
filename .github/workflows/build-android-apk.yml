@@ -16,6 +16,9 @@ jobs:
     timeout-minutes: 25
     env:
       GODOT_VERSION: 4.7.2-stable
+      # Godot's user-data directory uses the engine's dot-form version while
+      # release assets use the dash-form tag above.
+      GODOT_TEMPLATE_VERSION: 4.7.2.stable
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
@@ -58,7 +61,7 @@ jobs:
             -o "$RUNNER_TEMP/templates.tpz" \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
           unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
-          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}"
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_VERSION}"
           mkdir -p "$TEMPLATE_DIR"
           unzip -q "$RUNNER_TEMP/templates.tpz" -d "$TEMPLATE_DIR"
           # The .tpz itself contains a templates/ root, whereas Godot expects
