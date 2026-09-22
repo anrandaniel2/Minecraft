@@ -171,9 +171,14 @@ jobs:
           CFG
           cat export_presets.cfg
 
-      - name: Import and Build C# (fix SDK + autoloads)
+      - name: Import and Build C# (fix SDK 10 vs 8 + autoloads)
         run: |
           set -x
+          echo "=== DOTNET SDKs before cleanup ==="
+          dotnet --list-sdks
+          ls /usr/share/dotnet/sdk/ | head -n 20 || true
+          sudo rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/sdk/10.0.100 /usr/share/dotnet/sdk/9.0.* 2>/dev/null || true
+          echo "=== DOTNET SDKs after cleanup ==="
           dotnet --list-sdks
           dotnet --version
           echo "=== RESTORE ==="

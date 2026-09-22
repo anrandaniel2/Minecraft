@@ -225,9 +225,16 @@ jobs:
           cp export_presets.cfg Android/export_presets.cfg
           cat export_presets.cfg
 
-      - name: Import project and Build C# (fix SDK + autoloads)
+      - name: Import project and Build C# (fix SDK 10 vs 8 + autoloads)
         run: |
           set -x
+          echo "=== DOTNET SDKs before cleanup ==="
+          dotnet --list-sdks
+          ls /usr/share/dotnet/sdk/ | head -n 20 || true
+          echo "DOTNET_ROOT=$DOTNET_ROOT"
+          # Remove .NET 10 SDK which causes Godot to find wrong SDK (10.0.400) and fail to load assembly
+          sudo rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/sdk/10.0.100 /usr/share/dotnet/sdk/9.0.* 2>/dev/null || true
+          echo "=== DOTNET SDKs after cleanup ==="
           dotnet --list-sdks
           dotnet --version
           echo "=== RESTORE ==="
@@ -248,6 +255,9 @@ jobs:
           echo "=== GODOT IMPORT (after C# build so autoloads compile) ==="
           timeout 120 godot --headless --import --path . 2>&1 | tail -n 100 || echo "import timed out, continuing"
           ls -la .godot/ | head -n 20 || true
+          echo "=== Check if autoloads now compile ==="
+          cat .godot/mono/temp/bin/Debug/Minecraft.dll 2>&1 | head -n 5 || echo "Debug DLL exists check"
+          ls -lh .godot/mono/temp/bin/Debug/ | head -n 20 || true
 
       - name: Export APK (arm64 only)
         run: |
