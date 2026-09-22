@@ -147,6 +147,19 @@ public final class RenderCommandWriter {
         finishPacket(start);
     }
 
+    /** Restricts subsequent draws in the active pass to a pixel rectangle. */
+    public void setScissor(int x, int y, int width, int height) {
+        requireRenderPass();
+        require(x >= 0 && y >= 0 && width >= 0 && height >= 0,
+                "Scissor coordinates and dimensions must be non-negative");
+        int start = beginPacket(RenderCommandProtocol.SET_SCISSOR);
+        bytes.putInt(x);
+        bytes.putInt(y);
+        bytes.putInt(width);
+        bytes.putInt(height);
+        finishPacket(start);
+    }
+
     /** Emits a non-indexed draw operation. */
     public void draw(int vertexCount, int instanceCount, int firstVertex, int firstInstance) {
         requireRenderPass();
