@@ -83,6 +83,19 @@ int minecraft_render_visit_frame(
     void *user_data
 );
 
+/*
+ * Thread-safe native mailbox used by the future Java RenderPearl backend.
+ * minecraft_render_submit_frame() validates a frame, copies it atomically and
+ * returns its packet count. The Godot render thread can then take a stable
+ * snapshot through copy_latest_frame() without Java code knowing about Godot.
+ */
+int minecraft_render_submit_frame(const uint8_t *frame_bytes, size_t frame_size);
+int minecraft_render_last_submission_status(void);
+size_t minecraft_render_latest_frame_size(void);
+/* Returns zero when destination is NULL or smaller than the current frame. */
+size_t minecraft_render_copy_latest_frame(uint8_t *destination, size_t destination_size);
+void minecraft_render_clear_latest_frame(void);
+
 #ifdef __cplusplus
 }
 #endif

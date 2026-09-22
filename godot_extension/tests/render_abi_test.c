@@ -47,6 +47,21 @@ int main(void) {
         return 1;
     }
 
+    /* The Java producer can submit a complete frame from another thread; the
+     * native mailbox keeps an owned, stable copy for a Godot render thread. */
+    result = minecraft_render_submit_frame(frame, size);
+    if (result != 7 || minecraft_render_last_submission_status() != 7 ||
+            minecraft_render_latest_frame_size() != size) {
+        fprintf(stderr, "valid frame was not stored in mailbox\n");
+        return 1;
+    }
+    uint8_t copied_frame[sizeof(frame)] = {0};
+    if (minecraft_render_copy_latest_frame(copied_frame, sizeof(copied_frame)) != size ||
+            memcmp(frame, copied_frame, size) != 0) {
+        fprintf(stderr, "mailbox changed the submitted frame\n");
+        return 1;
+    }
+
     /* Draw commands must be emitted only inside a render pass. */
     MinecraftRenderPacketHeader invalid_draw = {
         .opcode = MINECRAFT_RENDER_DRAW,
@@ -61,6 +76,16 @@ int main(void) {
     );
     if (result != MINECRAFT_RENDER_BAD_FRAME_ORDER) {
         fprintf(stderr, "out-of-pass draw returned %d\n", result);
+        return 1;
+    }
+    result = minecraft_render_submit_frame(
+        (const uint8_t *)&invalid_draw,
+        sizeof(invalid_draw)
+    );
+    if (result != MINECRAFT_RENDER_BAD_FRAME_ORDER ||
+            minecraft_render_last_submission_status() != MINECRAFT_RENDER_BAD_FRAME_ORDER ||
+            minecraft_render_latest_frame_size() != size) {
+        fprintf(stderr, "invalid mailbox submission overwrote valid frame\n");
         return 1;
     }
 
@@ -81,5 +106,10 @@ int main(void) {
         return 1;
     }
 
+    minecraft_render_clear_latest_frame();
+    if (minecraft_render_latest_frame_size() != 0) {
+        fprintf(stderr, "mailbox clear left frame data behind\n");
+        return 1;
+    }
     return 0;
 }

@@ -57,7 +57,7 @@ jobs:
             -Igodot_extension/include \
             godot_extension/src/minecraft_render_abi.c \
             godot_extension/tests/render_abi_test.c \
-            -o "$RUNNER_TEMP/render_abi_test"
+            -pthread -o "$RUNNER_TEMP/render_abi_test"
           "$RUNNER_TEMP/render_abi_test"
 
       - name: Verify exported extension and runtime dependency

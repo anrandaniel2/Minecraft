@@ -1,7 +1,16 @@
 #include "minecraft_render_abi.h"
 
 #include <limits.h>
+#include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
+
+#define MINECRAFT_RENDER_MAX_FRAME_BYTES (64u * 1024u * 1024u)
+
+static pthread_mutex_t latest_frame_mutex = PTHREAD_MUTEX_INITIALIZER;
+static uint8_t *latest_frame_bytes;
+static size_t latest_frame_size;
+static int latest_submission_status = MINECRAFT_RENDER_INVALID_ARGUMENT;
 
 static bool is_known_opcode(uint16_t opcode) {
     return opcode >= MINECRAFT_RENDER_FRAME_BEGIN && opcode <= MINECRAFT_RENDER_DRAW_INDEXED;
@@ -105,4 +114,84 @@ int minecraft_render_visit_frame(
         return MINECRAFT_RENDER_BAD_FRAME_ORDER;
     }
     return packet_count;
+}
+
+static bool accept_packet(const MinecraftRenderPacketHeader *header,
+                          const uint8_t *packet_bytes,
+                          void *user_data) {
+    (void)header;
+    (void)packet_bytes;
+    (void)user_data;
+    return true;
+}
+
+int minecraft_render_submit_frame(const uint8_t *frame_bytes, size_t frame_size) {
+    if (frame_size > MINECRAFT_RENDER_MAX_FRAME_BYTES) {
+        pthread_mutex_lock(&latest_frame_mutex);
+        latest_submission_status = MINECRAFT_RENDER_INVALID_ARGUMENT;
+        pthread_mutex_unlock(&latest_frame_mutex);
+        return MINECRAFT_RENDER_INVALID_ARGUMENT;
+    }
+
+    int validation = minecraft_render_visit_frame(frame_bytes, frame_size, accept_packet, NULL);
+    if (validation < 0) {
+        pthread_mutex_lock(&latest_frame_mutex);
+        latest_submission_status = validation;
+        pthread_mutex_unlock(&latest_frame_mutex);
+        return validation;
+    }
+
+    uint8_t *copy = malloc(frame_size);
+    if (copy == NULL) {
+        pthread_mutex_lock(&latest_frame_mutex);
+        latest_submission_status = MINECRAFT_RENDER_INVALID_ARGUMENT;
+        pthread_mutex_unlock(&latest_frame_mutex);
+        return MINECRAFT_RENDER_INVALID_ARGUMENT;
+    }
+    memcpy(copy, frame_bytes, frame_size);
+
+    pthread_mutex_lock(&latest_frame_mutex);
+    free(latest_frame_bytes);
+    latest_frame_bytes = copy;
+    latest_frame_size = frame_size;
+    latest_submission_status = validation;
+    pthread_mutex_unlock(&latest_frame_mutex);
+    return validation;
+}
+
+int minecraft_render_last_submission_status(void) {
+    pthread_mutex_lock(&latest_frame_mutex);
+    int status = latest_submission_status;
+    pthread_mutex_unlock(&latest_frame_mutex);
+    return status;
+}
+
+size_t minecraft_render_latest_frame_size(void) {
+    pthread_mutex_lock(&latest_frame_mutex);
+    size_t size = latest_frame_size;
+    pthread_mutex_unlock(&latest_frame_mutex);
+    return size;
+}
+
+size_t minecraft_render_copy_latest_frame(uint8_t *destination, size_t destination_size) {
+    pthread_mutex_lock(&latest_frame_mutex);
+    if (destination == NULL || destination_size < latest_frame_size) {
+        pthread_mutex_unlock(&latest_frame_mutex);
+        return 0;
+    }
+    if (latest_frame_size != 0) {
+        memcpy(destination, latest_frame_bytes, latest_frame_size);
+    }
+    size_t copied_size = latest_frame_size;
+    pthread_mutex_unlock(&latest_frame_mutex);
+    return copied_size;
+}
+
+void minecraft_render_clear_latest_frame(void) {
+    pthread_mutex_lock(&latest_frame_mutex);
+    free(latest_frame_bytes);
+    latest_frame_bytes = NULL;
+    latest_frame_size = 0;
+    latest_submission_status = MINECRAFT_RENDER_INVALID_ARGUMENT;
+    pthread_mutex_unlock(&latest_frame_mutex);
 }
