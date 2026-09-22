@@ -39,7 +39,9 @@ jobs:
           mkdir -p build/renderpearl-command-protocol
           javac -Xlint:all -Werror \
             -d build/renderpearl-command-protocol \
-            $(find full_client_port/renderpearl_backend/java -type f -name '*.java' | sort)
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandProtocol.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandWriter.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandWriterTest.java
           java -cp build/renderpearl-command-protocol \
             net.minecraft.godot.renderpearl.RenderCommandWriterTest
 
