@@ -102,11 +102,12 @@ The checked-in Godot renderer loads complete Minecraft models/textures and is a
 working viewport/resource fallback. It is **not** this RenderPearl backend.
 
 The first Java resource-adapter implementations now exist for the exact
-extracted `GpuTexture`, `GpuTextureView`, and `GpuSampler` interfaces. They own
-Godot-neutral handles, metadata, mip-range checks and resource lifetime; CI
-compiles them against the real Java-25 classes under `extracted/`. They are the
-resource half of the future `GpuDevice`, not a claim that command execution or
-Minecraft terrain is already routed through the backend.
+extracted `GpuBuffer`, `GpuTexture`, `GpuTextureView`, and `GpuSampler`
+interfaces. They own Godot-neutral handles, buffer mapping/staging storage,
+metadata, mip-range checks and resource lifetime; CI compiles and smoke-tests
+them against the real Java-25 classes under `extracted/`. They are the resource
+half of the future `GpuDevice`, not a claim that command execution or Minecraft
+terrain is already routed through the backend.
 
 The manifest and CI checks remain hard gates so API assumptions cannot silently
 drift while `GpuBuffer`, `GpuDevice`, `CommandEncoder`, render-pass and native
