@@ -1,0 +1,80 @@
+WorkerThreadPool: 4 threads, 3 max low-priority.
+Godot Engine v4.4.1.stable.mono.official.49a5bc7b6 - https://godotengine.org
+TextServer: Added interface "Dummy"
+TextServer: Added interface "ICU / HarfBuzz / Graphite (Built-in)"
+JoypadLinux: udev enabled and loaded successfully.
+Using "default" pen tablet driver...
+
+TextServer: Primary interface set to: "ICU / HarfBuzz / Graphite (Built-in)".
+.NET: Initializing module...
+Found hostfxr: /usr/share/dotnet/host/fxr/10.0.12/libhostfxr.so
+.NET: hostfxr initialized
+.NET: GodotPlugins initialized
+.NET: Failed to load project assembly
+CORE API HASH: 1480415270
+EDITOR API HASH: 1467842162
+Loading resource: /home/runner/.config/godot/editor_settings-4.4.tres
+EditorSettings: Load OK!
+EditorTheme: Generating new theme for the config '66886095'.
+EditorTheme: Generating new icons.
+EditorTheme: Generating new fonts.
+EditorTheme: Generating new styles.
+Found .NET Sdk version '10.0.400': /usr/share/dotnet/sdk/10.0.400
+Loading resource: /home/runner/.cache/godot/editor_doc_cache-4.4.res
+Loaded system CA certificates
+first_scan_filesystem: begin: Project initialization steps: 5
+	first_scan_filesystem: step 0: Scanning file structure...
+	first_scan_filesystem: step 1: Loading global class names...
+	first_scan_filesystem: step 2: Verifying GDExtensions...
+	first_scan_filesystem: step 3: Creating autoload scripts...
+Loading resource: res://Scripts/Core/GameManager.cs
+ERROR: Failed to create an autoload, script 'res://Scripts/Core/GameManager.cs' is not compiling.
+   at: _create_autoload (editor/editor_autoload_settings.cpp:409)
+Loading resource: res://Scripts/Assets/AssetManager.cs
+ERROR: Failed to create an autoload, script 'res://Scripts/Assets/AssetManager.cs' is not compiling.
+   at: _create_autoload (editor/editor_autoload_settings.cpp:409)
+Loading resource: res://Scripts/World/WorldManager.cs
+ERROR: Failed to create an autoload, script 'res://Scripts/World/WorldManager.cs' is not compiling.
+   at: _create_autoload (editor/editor_autoload_settings.cpp:409)
+	first_scan_filesystem: step 4: Initializing plugins...
+	first_scan_filesystem: step 5: Starting file scan...
+first_scan_filesystem: end
+_update_scan_actions: begin: Scanning actions... steps: 17
+	_update_scan_actions: step 0: animation_sprite.glsl
+	_update_scan_actions: step 1: chunksection.glsl
+	_update_scan_actions: step 2: dynamictransforms.glsl
+	_update_scan_actions: step 3: fog.glsl
+	_update_scan_actions: step 4: globals.glsl
+	_update_scan_actions: step 5: light.glsl
+	_update_scan_actions: step 6: matrix.glsl
+	_update_scan_actions: step 7: oit.glsl
+	_update_scan_actions: step 8: oit_add_transmittance.glsl
+	_update_scan_actions: step 9: oit_common.glsl
+	_update_scan_actions: step 10: oit_depth_bounds.glsl
+	_update_scan_actions: step 11: oit_depth_sample.glsl
+	_update_scan_actions: step 12: oit_sample.glsl
+	_update_scan_actions: step 13: projection.glsl
+	_update_scan_actions: step 14: sample_lightmap.glsl
+	_update_scan_actions: step 15: terrainglobals.glsl
+	_update_scan_actions: step 16: texture_sampling.glsl
+_update_scan_actions: end
+ERROR: Cannot export project with preset "Android" due to configuration errors:
+Exporting to Android when using C#/.NET is experimental.
+Android build template not installed in the project. Install it from the Project menu.
+
+   at: _fs_changed (editor/editor_node.cpp:1087)
+ERROR: Project export for preset "Android" failed.
+   at: _fs_changed (editor/editor_node.cpp:1103)
+loading_editor_layout: begin: Loading editor steps: 5
+	loading_editor_layout: step 0: Loading editor layout...
+loading_editor_layout: end
+EditorSettings: Save OK!
+Unloading: Disposing tracked instances...
+ERROR: Condition "!EditorSettings::get_singleton() || !EditorSettings::get_singleton()->has_setting(p_setting)" is true. Returning: Variant()
+   at: _EDITOR_GET (editor/editor_settings.cpp:1445)
+Unloading: Finished disposing tracked instances.
+XR: Clearing primary interface
+XR: Removed interface "Native mobile"
+XR: Removed interface "OpenXR"
+Orphan StringName: Node (static: 5, total: 6)
+StringName: 1 unclaimed string names at exit.
