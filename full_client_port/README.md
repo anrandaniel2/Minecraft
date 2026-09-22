@@ -28,7 +28,7 @@ in-viewport port must replace the desktop platform layer:
 `tools/full_client_inventory.py` is the phase-0 guard: it verifies that the
 actual input is the full Java 25 class distribution. The `Recover Full Minecraft
 Client Source` workflow is phase 1: it uses Java 25 and Vineflower to produce a
-source-only CI artifact, verifies it has at least 10,000 `.java` files, and
+source-only CI artifact, verifies it has at least 7,000 `.java` files (nested classes recover into their enclosing source file), and
 keeps that large recovered source out of Git. Run the inventory from repository
 root:
 
