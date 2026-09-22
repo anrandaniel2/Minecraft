@@ -270,18 +270,24 @@ jobs:
           cp export_presets.cfg Android/export_presets.cfg
           cat export_presets.cfg
 
-      - name: Import project and Build C# (fix SDK 10 vs 8 + autoloads)
+      - name: Import project and Build C# (fix SDK 10 vs 8 + hostfxr + autoloads)
         run: |
           set -x
-          echo "=== DOTNET SDKs before cleanup ==="
+          echo "=== DOTNET SDKs and runtimes before cleanup ==="
           dotnet --list-sdks
+          dotnet --list-runtimes | head -n 30 || true
           ls /usr/share/dotnet/sdk/ | head -n 30 || true
+          ls /usr/share/dotnet/host/fxr/ | head -n 20 || true
           echo "DOTNET_ROOT=$DOTNET_ROOT"
-          # Remove ALL .NET 9 and 10 SDKs which cause Godot to find wrong SDK (10.0.303 etc) and fail to load assembly
+          # Remove ALL .NET 9 and 10 SDKs AND runtimes AND hostfxr which cause Godot to find wrong hostfxr (10.0.12) and fail to load assembly
           sudo rm -rf /usr/share/dotnet/sdk/10.* /usr/share/dotnet/sdk/9.* 2>/dev/null || true
-          sudo rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/sdk/10.0.303 /usr/share/dotnet/sdk/10.0.100 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet/host/fxr/10.* /usr/share/dotnet/host/fxr/9.* 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/10.* /usr/share/dotnet/shared/Microsoft.NETCore.App/9.* 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/10.* /usr/share/dotnet/shared/Microsoft.AspNetCore.App/9.* 2>/dev/null || true
           echo "=== DOTNET SDKs after cleanup (should only have 8.0.x) ==="
           dotnet --list-sdks
+          dotnet --list-runtimes | head -n 20 || true
+          ls /usr/share/dotnet/host/fxr/ | head -n 20 || true
           dotnet --version
           echo "=== RESTORE ==="
           dotnet restore Minecraft.csproj 2>&1 | tail -n 20
@@ -298,11 +304,14 @@ jobs:
           echo "C# BUILD SUCCEEDED"
           ls -lh .godot/mono/temp/bin/Debug/ 2>/dev/null | head -n 20 || true
           ls -lh .godot/mono/temp/bin/ExportRelease/ 2>/dev/null | head -n 20 || true
+          echo "=== TRY godot --build-solutions (may fix assembly loading, with timeout) ==="
+          timeout 60 godot --headless --build-solutions --path . 2>&1 | tail -n 100 || echo "build-solutions timed out or failed, continuing"
           echo "=== GODOT IMPORT (after C# build so autoloads compile) ==="
           timeout 120 godot --headless --import --path . 2>&1 | tail -n 100 || echo "import timed out, continuing"
           ls -la .godot/ | head -n 20 || true
-          echo "=== Check if autoloads now compile ==="
+          echo "=== Check DLLs ==="
           ls -lh .godot/mono/temp/bin/Debug/ | head -n 20 || true
+          ls -lh .godot/mono/temp/bin/ExportRelease/ | head -n 20 || true
 
       - name: Export APK (arm64 only) - must be real >20MB not placeholder 2.4K
         run: |
