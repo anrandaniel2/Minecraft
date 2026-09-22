@@ -1,20 +1,34 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://scripts/TouchControls.gd" id="1_controls"]
+[ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/MinecraftGodotRenderer.gd" id="2_renderer"]
+[ext_resource type="Script" path="res://scripts/TouchControls.gd" id="3_controls"]
 
-[node name="MinecraftViewportControls" type="Control"]
+[sub_resource type="RectangleShape2D" id="JumpTouchShape"]
+size = Vector2(156, 96)
+
+[sub_resource type="RectangleShape2D" id="SneakTouchShape"]
+size = Vector2(156, 96)
+
+[node name="MinecraftGodot" type="Node"]
+script = ExtResource("1_main")
+
+[node name="MinecraftGodotRenderer" type="Node3D" parent="."]
+script = ExtResource("2_renderer")
+
+[node name="TouchControls" type="Control" parent="."]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_controls")
+script = ExtResource("3_controls")
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[node name="CanvasLayer" type="CanvasLayer" parent="TouchControls"]
 layer = 10
 
-[node name="HUD" type="Control" parent="CanvasLayer"]
+[node name="HUD" type="Control" parent="TouchControls/CanvasLayer"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -23,12 +37,14 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="VirtualJoystick" type="VirtualJoystick" parent="CanvasLayer/HUD"]
+[node name="VirtualJoystick" type="VirtualJoystick" parent="TouchControls/CanvasLayer/HUD"]
 layout_mode = 0
-offset_left = 34.0
-offset_top = 468.0
-offset_right = 234.0
-offset_bottom = 668.0
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = -220.0
+offset_right = 230.0
+offset_bottom = -20.0
 joystick_mode = 0
 visibility_mode = 0
 joystick_size = 180.0
@@ -40,29 +56,85 @@ action_down = &"minecraft_backward"
 action_left = &"minecraft_left"
 action_right = &"minecraft_right"
 
-[node name="JumpButton" type="Button" parent="CanvasLayer/HUD"]
-layout_mode = 0
-offset_left = 1085.0
-offset_top = 555.0
-offset_right = 1245.0
-offset_bottom = 655.0
-theme_override_font_sizes/font_size = 23
+[node name="JumpVisual" type="ColorRect" parent="TouchControls/CanvasLayer/HUD"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -188.0
+offset_top = -153.0
+offset_right = -32.0
+offset_bottom = -57.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+color = Color(0.18, 0.52, 0.86, 0.72)
+
+[node name="Label" type="Label" parent="TouchControls/CanvasLayer/HUD/JumpVisual"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 22
 text = "JUMP"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
 
-[node name="SneakButton" type="Button" parent="CanvasLayer/HUD"]
-layout_mode = 0
-offset_left = 890.0
-offset_top = 586.0
-offset_right = 1040.0
-offset_bottom = 655.0
-theme_override_font_sizes/font_size = 19
+[node name="SneakVisual" type="ColorRect" parent="TouchControls/CanvasLayer/HUD"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -363.0
+offset_top = -153.0
+offset_right = -207.0
+offset_bottom = -57.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+color = Color(0.25, 0.35, 0.48, 0.72)
+
+[node name="Label" type="Label" parent="TouchControls/CanvasLayer/HUD/SneakVisual"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
 text = "SNEAK"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
 
-[node name="Status" type="Label" parent="CanvasLayer/HUD"]
+[node name="JumpTouch" type="TouchScreenButton" parent="TouchControls/CanvasLayer/HUD"]
+shape = SubResource("JumpTouchShape")
+action = &"minecraft_jump"
+visibility_mode = 0
+
+[node name="SneakTouch" type="TouchScreenButton" parent="TouchControls/CanvasLayer/HUD"]
+shape = SubResource("SneakTouchShape")
+action = &"minecraft_sneak"
+visibility_mode = 0
+
+[node name="Status" type="Label" parent="TouchControls/CanvasLayer/HUD"]
 layout_mode = 0
 offset_left = 24.0
 offset_top = 20.0
-offset_right = 680.0
+offset_right = 780.0
 offset_bottom = 54.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 20
-text = "Loading Java input layer..."
+text = "Loading Minecraft viewport..."

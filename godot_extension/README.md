@@ -36,7 +36,16 @@ The Java class contains generic, synchronized methods:
 The mask uses these bits: `FORWARD=1`, `BACKWARD=2`, `LEFT=4`, `RIGHT=8`,
 `JUMP=16`, `SNEAK=32`, `ACTIVE=64`.
 
-`MinecraftTouch` exposes the equivalent snake-case methods to Godot. The demo scene uses Godot 4.7's built-in `VirtualJoystick` to drive four Input Map actions. `TouchControls.gd` samples those actions and calls `MinecraftTouch.set_virtual_joystick_mask()`. The Java layer remains Godot-free. The on-screen buttons set jump and sneak bits.
+`MinecraftTouch` exposes the equivalent snake-case methods to Godot. The full-screen demo scene uses Godot 4.7's built-in `VirtualJoystick` for movement and `TouchScreenButton` nodes for independent multi-touch jump and sneak actions. Dragging any non-button region on the right half of the screen emits relative camera-look input. `TouchControls.gd` forwards generic action bits and look deltas to the Java bridge, so Java remains Godot-free.
+
+## Viewport renderer milestone
+
+`MinecraftGodotRenderer.gd` is a Godot-native viewport renderer baseline: it
+creates the world environment, directional lighting, voxel geometry, and the
+camera-look contract used by the touch overlay. It renders inside Godot's main
+viewport and stretches to fullscreen. It is the initial rendering target for
+the recovered Minecraft client draw-command port; it is not a claim that the
+complete Blaze3D renderer has already been replaced.
 
 ## Build
 
@@ -64,8 +73,9 @@ The generated header and intermediate build directory are not committed.
 2. Import/open `godot_extension/project.godot` in **Godot 4.7.2 or newer**.
 3. Run the project on a touch device (or enable **Emulate Touch From Mouse** in
    Project Settings → Input Devices → Pointing).
-4. Press/drag the visual controls. The status text shows the mask returned by
-   Java through the GDExtension bridge.
+4. Drag the left virtual joystick to move, use the multi-touch jump/sneak
+   targets, and drag the right side of the screen to look around. The status
+   text shows the input mask returned by the Java bridge.
 
 The `.gdextension` file resolves `libminecraft_godot.so`; do not move the
 companion Java `.so` out of `bin/`.

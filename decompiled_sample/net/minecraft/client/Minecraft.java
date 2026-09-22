@@ -5,8 +5,6 @@
 // GDExtension bridge adapts Godot input events to these methods.
 package net.minecraft.client;
 
-import java.util.Arrays;
-
 /**
  * Minimal, compilable integration surface based on the decompiled Minecraft class.
  *
@@ -37,6 +35,10 @@ public final class Minecraft implements Runnable {
     // Input actions supplied by a host UI such as Godot 4.7 VirtualJoystick.
     // This stays independent of the host renderer and can be merged with raw touches.
     private static int virtualJoystickMask;
+    // Pixel deltas accumulated by a host's camera-look surface. A game loop
+    // consumes these values once per frame, so the host need not know camera math.
+    private static int pendingCameraYawDelta;
+    private static int pendingCameraPitchDelta;
     private static boolean initialized;
 
     static {
@@ -88,6 +90,32 @@ public final class Minecraft implements Runnable {
         }
         touchMask = 0;
         virtualJoystickMask = 0;
+        pendingCameraYawDelta = 0;
+        pendingCameraPitchDelta = 0;
+    }
+
+    /**
+     * Adds a relative drag from a camera-look surface. Positive X rotates right;
+     * positive Y looks down. The deltas are intentionally in host pixels so the
+     * game loop can apply its own sensitivity and inversion settings.
+     */
+    public static synchronized void addCameraDrag(int deltaX, int deltaY) {
+        pendingCameraYawDelta += deltaX;
+        pendingCameraPitchDelta += deltaY;
+    }
+
+    /** Returns and clears the accumulated horizontal camera drag for this frame. */
+    public static synchronized int consumeCameraYawDelta() {
+        int result = pendingCameraYawDelta;
+        pendingCameraYawDelta = 0;
+        return result;
+    }
+
+    /** Returns and clears the accumulated vertical camera drag for this frame. */
+    public static synchronized int consumeCameraPitchDelta() {
+        int result = pendingCameraPitchDelta;
+        pendingCameraPitchDelta = 0;
+        return result;
     }
 
     /**
@@ -122,7 +150,7 @@ public final class Minecraft implements Runnable {
 
     /** Convenience query for game code which consumes individual actions. */
     public static synchronized boolean isTouchActionPressed(int action) {
-        return (touchMask & action) != 0;
+        return (getTouchMask() & action) != 0;
     }
 
     @Override

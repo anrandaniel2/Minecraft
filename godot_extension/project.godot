@@ -24,13 +24,24 @@ minecraft_right={
 "deadzone": 0.18,
 "events": []
 }
+minecraft_jump={
+"deadzone": 0.18,
+"events": []
+}
+minecraft_sneak={
+"deadzone": 0.18,
+"events": []
+}
 
 [display/window]
 size/viewport_width=1280
 size/viewport_height=720
-size/window_width_override=1280
-size/window_height_override=720
+size/window_width_override=0
+size/window_height_override=0
+size/mode=3
+handheld/orientation=0
 stretch/mode="canvas_items"
+stretch/aspect="expand"
 
 [rendering]
 renderer/rendering_method="gl_compatibility"

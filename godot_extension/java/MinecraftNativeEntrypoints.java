@@ -41,6 +41,11 @@ public final class MinecraftNativeEntrypoints {
         Minecraft.setVirtualJoystickMask(actionMask);
     }
 
+    @CEntryPoint(name = "minecraft_add_camera_drag")
+    public static void addCameraDrag(IsolateThread thread, int deltaX, int deltaY) {
+        Minecraft.addCameraDrag(deltaX, deltaY);
+    }
+
     @CEntryPoint(name = "minecraft_touch_mask")
     public static int touchMask(IsolateThread thread) {
         return Minecraft.getTouchMask();
