@@ -41,6 +41,13 @@ func _ready() -> void:
 		using_native_bridge = minecraft_touch != null
 	if minecraft_touch == null:
 		minecraft_touch = MobileInputFallback.new()
+	if using_native_bridge:
+		# Smoke the Java -> native RenderPearl frame mailbox on desktop. This has
+		# no visual payload yet; it verifies the backend transport without letting
+		# Java call Godot APIs. Android remains on its Godot-only fallback.
+		var submitted_packets: int = minecraft_touch.call(&"submit_render_protocol_smoke_frame")
+		if submitted_packets <= 0:
+			push_error("Minecraft RenderPearl protocol smoke frame was rejected: %d" % submitted_packets)
 	_layout_touch_targets()
 	get_viewport().size_changed.connect(_layout_touch_targets)
 

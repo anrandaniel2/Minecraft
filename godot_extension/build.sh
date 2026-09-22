@@ -34,6 +34,10 @@ rm -f "$BIN_DIR"/libminecraft_godot.so "$BIN_DIR"/libminecraft_java.so
 
 "$JAVAC" -d "$CLASSES" \
   "$ROOT/decompiled_sample/net/minecraft/client/Minecraft.java" \
+  "$ROOT/full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandProtocol.java" \
+  "$ROOT/full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandWriter.java" \
+  "$ROOT/full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandTransport.java" \
+  "$ROOT/full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotNativeRenderCommandTransport.java" \
   "$EXTENSION_DIR/java/MinecraftNativeEntrypoints.java"
 
 "$NATIVE_IMAGE" \

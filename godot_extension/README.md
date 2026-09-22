@@ -32,6 +32,8 @@ The Java class contains generic, synchronized methods:
 - `resetTouchControls()`
 - `setVirtualJoystickMask(actionMask)`
 - `getTouchMask()` and `getActiveTouchCount()`
+- `submitRenderProtocolSmokeFrame()` — validates the Java → C RenderPearl
+  command transport; it does not invoke Godot APIs from Java.
 
 The mask uses these bits: `FORWARD=1`, `BACKWARD=2`, `LEFT=4`, `RIGHT=8`,
 `JUMP=16`, `SNEAK=32`, `ACTIVE=64`.

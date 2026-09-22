@@ -1,5 +1,6 @@
 package net.minecraft.client;
 
+import net.minecraft.godot.renderpearl.GodotNativeRenderCommandTransport;
 import org.graalvm.nativeimage.IsolateThread;
 import org.graalvm.nativeimage.c.function.CEntryPoint;
 
@@ -44,6 +45,15 @@ public final class MinecraftNativeEntrypoints {
     @CEntryPoint(name = "minecraft_add_camera_drag")
     public static void addCameraDrag(IsolateThread thread, int deltaX, int deltaY) {
         Minecraft.addCameraDrag(deltaX, deltaY);
+    }
+
+    /**
+     * Native-image smoke entry for the RenderPearl command transport. It emits
+     * a tiny valid frame through the Java -> C mailbox without importing Godot.
+     */
+    @CEntryPoint(name = "minecraft_render_submit_protocol_smoke_frame")
+    public static int submitRenderProtocolSmokeFrame(IsolateThread thread) {
+        return GodotNativeRenderCommandTransport.submitSmokeFrame();
     }
 
     @CEntryPoint(name = "minecraft_touch_mask")

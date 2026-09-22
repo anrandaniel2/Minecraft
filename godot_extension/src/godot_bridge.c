@@ -243,6 +243,25 @@ static void method_set_virtual_joystick_mask(void *userdata, GDExtensionClassIns
     return_nil(result);
 }
 
+static void method_submit_render_protocol_smoke_frame(void *userdata,
+        GDExtensionClassInstancePtr instance, const GDExtensionConstVariantPtr *args,
+        GDExtensionInt argument_count, GDExtensionVariantPtr result,
+        GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    (void)args;
+    if (argument_count != 0) {
+        set_argument_error(error, (int)argument_count, 0);
+        return_int(result, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        return;
+    }
+    graal_isolatethread_t *thread = java_thread();
+    int64_t packet_count = thread == NULL ? MINECRAFT_RENDER_INVALID_ARGUMENT :
+            minecraft_render_submit_protocol_smoke_frame(thread);
+    set_call_ok(error);
+    return_int(result, packet_count);
+}
+
 static void method_get_touch_mask(void *userdata, GDExtensionClassInstancePtr instance,
         const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
         GDExtensionVariantPtr result, GDExtensionCallError *error) {
@@ -334,6 +353,17 @@ static void ptrcall_set_virtual_joystick_mask(void *userdata, GDExtensionClassIn
     }
 }
 
+static void ptrcall_submit_render_protocol_smoke_frame(void *userdata,
+        GDExtensionClassInstancePtr instance, const GDExtensionConstTypePtr *args,
+        GDExtensionTypePtr result) {
+    (void)userdata;
+    (void)instance;
+    (void)args;
+    graal_isolatethread_t *thread = java_thread();
+    *(int64_t *)result = thread == NULL ? MINECRAFT_RENDER_INVALID_ARGUMENT :
+            minecraft_render_submit_protocol_smoke_frame(thread);
+}
+
 static void ptrcall_get_touch_mask(void *userdata, GDExtensionClassInstancePtr instance,
         const GDExtensionConstTypePtr *args, GDExtensionTypePtr result) {
     (void)userdata; (void)instance; (void)args;
@@ -408,6 +438,9 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
     register_method("add_camera_drag", 2, method_add_camera_drag, ptrcall_add_camera_drag, 0);
     register_method("set_virtual_joystick_mask", 1, method_set_virtual_joystick_mask,
             ptrcall_set_virtual_joystick_mask, 0);
+    register_method("submit_render_protocol_smoke_frame", 0,
+            method_submit_render_protocol_smoke_frame,
+            ptrcall_submit_render_protocol_smoke_frame, 1);
     register_method("get_touch_mask", 0, method_get_touch_mask, ptrcall_get_touch_mask, 1);
     register_method("get_active_touch_count", 0, method_get_active_touch_count,
             ptrcall_get_active_touch_count, 1);
