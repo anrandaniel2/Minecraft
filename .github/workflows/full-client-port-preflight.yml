@@ -59,7 +59,7 @@ jobs:
             'https://repo1.maven.org/maven2/org/lwjgl/lwjgl/3.3.6/lwjgl-3.3.6.jar'
           RENDERPEARL_CLASSPATH="extracted:build/renderpearl-dependencies/joml.jar:build/renderpearl-dependencies/lwjgl.jar"
           javac -Xlint:all -Werror \
-            -cp "$RENDERPEARL_CLASSPATH" \
+            -cp "$RENDERPEARL_CLASSPATH:build/renderpearl-command-protocol" \
             -d build/renderpearl-resource-adapters \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderResourceRegistry.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuBuffer.java \

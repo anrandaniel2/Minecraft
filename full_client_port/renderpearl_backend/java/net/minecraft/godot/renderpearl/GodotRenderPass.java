@@ -184,10 +184,6 @@ final class GodotRenderPass implements RenderPass {
         }
     }
 
-    @Override
-    public void multiDraw(IntBuffer vertexCounts, IntBuffer firstVertices, int drawCount) {
-        multiDraw(firstVertices, vertexCounts, drawCount);
-    }
 
     @Override
     public void drawIndirect(GpuBufferSlice commands, int drawCount) {
