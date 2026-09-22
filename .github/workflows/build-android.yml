@@ -172,29 +172,31 @@ jobs:
           CFG
           cat export_presets.cfg
 
-      - name: Import and Build C# (container + exhaustive .NET 10 cleanup via find)
+      - name: Import and Build C# (container + exhaustive .NET 10 cleanup via sudo find)
         run: |
           set -x
           GODOT_BIN=$(which godot 2>/dev/null || echo "/usr/local/bin/godot")
           $GODOT_BIN --version
           echo "=== DOTNET before cleanup ==="
-          dotnet --list-sdks 2>&1 | head -n 20 || true
+          dotnet --list-sdks 2>&1 | head -n 30 || true
+          echo "DOTNET_ROOT=$DOTNET_ROOT"
           which dotnet || true
-          ls /usr/share/dotnet/sdk/ 2>/dev/null | head -n 20 || true
+          ls /usr/share/dotnet/sdk/ 2>/dev/null | head -n 30 || true
+          ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
           echo "Finding all 10.x dirs..."
-          find /usr /root /opt -type d -name "10.*" 2>/dev/null | grep dotnet | head -n 30 || true
-          # Remove via find -exec (more reliable than wildcard in container)
-          find /usr/share/dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
-          find /usr/share/dotnet -type d -name "9.*" -exec rm -rf {} + 2>/dev/null || true
-          find /usr/local/share/dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
-          find /root/.dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
-          find /home -type d -name "10.0.*" -exec rm -rf {} + 2>/dev/null || true
-          rm -rf /usr/share/dotnet/sdk/10.* /usr/share/dotnet/sdk/9.* 2>/dev/null || true
-          rm -rf /usr/share/dotnet/host/fxr/10.* /usr/share/dotnet/host/fxr/9.* 2>/dev/null || true
-          rm -rf /usr/share/dotnet/shared/*/*10.* /usr/share/dotnet/shared/*/*9.* 2>/dev/null || true
+          find /usr /root /home /opt -type d -name "10.0.*" 2>/dev/null | head -n 30 || true
+          # Exhaustive removal via sudo find (container may need sudo)
+          sudo find /usr/share/dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
+          sudo find /usr/share/dotnet -type d -name "9.*" -exec rm -rf {} + 2>/dev/null || true
+          sudo find /usr/local/share/dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
+          sudo find /root/.dotnet -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
+          sudo find /home -type d -name "10.0.*" -exec rm -rf {} + 2>/dev/null || true
+          sudo find /opt -type d -name "10.*" -exec rm -rf {} + 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet/sdk/10.* /usr/share/dotnet/sdk/9.* /usr/share/dotnet/host/fxr/10.* /usr/share/dotnet/host/fxr/9.* /usr/share/dotnet/shared/*/*10.* /usr/share/dotnet/shared/*/*9.* 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet/sdk/10.0.400 /usr/share/dotnet/sdk/10.0.303 /usr/share/dotnet/host/fxr/10.0.12 /usr/share/dotnet/host/fxr/10.0.8 2>/dev/null || true
           echo "=== After cleanup (should only have 8.0.x) ==="
-          dotnet --list-sdks 2>&1 | head -n 20 || true
-          dotnet --version 2>&1 | head -n 5 || true
+          dotnet --list-sdks 2>&1 | head -n 30 || true
+          dotnet --version 2>&1 | head -n 10 || true
           ls /usr/share/dotnet/host/fxr/ 2>/dev/null | head -n 20 || true
           echo "=== RESTORE + BUILD DEBUG ==="
           dotnet restore Minecraft.csproj 2>&1 | tail -n 20 || true
@@ -207,6 +209,8 @@ jobs:
           echo "=== BUILD EXPORTRELEASE ==="
           dotnet build Minecraft.csproj --configuration ExportRelease 2>&1 | tail -n 100 || true
           ls -lh .godot/mono/temp/bin/ExportRelease/ 2>/dev/null | head -n 20 || true
+          echo "=== DLL check ==="
+          find .godot -name "*.dll" 2>/dev/null | head -n 20 || true
 
       - name: Export APK (real, not placeholder) - remove autoloads to fix assembly load
         run: |
