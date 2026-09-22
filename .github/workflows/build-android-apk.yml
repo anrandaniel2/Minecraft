@@ -69,9 +69,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
-          # The exporter performs the required import. A separate --import
-          # invocation can unload/reload the desktop-only GDExtension before
-          # export on the same process and is unnecessary here.
+          # The checked-in GDExtension is Linux x86_64 only. Do not let the
+          # Linux desktop library load in the Android export process; Android
+          # uses MobileInputFallback until an arm64 renderer bridge exists.
+          mv godot_extension/minecraft.gdextension "$RUNNER_TEMP/minecraft.gdextension.linux-x86_64"
           "$GODOT_BIN" --headless --path godot_extension \
             --export-debug 'Android Debug' "$PWD/build/MinecraftGodot-debug.apk"
           test -s build/MinecraftGodot-debug.apk
