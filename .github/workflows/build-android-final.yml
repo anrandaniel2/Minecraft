@@ -41,7 +41,7 @@ jobs:
           use-dotnet: true
           include-templates: true
 
-      - name: Setup Android SDK
+      - name: Setup Android SDK + NDK
         run: |
           set -x
           mkdir -p $HOME/android-sdk/cmdline-tools
@@ -56,7 +56,8 @@ jobs:
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
           echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
           yes | sdkmanager --licenses || true
-          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" || true
+          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.1.8937393" || true
+          ls -la $ANDROID_HOME/ndk/ || true
 
       - name: Create keystore and check templates + install Android build template
         run: |

@@ -69,7 +69,7 @@ jobs:
           use-dotnet: true
           include-templates: true
 
-      - name: Setup Android SDK (manual)
+      - name: Setup Android SDK (manual) + NDK for C# gradle build
         run: |
           set -x
           mkdir -p $HOME/android-sdk/cmdline-tools
@@ -86,9 +86,10 @@ jobs:
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
           echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
           yes | sdkmanager --licenses || true
-          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" || true
+          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.1.8937393" || true
           sdkmanager --list | tail -n 50 || true
           ls -la $ANDROID_HOME/build-tools/ || true
+          ls -la $ANDROID_HOME/ndk/ || true
 
       - name: Verify Godot
         run: |
@@ -96,7 +97,7 @@ jobs:
           dotnet --version
           ls -la ~/.local/share/godot/export_templates/4.4.1.stable.mono/ | head -n 30 || true
 
-      - name: Create debug keystore and install Android build template
+      - name: Create debug keystore and install Android build template (real, not placeholder)
         run: |
           set -x
           mkdir -p ~/.android ~/.config/godot
@@ -116,46 +117,70 @@ jobs:
           export/android/force_system_user = false
           EOF
           cat ~/.config/godot/editor_settings-4.4.tres
-          echo "=== Installing Android build template (required for C# export) ==="
+          echo "=== Installing Android build template (required for C# export, must be real not placeholder) ==="
+          # Search for android_source.zip in all possible locations
+          echo "Searching for android_source.zip..."
+          find $HOME -name "android_source.zip" 2>/dev/null | head -n 20 || true
+          ls -la $HOME/.local/share/godot/export_templates/ 2>/dev/null | head -n 20 || true
           TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable.mono"
-          ls -la $TEMPLATE_DIR/ | head -n 50 || true
+          ls -la $TEMPLATE_DIR/ | head -n 100 || true
+          # Try alternative template dirs
+          for dir in "$HOME/.local/share/godot/export_templates/4.4.1.stable" "$HOME/.local/share/godot/export_templates/4.4.1.stable.mono" "/root/.local/share/godot/export_templates/4.4.1.stable.mono" "/root/.local/share/godot/export_templates/4.4.1.stable"; do
+            if [ -f "$dir/android_source.zip" ]; then
+              echo "Found android_source.zip at $dir"
+              TEMPLATE_DIR="$dir"
+              break
+            fi
+          done
+          echo "Using TEMPLATE_DIR=$TEMPLATE_DIR"
           if [ -f "$TEMPLATE_DIR/android_source.zip" ]; then
             echo "Found android_source.zip, extracting to android/build"
             mkdir -p android
             rm -rf android/build
-            unzip -q $TEMPLATE_DIR/android_source.zip -d android/
-            ls -la android/ | head -n 50 || true
-            # Handle different zip structures
-            if [ -d "android/android_source" ]; then
-              mv android/android_source android/build
-            fi
-            # Some templates unzip directly to build/
-            if [ -f "android/build.gradle" ] && [ ! -d "android/build" ]; then
-              mkdir -p android/build
-              mv android/build.gradle android/build/ 2>/dev/null || true
-              mv android/*.gradle android/build/ 2>/dev/null || true
-              mv android/AndroidManifest.xml android/build/ 2>/dev/null || true
-            fi
-            if [ -d "android/build" ]; then
-              echo "Android build template installed at android/build"
-              ls -la android/build/ | head -n 50 || true
-              echo "Checking for build.gradle"
-              ls -la android/build/build.gradle 2>&1 | head -n 5 || echo "no build.gradle"
+            unzip -q $TEMPLATE_DIR/android_source.zip -d /tmp/android_template || true
+            ls -la /tmp/android_template/ | head -n 50 || true
+            # The zip contains build/ folder or android_source/ folder
+            if [ -d "/tmp/android_template/build" ]; then
+              mv /tmp/android_template/build android/build
+            elif [ -d "/tmp/android_template/android_source" ]; then
+              mv /tmp/android_template/android_source android/build
+            elif [ -d "/tmp/android_template/android" ]; then
+              mv /tmp/android_template/android/build android/build 2>/dev/null || mv /tmp/android_template/android android/build || true
             else
-              echo "android/build not found after unzip, trying to find build folder"
-              find android/ -maxdepth 3 -type f -name "*.gradle" | head -n 20 || true
-              # Create minimal build folder to pass Godot check if needed
-              mkdir -p android/build
-              echo "Created empty android/build to pass check - Godot may fill it"
+              # Unzip directly to android/
+              rm -rf android/build
+              unzip -q $TEMPLATE_DIR/android_source.zip -d android/ || true
+              if [ -d "android/android_source" ]; then
+                mv android/android_source android/build
+              fi
             fi
+            # Ensure gradlew is executable
+            chmod +x android/build/gradlew 2>/dev/null || true
+            chmod +x android/build/gradle/wrapper/gradle-wrapper.jar 2>/dev/null || true
+            echo "Android build template installed at android/build"
+            ls -la android/build/ | head -n 100 || true
+            echo "Checking for gradlew and build.gradle"
+            ls -lh android/build/gradlew 2>&1 | head -n 5 || echo "no gradlew"
+            ls -lh android/build/build.gradle 2>&1 | head -n 5 || echo "no build.gradle"
           else
-            echo "android_source.zip not found at $TEMPLATE_DIR"
-            find $HOME -name "android_source.zip" 2>/dev/null | head -n 10
-            find $HOME/.local -name "*.zip" 2>/dev/null | head -n 10
-            mkdir -p android/build
+            echo "ERROR: android_source.zip not found anywhere!"
+            echo "Listing all export_templates:"
+            find $HOME -type f -name "*.zip" 2>/dev/null | head -n 20 || true
+            # Keep minimal template from repo but warn it's placeholder and will fail
+            if [ -d "android/build" ]; then
+              echo "Using existing android/build from repo (minimal placeholder, may fail)"
+              ls -la android/build/ | head -n 20 || true
+            else
+              mkdir -p android/build
+            fi
           fi
-          echo "Final android/ structure:"
-          find android -type f | head -n 100 || true
+          echo "Final android/ structure (must have gradlew for real APK):"
+          find android -type f | head -n 200 || true
+          # Fail if gradlew not found - indicates placeholder, not real APK
+          if [ ! -f "android/build/gradlew" ]; then
+            echo "WARNING: android/build/gradlew not found - export will produce placeholder APK, not real!"
+            echo "This happens when android_source.zip not found"
+          fi
 
       - name: Setup export_presets arm64 only
         run: |
@@ -259,30 +284,51 @@ jobs:
           cat .godot/mono/temp/bin/Debug/Minecraft.dll 2>&1 | head -n 5 || echo "Debug DLL exists check"
           ls -lh .godot/mono/temp/bin/Debug/ | head -n 20 || true
 
-      - name: Export APK (arm64 only)
+      - name: Export APK (arm64 only) - must be real >20MB not placeholder 2.4K
         run: |
           set -x
           mkdir -p builds
-          echo "Exporting debug (gradle_build=true required for C#)..."
-          godot --headless --path . --export-debug "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee builds/export.log | tail -n 500
+          echo "=== PRE-EXPORT CHECKS ==="
+          echo "android/build exists: $(ls -la android/build/ | head -n 20 || echo no)"
+          echo "gradlew exists: $(ls -lh android/build/gradlew 2>&1 || echo no gradlew - will produce placeholder)"
+          echo "export_presets.cfg:"
+          cat export_presets.cfg | head -n 40
+          echo "=== EXPORTING DEBUG (gradle_build=true, should take 20-30m for real APK) ==="
+          timeout 1800 godot --headless --path . --export-debug "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee builds/export.log | tail -n 1000
           EXPORT_EXIT=${PIPESTATUS[0]}
-          echo "Export debug exit code: $EXPORT_EXIT"
-          cat builds/export.log | tail -n 300 || true
-          if [ ! -f "builds/Minecraft-26.3-Android-arm64.apk" ]; then
-            echo "Debug failed, trying release..."
-            godot --headless --path . --export-release "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee -a builds/export.log | tail -n 500
-            EXPORT_EXIT2=${PIPESTATUS[0]}
-            echo "Export release exit code: $EXPORT_EXIT2"
+          echo "Export debug exit code: $EXPORT_EXIT (124 means timeout after 30m)"
+          ls -lh builds/ || true
+          if [ -f "builds/Minecraft-26.3-Android-arm64.apk" ]; then
+            APK_SIZE=$(stat -c%s "builds/Minecraft-26.3-Android-arm64.apk" 2>/dev/null || stat -f%z "builds/Minecraft-26.3-Android-arm64.apk" 2>/dev/null || echo 0)
+            echo "APK size bytes: $APK_SIZE"
+            if [ "$APK_SIZE" -lt 1000000 ]; then
+              echo "ERROR: APK is placeholder (<1MB, likely 2.4K), not real! Size=$APK_SIZE"
+              echo "This means gradle build didn't run - check android/build/gradlew and export.log"
+              cat builds/export.log | tail -n 500 || true
+              echo "Trying release export as fallback..."
+              timeout 1800 godot --headless --path . --export-release "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee -a builds/export.log | tail -n 1000
+            fi
+          else
+            echo "Debug APK not found, trying release..."
+            timeout 1800 godot --headless --path . --export-release "Android" builds/Minecraft-26.3-Android-arm64.apk --verbose 2>&1 | tee -a builds/export.log | tail -n 1000
           fi
           ls -lh builds/ || true
           find . -maxdepth 3 -name "*.apk" | head -n 20 || true
           if [ -f builds/Minecraft-26.3-Android-arm64.apk ]; then
-            echo "APK SUCCESS size=$(du -h builds/Minecraft-26.3-Android-arm64.apk)"
-            unzip -l builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null | grep lib/ | head -n 30 || true
+            APK_SIZE=$(stat -c%s "builds/Minecraft-26.3-Android-arm64.apk" 2>/dev/null || echo 0)
+            echo "Final APK size: $APK_SIZE bytes = $(du -h builds/Minecraft-26.3-Android-arm64.apk)"
+            if [ "$APK_SIZE" -lt 5000000 ]; then
+              echo "ERROR: APK still placeholder (<5MB), failing job to show log"
+              cat builds/export.log | tail -n 1000 || true
+              exit 1
+            fi
+            echo "APK SUCCESS - real APK >5MB"
+            unzip -l builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null | grep lib/ | head -n 50 || true
+            echo "Checking arm64 only:"
+            unzip -l builds/Minecraft-26.3-Android-arm64.apk 2>/dev/null | grep -E "lib/arm64|lib/armeabi|lib/x86" | head -n 20 || true
           else
-            echo "APK FAILED - export.log:"
-            cat builds/export.log || true
-            echo "Failing job to show log"
+            echo "APK FAILED - no file produced"
+            cat builds/export.log | tail -n 1000 || true
             exit 1
           fi
 
