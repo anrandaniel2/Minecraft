@@ -70,9 +70,10 @@ jobs:
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderPass.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuResourceAdapterTest.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderPassTest.java
-          java -cp "build/renderpearl-resource-adapters:$RENDERPEARL_CLASSPATH" \
+          ADAPTER_TEST_CLASSPATH="build/renderpearl-resource-adapters:build/renderpearl-command-protocol:$RENDERPEARL_CLASSPATH"
+          java -cp "$ADAPTER_TEST_CLASSPATH" \
             net.minecraft.godot.renderpearl.GodotGpuResourceAdapterTest
-          java -cp "build/renderpearl-resource-adapters:$RENDERPEARL_CLASSPATH" \
+          java -cp "$ADAPTER_TEST_CLASSPATH" \
             net.minecraft.godot.renderpearl.GodotRenderPassTest
 
       - name: Upload full-client port inventory
