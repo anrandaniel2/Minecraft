@@ -48,6 +48,10 @@ func _ready() -> void:
 		var submitted_packets: int = minecraft_touch.call(&"submit_render_protocol_smoke_frame")
 		if submitted_packets <= 0:
 			push_error("Minecraft RenderPearl protocol smoke frame was rejected: %d" % submitted_packets)
+		else:
+			var executed_packets: int = minecraft_touch.call(&"execute_render_mailbox")
+			if executed_packets != submitted_packets:
+				push_error("Minecraft RenderPearl native sink rejected the smoke frame: %d" % executed_packets)
 	_layout_touch_targets()
 	get_viewport().size_changed.connect(_layout_touch_targets)
 

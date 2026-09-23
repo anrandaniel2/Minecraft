@@ -66,6 +66,14 @@ jobs:
             godot_extension/tests/render_executor_test.c \
             -pthread -o "$RUNNER_TEMP/render_executor_test"
           "$RUNNER_TEMP/render_executor_test"
+          gcc -std=c11 -O2 -Wall -Wextra -Werror \
+            -Igodot_extension/include \
+            godot_extension/src/minecraft_render_abi.c \
+            godot_extension/src/minecraft_render_executor.c \
+            godot_extension/src/minecraft_render_native_state.c \
+            godot_extension/tests/render_native_state_test.c \
+            -pthread -o "$RUNNER_TEMP/render_native_state_test"
+          "$RUNNER_TEMP/render_native_state_test"
 
       - name: Verify exported extension and runtime dependency
         run: |

@@ -33,6 +33,9 @@ public final class GodotNativeRenderCommandTransport implements RenderCommandTra
     public static int submitSmokeFrame() {
         RenderCommandWriter writer = new RenderCommandWriter();
         writer.beginFrame(0L, 1, 1);
+        // The native sink must see a declared color target before this pass.
+        // GpuFormat.RGBA8_UNORM is ordinal 6 in the extracted 26.3 ABI.
+        writer.createTexture(1, 0x08, 6, 1, 1, 1, 1);
         writer.beginRenderPass(1, 0, 0.0f, 0.0f, 0.0f, 1.0f, 0.0);
         writer.endRenderPass();
         return new GodotNativeRenderCommandTransport().submit(writer.finishFrame());

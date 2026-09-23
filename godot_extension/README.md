@@ -34,6 +34,8 @@ The Java class contains generic, synchronized methods:
 - `getTouchMask()` and `getActiveTouchCount()`
 - `submitRenderProtocolSmokeFrame()` — validates the Java → C RenderPearl
   command transport; it does not invoke Godot APIs from Java.
+- `executeRenderMailbox()` — detaches the latest submitted command frame and
+  executes it through the native resource/lifecycle sink.
 
 The mask uses these bits: `FORWARD=1`, `BACKWARD=2`, `LEFT=4`, `RIGHT=8`,
 `JUMP=16`, `SNEAK=32`, `ACTIVE=64`.
@@ -104,14 +106,15 @@ The generated header and intermediate build directory are not committed.
 ### RenderPearl native mailbox boundary
 
 `minecraft_render_submit_frame()` validates and stores an owned copy of a
-completed Java command frame. The Godot `RenderingDevice` executor will use
+completed Java command frame. `MinecraftTouch.executeRenderMailbox()` uses
 `minecraft_render_take_latest_frame()` to atomically detach the newest frame,
-pass it through the typed `MinecraftRenderCommandSink` decoder, then call
-`minecraft_render_release_frame()`. The decoder verifies every payload length
-and exposes only native numeric values and byte ranges to its sink callbacks;
-it has no Godot dependency itself. This gives the Java render thread and the
-Godot render thread clear ownership boundaries: a later Java submission cannot
-change the byte frame currently being executed.
+passes it through the typed `MinecraftRenderCommandSink` decoder, then calls
+`minecraft_render_release_frame()`. Its current native sink owns checked CPU
+mirrors of buffer bytes and texture metadata, so unknown resource handles and
+out-of-range writes are rejected before the future Godot `RenderingDevice`
+sink is introduced. The decoder itself has no Godot dependency. This gives the
+Java render thread and the Godot render thread clear ownership boundaries: a
+later Java submission cannot change the byte frame currently being executed.
 
 ## Run in Godot
 
