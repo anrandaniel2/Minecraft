@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import pathlib
 import shutil
@@ -33,6 +34,27 @@ def download(url: str, destination: pathlib.Path, expected_sha1: str, size: int)
     digest = hashlib.sha1(destination.read_bytes()).hexdigest()
     if digest != expected_sha1:
         raise SystemExit(f"sha1 mismatch for {destination}: {digest} != {expected_sha1}")
+
+
+def strip_package_info(jar_path: pathlib.Path) -> None:
+    """Drop package-info classes that GraalVM 25 rejects as illegal names.
+
+    JOML 1.10.9 ships ``org/joml/package-info`` with a slash in the class name.
+    Native-image aborts analysis on that file. The annotations are not required
+    to run the extracted client.
+    """
+    with zipfile.ZipFile(jar_path) as archive:
+        names = [info.filename for info in archive.infolist() if info.filename.endswith("package-info.class")]
+        if not names:
+            return
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as cleaned:
+            for info in archive.infolist():
+                if info.filename.endswith("package-info.class") or info.is_dir():
+                    continue
+                cleaned.writestr(info, archive.read(info.filename))
+    jar_path.write_bytes(buffer.getvalue())
+    print(f"stripped package-info from {jar_path.name}: {', '.join(names)}")
 
 
 def extract_natives(jar_path: pathlib.Path, natives_dir: pathlib.Path) -> None:

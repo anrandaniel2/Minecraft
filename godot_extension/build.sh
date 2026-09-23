@@ -96,7 +96,10 @@ if [[ -f "$CLASSES/net/minecraft/client/Minecraft.class" ]]; then
   exit 1
 fi
 
-IMAGE_CP="$OVERLAY:$CLASSES:$ROOT/extracted:$LIBRARY_CP"
+python3 "$ROOT/tools/package_extracted_client.py" \
+  --source "$ROOT/extracted" \
+  --output "$BUILD_DIR/extracted-client.jar"
+IMAGE_CP="$OVERLAY:$CLASSES:$BUILD_DIR/extracted-client.jar:$LIBRARY_CP"
 # The JVM probe's agent config is optional. A partial trace has crashed image
 # building, so it is only used when explicitly requested.
 CONFIG_DIR="$BUILD_DIR/native-image-config"
