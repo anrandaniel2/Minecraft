@@ -99,6 +99,20 @@ fi
 python3 "$ROOT/tools/package_extracted_client.py" \
   --source "$ROOT/extracted" \
   --output "$BUILD_DIR/extracted-client.jar"
+python3 - "$CLASSPATH_FILE" << 'PY'
+import pathlib, sys, zipfile
+bad = []
+for line in pathlib.Path(sys.argv[1]).read_text().splitlines():
+    if not line:
+        continue
+    with zipfile.ZipFile(line) as archive:
+        names = [name for name in archive.namelist() if name.endswith("package-info.class")]
+        if names:
+            bad.append(f"{line}: {', '.join(names)}")
+if bad:
+    raise SystemExit("package-info classes still on the native-image classpath:\n" + "\n".join(bad))
+print("classpath has no package-info classes")
+PY
 IMAGE_CP="$OVERLAY:$CLASSES:$BUILD_DIR/extracted-client.jar:$LIBRARY_CP"
 # The JVM probe's agent config is optional. A partial trace has crashed image
 # building, so it is only used when explicitly requested.

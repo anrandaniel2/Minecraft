@@ -107,6 +107,7 @@ def main() -> int:
         if library["native"]:
             extract_natives(destination, args.natives)
         else:
+            strip_package_info(destination)
             classpath.append(destination.resolve())
     if args.sdl_stub.is_file():
         stub = args.natives / "libSDL3.so"
