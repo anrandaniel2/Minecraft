@@ -26,6 +26,10 @@ typedef struct MinecraftRenderCommandSink {
     bool (*create_texture)(void *user_data, uint32_t texture_id, uint32_t usage,
                            uint32_t format, uint32_t width, uint32_t height,
                            uint32_t depth_or_layers, uint32_t mip_levels);
+    bool (*write_texture)(void *user_data, uint32_t texture_id, uint32_t width,
+                          uint32_t height, uint32_t depth_or_layers,
+                          uint32_t dest_x, uint32_t dest_y, uint32_t mip_level,
+                          const uint8_t *data, uint32_t data_size);
     bool (*begin_render_pass)(void *user_data, uint32_t color_texture_id,
                               uint32_t depth_texture_id, float clear_red,
                               float clear_green, float clear_blue,

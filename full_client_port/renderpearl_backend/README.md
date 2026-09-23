@@ -130,9 +130,10 @@ claim that command execution or Minecraft terrain is already routed through
 the backend.
 
 `GodotCommandEncoder` and `GodotRenderPass` now record descriptor-backed
-single-color render passes, buffer uploads, pipeline/buffer/scissor state, and
-direct indexed/non-indexed draws to the neutral command stream. Submission is
-abstracted through the Godot-free `RenderCommandTransport`.
+single-color render passes, buffer uploads, tightly packed byte-buffer texture
+uploads, pipeline/buffer/scissor state, and direct indexed/non-indexed draws to
+the neutral command stream. Submission is abstracted through the Godot-free
+`RenderCommandTransport`.
 `GodotNativeRenderCommandTransport` is now the GraalVM implementation: it pins
 the encoded Java byte array and calls `minecraft_render_submit_frame`, where
 the C GDExtension validates and copies it into the native frame mailbox. A

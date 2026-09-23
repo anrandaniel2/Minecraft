@@ -51,6 +51,7 @@ typedef struct Recorder {
     uint32_t buffer_id;
     uint64_t write_offset;
     uint32_t texture_id;
+    uint32_t texture_upload_bytes;
     uint32_t draw_index_count;
     int32_t vertex_offset;
 } Recorder;
@@ -94,6 +95,17 @@ static bool create_texture(void *data, uint32_t texture_id, uint32_t usage, uint
            depth == 1u && mip_levels == 1u;
 }
 
+static bool write_texture(void *data, uint32_t texture_id, uint32_t width, uint32_t height,
+                          uint32_t depth, uint32_t dest_x, uint32_t dest_y, uint32_t mip_level,
+                          const uint8_t *bytes, uint32_t size) {
+    Recorder *recorder = data;
+    recorder->calls++;
+    recorder->texture_upload_bytes = size;
+    return texture_id == 8u && width == 1u && height == 1u && depth == 1u &&
+           dest_x == 0u && dest_y == 0u && mip_level == 0u && size == 4u &&
+           bytes[0] == 4u && bytes[1] == 3u && bytes[2] == 2u && bytes[3] == 1u;
+}
+
 static bool begin_render_pass(void *data, uint32_t color_id, uint32_t depth_id,
                               float red, float green, float blue, float alpha, double depth) {
     Recorder *recorder = data;
@@ -131,7 +143,7 @@ static bool draw_indexed(void *data, uint32_t index_count, uint32_t instance_cou
 }
 
 int main(void) {
-    uint8_t bytes[256] = {0};
+    uint8_t bytes[320] = {0};
     size_t size = 0;
     uint8_t *payload = append_packet(bytes, &size, MINECRAFT_RENDER_FRAME_BEGIN, 24u);
     write_u64_le(payload, 91u);
@@ -160,6 +172,17 @@ int main(void) {
     write_u32_le(payload + 16, 360u);
     write_u32_le(payload + 20, 1u);
     write_u32_le(payload + 24, 1u);
+
+    payload = append_packet(bytes, &size, MINECRAFT_RENDER_WRITE_TEXTURE, 48u);
+    write_u32_le(payload, 8u);
+    write_u32_le(payload + 4, 1u);
+    write_u32_le(payload + 8, 1u);
+    write_u32_le(payload + 12, 1u);
+    write_u32_le(payload + 28, 4u);
+    payload[32] = 4u;
+    payload[33] = 3u;
+    payload[34] = 2u;
+    payload[35] = 1u;
 
     payload = append_packet(bytes, &size, MINECRAFT_RENDER_BEGIN_RENDER_PASS, 40u);
     write_u32_le(payload, 8u);
@@ -199,6 +222,7 @@ int main(void) {
         .create_buffer = create_buffer,
         .write_buffer = write_buffer,
         .create_texture = create_texture,
+        .write_texture = write_texture,
         .begin_render_pass = begin_render_pass,
         .end_render_pass = end_render_pass,
         .set_vertex_buffer = set_vertex_buffer,
@@ -207,10 +231,11 @@ int main(void) {
     };
     Recorder recorder = {0};
     int result = minecraft_render_execute_frame(&frame, &sink, &recorder);
-    if (result != 10 || recorder.calls != 10 || recorder.frame_id != 91u ||
+    if (result != 11 || recorder.calls != 11 || recorder.frame_id != 91u ||
             recorder.width != 640u || recorder.height != 360u || recorder.buffer_id != 7u ||
             recorder.write_offset != 4u || recorder.texture_id != 8u ||
-            recorder.draw_index_count != 36u || recorder.vertex_offset != -2) {
+            recorder.texture_upload_bytes != 4u || recorder.draw_index_count != 36u ||
+            recorder.vertex_offset != -2) {
         fprintf(stderr, "typed RenderPearl command dispatch failed: result=%d calls=%d\n",
                 result, recorder.calls);
         return 1;

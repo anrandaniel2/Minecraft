@@ -32,6 +32,7 @@ public final class GodotCommandEncoderTest {
             return countPackets(frame);
         });
         encoder.writeToBuffer(new GpuBufferSlice(vertexBuffer, 0, 4), ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
+        encoder.writeToTexture(target, ByteBuffer.wrap(new byte[] {9, 8, 7, 6}), 1, 1, 1, 0, 0, 0);
         RenderPassDescriptor descriptor = RenderPassDescriptor.builder(() -> "test")
                 .withColorAttachment(targetView, Optional.of(new Vector4f(0.1f, 0.2f, 0.3f, 1.0f)))
                 .build();
@@ -48,6 +49,7 @@ public final class GodotCommandEncoderTest {
         List<Integer> expected = List.of(
                 RenderCommandProtocol.FRAME_BEGIN,
                 RenderCommandProtocol.WRITE_BUFFER,
+                RenderCommandProtocol.WRITE_TEXTURE,
                 RenderCommandProtocol.BEGIN_RENDER_PASS,
                 RenderCommandProtocol.SET_SCISSOR,
                 RenderCommandProtocol.SET_PIPELINE,

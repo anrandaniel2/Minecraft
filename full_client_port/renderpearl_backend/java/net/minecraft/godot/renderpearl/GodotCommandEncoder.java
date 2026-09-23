@@ -205,7 +205,26 @@ final class GodotCommandEncoder implements CommandEncoder {
             int destY,
             int mipLevel
     ) {
-        throw unsupported("byte-buffer texture uploads");
+        requireOpenOutsidePass();
+        if (!(texture instanceof GodotGpuTexture godotTexture)) {
+            throw new IllegalArgumentException("Texture was not created by GodotRenderPearlBackend");
+        }
+        Objects.requireNonNull(data, "data");
+        if (width <= 0 || height <= 0 || depthOrLayers <= 0 || destX < 0 || destY < 0) {
+            throw new IllegalArgumentException("Texture upload dimensions and destination must be valid");
+        }
+        int mipWidth = godotTexture.getWidth(mipLevel);
+        int mipHeight = godotTexture.getHeight(mipLevel);
+        if (depthOrLayers > godotTexture.getDepthOrLayers() ||
+                destX > mipWidth - width || destY > mipHeight - height) {
+            throw new IllegalArgumentException("Texture upload range lies outside the target texture");
+        }
+        ByteBuffer source = data.duplicate();
+        byte[] bytes = new byte[source.remaining()];
+        source.get(bytes);
+        writer.writeTexture(
+                godotTexture.nativeHandle(), width, height, depthOrLayers, destX, destY, mipLevel, bytes
+        );
     }
 
     @Override

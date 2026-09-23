@@ -16,6 +16,7 @@ public final class RenderCommandWriterTest {
         writer.createBuffer(1, 0x10, 4096L);
         writer.writeBuffer(1, 0L, new byte[] {1, 2, 3, 4, 5});
         writer.createTexture(2, 0x08, 7, 1280, 720, 1, 1);
+        writer.writeTexture(2, 1, 1, 1, 0, 0, 0, new byte[] {9, 8, 7, 6});
         writer.beginRenderPass(2, 0, 0.1f, 0.2f, 0.3f, 1.0f, 1.0);
         writer.setPipeline(3);
         writer.setVertexBuffer(0, 1, 0L, 128L);
@@ -29,6 +30,7 @@ public final class RenderCommandWriterTest {
                 RenderCommandProtocol.CREATE_BUFFER,
                 RenderCommandProtocol.WRITE_BUFFER,
                 RenderCommandProtocol.CREATE_TEXTURE,
+                RenderCommandProtocol.WRITE_TEXTURE,
                 RenderCommandProtocol.BEGIN_RENDER_PASS,
                 RenderCommandProtocol.SET_PIPELINE,
                 RenderCommandProtocol.SET_VERTEX_BUFFER,

@@ -86,6 +86,39 @@ public final class RenderCommandWriter {
         finishPacket(start);
     }
 
+    /**
+     * Uploads tightly packed pixel bytes to a texture region before a render pass.
+     * The texture format determines how the native Godot executor interprets the
+     * bytes; this neutral layer preserves them without importing Godot types.
+     */
+    public void writeTexture(
+            int textureId,
+            int width,
+            int height,
+            int depthOrLayers,
+            int destX,
+            int destY,
+            int mipLevel,
+            byte[] data
+    ) {
+        requireFrameOutsidePass();
+        requireHandle(textureId, "textureId");
+        require(width > 0 && height > 0 && depthOrLayers > 0, "Texture upload dimensions must be positive");
+        require(destX >= 0 && destY >= 0 && mipLevel >= 0, "Texture upload destination must be non-negative");
+        Objects.requireNonNull(data, "data");
+        int start = beginPacket(RenderCommandProtocol.WRITE_TEXTURE);
+        bytes.putInt(textureId);
+        bytes.putInt(width);
+        bytes.putInt(height);
+        bytes.putInt(depthOrLayers);
+        bytes.putInt(destX);
+        bytes.putInt(destY);
+        bytes.putInt(mipLevel);
+        bytes.putInt(data.length);
+        putBytes(data);
+        finishPacket(start);
+    }
+
     /** Begins a Godot-owned offscreen RenderPearl render pass. */
     public void beginRenderPass(
             int colorTextureId,

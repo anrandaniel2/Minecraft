@@ -72,7 +72,7 @@ int main(void) {
         return 1;
     }
 
-    uint8_t valid[256] = {0};
+    uint8_t valid[320] = {0};
     size_t valid_size = 0;
     begin_frame(valid, &valid_size, 1u);
     uint8_t *p = packet(valid, &valid_size, MINECRAFT_RENDER_CREATE_BUFFER, 24u);
@@ -94,6 +94,16 @@ int main(void) {
     u32(p + 16, 64u);
     u32(p + 20, 1u);
     u32(p + 24, 1u);
+    p = packet(valid, &valid_size, MINECRAFT_RENDER_WRITE_TEXTURE, 48u);
+    u32(p, 3u);
+    u32(p + 4, 1u);
+    u32(p + 8, 1u);
+    u32(p + 12, 1u);
+    u32(p + 28, 4u);
+    p[32] = 1u;
+    p[33] = 2u;
+    p[34] = 3u;
+    p[35] = 4u;
     begin_pass(valid, &valid_size, 3u);
     p = packet(valid, &valid_size, MINECRAFT_RENDER_SET_VERTEX_BUFFER, 32u);
     u32(p + 4, 7u);
@@ -104,7 +114,7 @@ int main(void) {
     end_frame(valid, &valid_size);
 
     int result = minecraft_render_submit_frame(valid, valid_size);
-    if (result != 9 || minecraft_render_native_execute_latest(state) != 9 ||
+    if (result != 10 || minecraft_render_native_execute_latest(state) != 10 ||
             minecraft_render_native_buffer_count(state) != 1 ||
             minecraft_render_native_texture_count(state) != 1) {
         fprintf(stderr, "native state rejected a valid resource-backed frame\n");

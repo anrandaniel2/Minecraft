@@ -21,6 +21,8 @@ typedef struct MinecraftRenderTexture {
     uint32_t height;
     uint32_t depth_or_layers;
     uint32_t mip_levels;
+    uint64_t uploaded_bytes;
+    uint32_t upload_count;
     struct MinecraftRenderTexture *next;
 } MinecraftRenderTexture;
 
@@ -157,6 +159,35 @@ static bool create_texture(void *user_data, uint32_t texture_id, uint32_t usage,
     return true;
 }
 
+static bool write_texture(void *user_data, uint32_t texture_id, uint32_t width,
+                          uint32_t height, uint32_t depth_or_layers,
+                          uint32_t dest_x, uint32_t dest_y, uint32_t mip_level,
+                          const uint8_t *data, uint32_t data_size) {
+    MinecraftRenderNativeState *state = user_data;
+    MinecraftRenderTexture *texture = find_texture(state, texture_id);
+    if (!state->frame_active || state->pass_active || texture == NULL || width == 0 || height == 0 ||
+            depth_or_layers == 0 || depth_or_layers > texture->depth_or_layers ||
+            mip_level >= texture->mip_levels || (data == NULL && data_size != 0)) {
+        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    }
+    uint32_t mip_width = texture->width >> mip_level;
+    uint32_t mip_height = texture->height >> mip_level;
+    if (mip_width == 0) {
+        mip_width = 1;
+    }
+    if (mip_height == 0) {
+        mip_height = 1;
+    }
+    if (dest_x > mip_width || dest_y > mip_height ||
+            width > mip_width - dest_x || height > mip_height - dest_y ||
+            UINT64_MAX - texture->uploaded_bytes < data_size) {
+        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    }
+    texture->uploaded_bytes += data_size;
+    texture->upload_count++;
+    return true;
+}
+
 static bool begin_render_pass(void *user_data, uint32_t color_texture_id,
                               uint32_t depth_texture_id, float clear_red,
                               float clear_green, float clear_blue,
@@ -260,6 +291,7 @@ static const MinecraftRenderCommandSink NATIVE_STATE_SINK = {
     .create_buffer = create_buffer,
     .write_buffer = write_buffer,
     .create_texture = create_texture,
+    .write_texture = write_texture,
     .begin_render_pass = begin_render_pass,
     .end_render_pass = end_render_pass,
     .set_pipeline = set_pipeline,

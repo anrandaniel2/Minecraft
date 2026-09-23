@@ -39,14 +39,14 @@ static bool has_exact_size(const MinecraftRenderPacketHeader *header, uint32_t s
     return header->packet_size == size;
 }
 
-static bool has_write_buffer_size(const MinecraftRenderPacketHeader *header,
-                                  const uint8_t *packet_bytes) {
-    /* Header + buffer id + byte offset + byte count. */
-    const uint32_t minimum_size = 24u;
+static bool has_inline_data_size(const MinecraftRenderPacketHeader *header,
+                                 const uint8_t *packet_bytes,
+                                 uint32_t minimum_size,
+                                 uint32_t data_size_offset) {
     if (header->packet_size < minimum_size) {
         return false;
     }
-    uint32_t data_size = read_u32_le(packet_bytes + 20);
+    uint32_t data_size = read_u32_le(packet_bytes + data_size_offset);
     if (data_size > UINT32_MAX - minimum_size - (MINECRAFT_RENDER_PACKET_ALIGNMENT - 1u)) {
         return false;
     }
@@ -54,6 +54,18 @@ static bool has_write_buffer_size(const MinecraftRenderPacketHeader *header,
     uint32_t aligned_size = (raw_size + (MINECRAFT_RENDER_PACKET_ALIGNMENT - 1u)) &
                             ~(MINECRAFT_RENDER_PACKET_ALIGNMENT - 1u);
     return header->packet_size == aligned_size;
+}
+
+static bool has_write_buffer_size(const MinecraftRenderPacketHeader *header,
+                                  const uint8_t *packet_bytes) {
+    /* Header + buffer id + byte offset + byte count. */
+    return has_inline_data_size(header, packet_bytes, 24u, 20u);
+}
+
+static bool has_write_texture_size(const MinecraftRenderPacketHeader *header,
+                                   const uint8_t *packet_bytes) {
+    /* Header + eight 32-bit fields, ending in byte count. */
+    return has_inline_data_size(header, packet_bytes, 40u, 36u);
 }
 
 static bool reject(MinecraftRenderExecutionState *state, int result) {
@@ -125,6 +137,21 @@ static bool dispatch_packet(const MinecraftRenderPacketHeader *header,
                                         read_u32_le(payload + 12), read_u32_le(payload + 16),
                                         read_u32_le(payload + 20), read_u32_le(payload + 24)) ||
                    reject(state, MINECRAFT_RENDER_VISITOR_REJECTED);
+
+        case MINECRAFT_RENDER_WRITE_TEXTURE:
+            if (!has_write_texture_size(header, packet_bytes)) {
+                return reject(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            }
+            if (sink->write_texture == NULL) {
+                return reject(state, MINECRAFT_RENDER_UNSUPPORTED_COMMAND);
+            }
+            return sink->write_texture(
+                    state->user_data,
+                    read_u32_le(payload), read_u32_le(payload + 4), read_u32_le(payload + 8),
+                    read_u32_le(payload + 12), read_u32_le(payload + 16),
+                    read_u32_le(payload + 20), read_u32_le(payload + 24),
+                    payload + 32, read_u32_le(payload + 28)
+            ) || reject(state, MINECRAFT_RENDER_VISITOR_REJECTED);
 
         case MINECRAFT_RENDER_BEGIN_RENDER_PASS:
             if (!has_exact_size(header, 40u)) {
