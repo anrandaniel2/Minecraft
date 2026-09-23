@@ -47,25 +47,13 @@ jobs:
           fetch-depth: 0
 
       - name: Add swap for the extracted-client native image
+        continue-on-error: true
         run: |
-          set -euo pipefail
-          # Hosted runners have a small disk. Use only leftover space, and do not
-          # fail the image build if swap cannot be created.
-          AVAIL_KB="$(df -Pk / | awk 'NR==2 {print $4}')"
-          SWAP_GB=4
-          if [[ "$AVAIL_KB" -lt 6000000 ]]; then
-            SWAP_GB=2
-          fi
-          if [[ "$AVAIL_KB" -lt 3000000 ]]; then
-            echo "Not enough free disk for swap (${AVAIL_KB} KB free)."
-            free -h
-            exit 0
-          fi
-          sudo fallocate -l "${SWAP_GB}G" /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          set +e
+          sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
           free -h
+          df -h /
+          exit 0
 
       - name: Install GraalVM JDK 25 with Native Image
         uses: graalvm/setup-graalvm@v1
