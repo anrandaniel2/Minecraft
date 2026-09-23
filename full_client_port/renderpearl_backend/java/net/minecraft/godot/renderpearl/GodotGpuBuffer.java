@@ -21,6 +21,7 @@ final class GodotGpuBuffer implements GpuBuffer {
     private final int usage;
     private final long size;
     private final ByteBuffer staging;
+    private byte[] initialContents;
 
     GodotGpuBuffer(GodotRenderResourceRegistry registry, int usage, long size) {
         this.registry = Objects.requireNonNull(registry, "registry");
@@ -30,19 +31,32 @@ final class GodotGpuBuffer implements GpuBuffer {
         this.usage = usage;
         this.size = size;
         this.staging = ByteBuffer.allocateDirect((int) size).order(ByteOrder.LITTLE_ENDIAN);
+        this.initialContents = null;
         this.handle = registry.allocate(GodotRenderResourceRegistry.Kind.BUFFER);
     }
 
     GodotGpuBuffer(GodotRenderResourceRegistry registry, int usage, ByteBuffer initialData) {
         this(registry, usage, Objects.requireNonNull(initialData, "initialData").remaining());
         ByteBuffer source = initialData.duplicate();
+        this.initialContents = new byte[source.remaining()];
+        source.get(this.initialContents);
         ByteBuffer destination = staging.duplicate();
-        destination.put(source);
+        destination.put(this.initialContents);
     }
 
     int nativeHandle() {
         requireOpen();
         return handle.id();
+    }
+
+    /** Emits the complete native allocation descriptor at the start of a frame. */
+    void recordCreate(RenderCommandWriter writer) {
+        requireOpen();
+        RenderCommandWriter commandWriter = Objects.requireNonNull(writer, "writer");
+        commandWriter.createBuffer(nativeHandle(), usage, size);
+        if (initialContents != null && initialContents.length != 0) {
+            commandWriter.writeBuffer(nativeHandle(), 0L, initialContents);
+        }
     }
 
     void writeFrom(long offset, ByteBuffer source) {

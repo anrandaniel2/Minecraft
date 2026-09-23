@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.function.Consumer;
 
 /**
  * RenderPearl command encoder that owns one Godot offscreen frame.
@@ -41,6 +42,21 @@ final class GodotCommandEncoder implements CommandEncoder {
             int targetHeight,
             RenderCommandTransport transport
     ) {
+        this(frameId, targetWidth, targetHeight, transport, writer -> { });
+    }
+
+    /**
+     * Creates an encoder with a device-owned declaration prelude. Resource
+     * allocation packets must precede writes and render passes, so a device
+     * records its live buffer/texture descriptors immediately after FRAME_BEGIN.
+     */
+    GodotCommandEncoder(
+            long frameId,
+            int targetWidth,
+            int targetHeight,
+            RenderCommandTransport transport,
+            Consumer<RenderCommandWriter> framePrelude
+    ) {
         if (targetWidth <= 0 || targetHeight <= 0) {
             throw new IllegalArgumentException("Offscreen target dimensions must be positive");
         }
@@ -48,6 +64,7 @@ final class GodotCommandEncoder implements CommandEncoder {
         this.targetHeight = targetHeight;
         this.transport = Objects.requireNonNull(transport, "transport");
         writer.beginFrame(frameId, targetWidth, targetHeight);
+        Objects.requireNonNull(framePrelude, "framePrelude").accept(writer);
     }
 
     @Override

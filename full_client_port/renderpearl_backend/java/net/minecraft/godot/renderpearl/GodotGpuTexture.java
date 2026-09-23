@@ -45,6 +45,14 @@ final class GodotGpuTexture implements GpuTexture {
         return handle.id();
     }
 
+    /** Emits the complete native allocation descriptor at the start of a frame. */
+    void recordCreate(RenderCommandWriter writer) {
+        requireOpen();
+        Objects.requireNonNull(writer, "writer").createTexture(
+                nativeHandle(), usage, format.ordinal(), width, height, depthOrLayers, mipLevels
+        );
+    }
+
     @Override
     public int getWidth(int mipLevel) {
         return mipDimension(width, mipLevel);

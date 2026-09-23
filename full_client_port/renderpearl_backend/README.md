@@ -118,7 +118,10 @@ them against the real Java-25 classes under `extracted/`.
 and surface interfaces. The device reports explicit portable capabilities,
 allocates the existing resource adapters, updates command-frame dimensions from
 a FIFO Godot-owned surface configuration, and emits encoders through the
-neutral transport. The surface tracks configure/acquire/present lifecycles but
+neutral transport. Each device encoder begins by declaring its still-live
+buffer/texture resources before any uploads or pass commands; initial buffer
+contents are encoded immediately after their allocation packet. The surface
+tracks configure/acquire/present lifecycles but
 intentionally rejects `blitFromTexture`: presenting into Godot needs the next
 native `RenderingDevice` packet executor. Pipeline translation is equally
 explicit: `compilePipeline` returns a failed future rather than pretending a

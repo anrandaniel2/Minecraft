@@ -21,6 +21,7 @@ import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalDouble;
@@ -66,6 +67,9 @@ public final class GodotGpuDevice implements GpuDevice {
     private final GodotRenderResourceRegistry registry = new GodotRenderResourceRegistry();
     private final RenderCommandTransport transport;
     private final AtomicLong nextFrameId = new AtomicLong();
+    private final Object resourcesLock = new Object();
+    private final List<GodotGpuBuffer> buffers = new ArrayList<>();
+    private final List<GodotGpuTexture> textures = new ArrayList<>();
     private volatile int targetWidth;
     private volatile int targetHeight;
     private volatile boolean closed;
@@ -90,7 +94,28 @@ public final class GodotGpuDevice implements GpuDevice {
     @Override
     public CommandEncoder createCommandEncoder() {
         requireOpen();
-        return new GodotCommandEncoder(nextFrameId.getAndIncrement(), targetWidth, targetHeight, transport);
+        List<GodotGpuBuffer> frameBuffers;
+        List<GodotGpuTexture> frameTextures;
+        synchronized (resourcesLock) {
+            buffers.removeIf(GodotGpuBuffer::isClosed);
+            textures.removeIf(GodotGpuTexture::isClosed);
+            frameBuffers = List.copyOf(buffers);
+            frameTextures = List.copyOf(textures);
+        }
+        return new GodotCommandEncoder(
+                nextFrameId.getAndIncrement(),
+                targetWidth,
+                targetHeight,
+                transport,
+                writer -> {
+                    for (GodotGpuBuffer buffer : frameBuffers) {
+                        buffer.recordCreate(writer);
+                    }
+                    for (GodotGpuTexture texture : frameTextures) {
+                        texture.recordCreate(writer);
+                    }
+                }
+        );
     }
 
     @Override
@@ -140,7 +165,7 @@ public final class GodotGpuDevice implements GpuDevice {
             int mipLevels
     ) {
         requireOpen();
-        return new GodotGpuTexture(
+        GodotGpuTexture texture = new GodotGpuTexture(
                 registry,
                 Objects.requireNonNull(label, "label"),
                 usage,
@@ -150,6 +175,10 @@ public final class GodotGpuDevice implements GpuDevice {
                 depthOrLayers,
                 mipLevels
         );
+        synchronized (resourcesLock) {
+            textures.add(texture);
+        }
+        return texture;
     }
 
     @Override
@@ -170,7 +199,11 @@ public final class GodotGpuDevice implements GpuDevice {
         // RenderPearl's GpuBuffer does not expose labels. Evaluate the supplier
         // now to retain its normal validation/lifecycle behavior.
         Objects.requireNonNull(label.get(), "label.get()");
-        return new GodotGpuBuffer(registry, usage, size);
+        GodotGpuBuffer buffer = new GodotGpuBuffer(registry, usage, size);
+        synchronized (resourcesLock) {
+            buffers.add(buffer);
+        }
+        return buffer;
     }
 
     @Override
@@ -178,7 +211,13 @@ public final class GodotGpuDevice implements GpuDevice {
         requireOpen();
         Objects.requireNonNull(label, "label");
         Objects.requireNonNull(label.get(), "label.get()");
-        return new GodotGpuBuffer(registry, usage, Objects.requireNonNull(initialData, "initialData"));
+        GodotGpuBuffer buffer = new GodotGpuBuffer(
+                registry, usage, Objects.requireNonNull(initialData, "initialData")
+        );
+        synchronized (resourcesLock) {
+            buffers.add(buffer);
+        }
+        return buffer;
     }
 
     @Override

@@ -45,6 +45,9 @@ public final class GodotGpuDeviceTest {
         GpuTexture texture = device.createTexture("target", 0x08, GpuFormat.RGBA8_UNORM, 320, 180, 1, 1);
         GpuTextureView view = device.createTextureView(texture);
         GpuBuffer vertexBuffer = device.createBuffer(() -> "vertices", 0x10, 64L);
+        GpuBuffer initialBuffer = device.createBuffer(
+                () -> "initial", 0x20, ByteBuffer.wrap(new byte[] {9, 8, 7, 6})
+        );
         CommandEncoder encoder = device.createCommandEncoder();
         encoder.writeToBuffer(new GpuBufferSlice(vertexBuffer, 0, 4), ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
         RenderPassDescriptor descriptor = RenderPassDescriptor.builder(() -> "device-test")
@@ -67,6 +70,23 @@ public final class GodotGpuDeviceTest {
         if (frame.getInt() != 320 || frame.getInt() != 180) {
             throw new AssertionError("Surface configuration was not used by the command encoder");
         }
+        List<Integer> expected = List.of(
+                RenderCommandProtocol.FRAME_BEGIN,
+                RenderCommandProtocol.CREATE_BUFFER,
+                RenderCommandProtocol.CREATE_BUFFER,
+                RenderCommandProtocol.WRITE_BUFFER,
+                RenderCommandProtocol.CREATE_TEXTURE,
+                RenderCommandProtocol.WRITE_BUFFER,
+                RenderCommandProtocol.BEGIN_RENDER_PASS,
+                RenderCommandProtocol.SET_SCISSOR,
+                RenderCommandProtocol.SET_VERTEX_BUFFER,
+                RenderCommandProtocol.DRAW,
+                RenderCommandProtocol.END_RENDER_PASS,
+                RenderCommandProtocol.FRAME_END
+        );
+        if (!decodeOpcodes(submittedFrames.getFirst()).equals(expected)) {
+            throw new AssertionError("Device did not declare resources before using them");
+        }
 
         expectUnsupported(() -> surface.blitFromTexture(encoder, view));
         surface.present();
@@ -74,6 +94,7 @@ public final class GodotGpuDeviceTest {
             throw new AssertionError("Godot surface remained acquired after present");
         }
 
+        initialBuffer.close();
         vertexBuffer.close();
         view.close();
         texture.close();
