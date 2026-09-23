@@ -69,7 +69,9 @@ resource lifetime/upload, pipeline compilation, render-pass state and draw
 operations. It validates complete frame/pass nesting before a future Godot
 executor is permitted to touch GPU resources. The native side owns a
 thread-safe frame mailbox, so a Java game/render thread can submit a validated
-copy while the Godot render thread later consumes a stable snapshot.
+copy while the Godot render thread later atomically detaches an owned snapshot
+for one-time packet execution. A newer Java submission can therefore never
+mutate or free the frame currently being executed by Godot.
 
 `java/net/minecraft/godot/renderpearl/RenderCommandWriter.java` now encodes
 this stream in Java without any Godot imports; its protocol test is compiled in

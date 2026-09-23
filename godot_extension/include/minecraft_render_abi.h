@@ -63,6 +63,8 @@ typedef enum MinecraftRenderValidationResult {
     MINECRAFT_RENDER_UNKNOWN_OPCODE = -4,
     MINECRAFT_RENDER_BAD_FRAME_ORDER = -5,
     MINECRAFT_RENDER_VISITOR_REJECTED = -6,
+    /* No completed frame was pending when the Godot render thread polled. */
+    MINECRAFT_RENDER_NO_FRAME = -7,
 } MinecraftRenderValidationResult;
 
 /* Return false to stop processing with MINECRAFT_RENDER_VISITOR_REJECTED. */
@@ -71,6 +73,16 @@ typedef bool (*MinecraftRenderPacketVisitor)(
     const uint8_t *packet_bytes,
     void *user_data
 );
+
+/*
+ * An owned snapshot detached from the Java-to-native mailbox. The Godot render
+ * thread must release it after packet execution. The byte data always starts
+ * with FRAME_BEGIN and ends with FRAME_END when returned by take_latest_frame.
+ */
+typedef struct MinecraftRenderFrame {
+    uint8_t *bytes;
+    size_t size;
+} MinecraftRenderFrame;
 
 /*
  * Validates RenderPearl operations and visits each complete packet in order.
@@ -86,16 +98,27 @@ int minecraft_render_visit_frame(
 );
 
 /*
- * Thread-safe native mailbox used by the future Java RenderPearl backend.
+ * Thread-safe native mailbox used by the Java RenderPearl backend.
  * minecraft_render_submit_frame() validates a frame, copies it atomically and
- * returns its packet count. The Godot render thread can then take a stable
- * snapshot through copy_latest_frame() without Java code knowing about Godot.
+ * returns its packet count. The Godot render thread can inspect a stable copy,
+ * or atomically detach the newest frame for one-time packet execution without
+ * Java code knowing about Godot.
  */
 int minecraft_render_submit_frame(const uint8_t *frame_bytes, size_t frame_size);
 int minecraft_render_last_submission_status(void);
 size_t minecraft_render_latest_frame_size(void);
 /* Returns zero when destination is NULL or smaller than the current frame. */
 size_t minecraft_render_copy_latest_frame(uint8_t *destination, size_t destination_size);
+
+/*
+ * Atomically detaches the newest completed frame for the Godot render thread.
+ * Returns its validated packet count, MINECRAFT_RENDER_NO_FRAME when empty, or
+ * MINECRAFT_RENDER_INVALID_ARGUMENT for a null output pointer. The caller owns
+ * frame->bytes on success and must call minecraft_render_release_frame().
+ */
+int minecraft_render_take_latest_frame(MinecraftRenderFrame *frame);
+void minecraft_render_release_frame(MinecraftRenderFrame *frame);
+
 void minecraft_render_clear_latest_frame(void);
 
 #ifdef __cplusplus

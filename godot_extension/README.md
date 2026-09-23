@@ -101,6 +101,16 @@ godot_extension/build/generated/minecraft_java.h
 
 The generated header and intermediate build directory are not committed.
 
+### RenderPearl native mailbox boundary
+
+`minecraft_render_submit_frame()` validates and stores an owned copy of a
+completed Java command frame. The future Godot `RenderingDevice` executor uses
+`minecraft_render_take_latest_frame()` to atomically detach the newest frame,
+executes its packets without holding the mailbox mutex, then calls
+`minecraft_render_release_frame()`. This gives the Java render thread and the
+Godot render thread clear ownership boundaries: a later Java submission cannot
+change the byte frame currently being executed.
+
 ## Run in Godot
 
 1. Run `python3 tools/stage_minecraft_assets.py`.

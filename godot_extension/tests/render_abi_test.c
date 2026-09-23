@@ -93,6 +93,26 @@ int main(void) {
         return 1;
     }
 
+    /* The render thread detaches ownership before executing the packets. This
+     * prevents a concurrent Java submission from mutating the frame being
+     * consumed by the Godot-side executor. */
+    MinecraftRenderFrame owned_frame = {0};
+    result = minecraft_render_take_latest_frame(&owned_frame);
+    if (result != 7 || owned_frame.size != size || owned_frame.bytes == NULL ||
+            memcmp(owned_frame.bytes, frame, size) != 0 ||
+            minecraft_render_latest_frame_size() != 0) {
+        fprintf(stderr, "mailbox did not atomically detach the valid frame\n");
+        minecraft_render_release_frame(&owned_frame);
+        return 1;
+    }
+    minecraft_render_release_frame(&owned_frame);
+    if (owned_frame.bytes != NULL || owned_frame.size != 0 ||
+            minecraft_render_take_latest_frame(&owned_frame) != MINECRAFT_RENDER_NO_FRAME ||
+            minecraft_render_take_latest_frame(NULL) != MINECRAFT_RENDER_INVALID_ARGUMENT) {
+        fprintf(stderr, "mailbox frame ownership/release contract failed\n");
+        return 1;
+    }
+
     /* Packet payloads have to preserve the ABI's eight-byte alignment. */
     uint8_t invalid_alignment[sizeof(MinecraftRenderPacketHeader)] = {0};
     size_t invalid_alignment_size = 0;

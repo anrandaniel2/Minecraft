@@ -13,6 +13,7 @@ _Static_assert(sizeof(MinecraftRenderPacketHeader) == MINECRAFT_RENDER_PACKET_HE
 static pthread_mutex_t latest_frame_mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint8_t *latest_frame_bytes;
 static size_t latest_frame_size;
+static int latest_frame_packet_count;
 static int latest_submission_status = MINECRAFT_RENDER_INVALID_ARGUMENT;
 
 static uint16_t read_u16_le(const uint8_t *bytes) {
@@ -172,6 +173,7 @@ int minecraft_render_submit_frame(const uint8_t *frame_bytes, size_t frame_size)
     free(latest_frame_bytes);
     latest_frame_bytes = copy;
     latest_frame_size = frame_size;
+    latest_frame_packet_count = validation;
     latest_submission_status = validation;
     pthread_mutex_unlock(&latest_frame_mutex);
     return validation;
@@ -205,11 +207,44 @@ size_t minecraft_render_copy_latest_frame(uint8_t *destination, size_t destinati
     return copied_size;
 }
 
+int minecraft_render_take_latest_frame(MinecraftRenderFrame *frame) {
+    if (frame == NULL) {
+        return MINECRAFT_RENDER_INVALID_ARGUMENT;
+    }
+    frame->bytes = NULL;
+    frame->size = 0;
+
+    pthread_mutex_lock(&latest_frame_mutex);
+    if (latest_frame_bytes == NULL) {
+        pthread_mutex_unlock(&latest_frame_mutex);
+        return MINECRAFT_RENDER_NO_FRAME;
+    }
+
+    frame->bytes = latest_frame_bytes;
+    frame->size = latest_frame_size;
+    int packet_count = latest_frame_packet_count;
+    latest_frame_bytes = NULL;
+    latest_frame_size = 0;
+    latest_frame_packet_count = 0;
+    pthread_mutex_unlock(&latest_frame_mutex);
+    return packet_count;
+}
+
+void minecraft_render_release_frame(MinecraftRenderFrame *frame) {
+    if (frame == NULL) {
+        return;
+    }
+    free(frame->bytes);
+    frame->bytes = NULL;
+    frame->size = 0;
+}
+
 void minecraft_render_clear_latest_frame(void) {
     pthread_mutex_lock(&latest_frame_mutex);
     free(latest_frame_bytes);
     latest_frame_bytes = NULL;
     latest_frame_size = 0;
+    latest_frame_packet_count = 0;
     latest_submission_status = MINECRAFT_RENDER_INVALID_ARGUMENT;
     pthread_mutex_unlock(&latest_frame_mutex);
 }
