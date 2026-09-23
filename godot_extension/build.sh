@@ -97,9 +97,11 @@ if [[ -f "$CLASSES/net/minecraft/client/Minecraft.class" ]]; then
 fi
 
 IMAGE_CP="$OVERLAY:$CLASSES:$ROOT/extracted:$LIBRARY_CP"
+# The JVM probe's agent config is optional. A partial trace has crashed image
+# building, so it is only used when explicitly requested.
 CONFIG_DIR="$BUILD_DIR/native-image-config"
 CONFIG_ARGS=()
-if [[ -d "$CONFIG_DIR" && -n "$(find "$CONFIG_DIR" -type f -print -quit)" ]]; then
+if [[ "${MINECRAFT_USE_NATIVE_IMAGE_CONFIG:-}" == 1 && -d "$CONFIG_DIR" && -n "$(find "$CONFIG_DIR" -type f -print -quit)" ]]; then
   CONFIG_ARGS+=("-H:ConfigurationFileDirectories=$CONFIG_DIR")
 fi
 
