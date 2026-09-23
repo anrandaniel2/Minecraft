@@ -73,10 +73,10 @@ copy while the Godot render thread later consumes a stable snapshot.
 
 `java/net/minecraft/godot/renderpearl/RenderCommandWriter.java` now encodes
 this stream in Java without any Godot imports; its protocol test is compiled in
-full-client preflight CI. The eventual `GpuDevice`/`CommandEncoder` classes
-will use this writer rather than talking to Godot directly. The C GDExtension
-will consume it and map packets to Godot. This is intentionally not an
-OpenGL/Vulkan context-sharing layer.
+full-client preflight CI. `GodotGpuDevice` now creates extracted 26.3 resource
+adapters and `GodotCommandEncoder` instances using this writer rather than
+talking to Godot directly. The C GDExtension will consume it and map packets to
+Godot. This is intentionally not an OpenGL/Vulkan context-sharing layer.
 
 ## Implementation order
 
@@ -105,9 +105,19 @@ The first Java resource-adapter implementations now exist for the exact
 extracted `GpuBuffer`, `GpuTexture`, `GpuTextureView`, and `GpuSampler`
 interfaces. They own Godot-neutral handles, buffer mapping/staging storage,
 metadata, mip-range checks and resource lifetime; CI compiles and smoke-tests
-them against the real Java-25 classes under `extracted/`. They are the resource
-half of the future `GpuDevice`, not a claim that command execution or Minecraft
-terrain is already routed through the backend.
+them against the real Java-25 classes under `extracted/`.
+
+`GodotGpuDevice` and `GodotGpuSurface` now implement the extracted 26.3 device
+and surface interfaces. The device reports explicit portable capabilities,
+allocates the existing resource adapters, updates command-frame dimensions from
+a FIFO Godot-owned surface configuration, and emits encoders through the
+neutral transport. The surface tracks configure/acquire/present lifecycles but
+intentionally rejects `blitFromTexture`: presenting into Godot needs the next
+native `RenderingDevice` packet executor. Pipeline translation is equally
+explicit: `compilePipeline` returns a failed future rather than pretending a
+Minecraft shader compiled. These adapters are an API/lifecycle seam, not a
+claim that command execution or Minecraft terrain is already routed through
+the backend.
 
 `GodotCommandEncoder` and `GodotRenderPass` now record descriptor-backed
 single-color render passes, buffer uploads, pipeline/buffer/scissor state, and
