@@ -19,9 +19,9 @@ import java.util.function.Supplier;
 /**
  * Initial RenderPearl RenderPass implementation backed by RenderCommandWriter.
  *
- * It covers pipeline/buffer binding, scissor state and direct draw operations.
- * Timestamp, texture-sampler uniforms, push constants and indirect draw forms
- * remain explicit unsupported work rather than silently being discarded.
+ * It covers pipeline/buffer binding, named GUI uniforms, scissor state and
+ * direct draw operations. Timestamp queries, push constants and indirect draw
+ * forms remain explicit unsupported work rather than silently being discarded.
  */
 final class GodotRenderPass implements RenderPass {
     private final RenderCommandWriter writer;
@@ -70,17 +70,39 @@ final class GodotRenderPass implements RenderPass {
 
     @Override
     public void setUniform(String name, GpuTextureView textureView, GpuSampler sampler) {
-        throw unsupported("texture/sampler uniforms");
+        requireOpen();
+        if (!(textureView instanceof GodotGpuTextureView view) || !(view.texture() instanceof GodotGpuTexture texture)) {
+            throw new IllegalArgumentException("Texture view was not created by GodotRenderPearlBackend");
+        }
+        if (!(sampler instanceof GodotGpuSampler godotSampler)) {
+            throw new IllegalArgumentException("Sampler was not created by GodotRenderPearlBackend");
+        }
+        writer.setTextureSampler(
+                name,
+                texture.nativeHandle(),
+                godotSampler.nativeHandle(),
+                view.baseMipLevel(),
+                godotSampler.getMinFilter().ordinal(),
+                godotSampler.getMagFilter().ordinal(),
+                godotSampler.getAddressModeU().ordinal(),
+                godotSampler.getAddressModeV().ordinal()
+        );
     }
 
     @Override
     public void setUniform(String name, GpuBuffer buffer) {
-        throw unsupported("uniform-buffer bindings");
+        requireOpen();
+        if (!(buffer instanceof GodotGpuBuffer godotBuffer)) {
+            throw new IllegalArgumentException("Uniform buffer was not created by GodotRenderPearlBackend");
+        }
+        writer.setUniformBuffer(name, godotBuffer.nativeHandle(), 0L, godotBuffer.size());
     }
 
     @Override
     public void setUniform(String name, GpuBufferSlice bufferSlice) {
-        throw unsupported("uniform-buffer slice bindings");
+        requireOpen();
+        GodotGpuBuffer buffer = requireBuffer(bufferSlice);
+        writer.setUniformBuffer(name, buffer.nativeHandle(), bufferSlice.offset(), bufferSlice.length());
     }
 
     @Override

@@ -23,6 +23,7 @@ func _ready() -> void:
 	# protocol smoke texture.
 	move_child(_renderpearl_display, controls.get_index())
 	resource_executor.color_target_presented.connect(_show_renderpearl_target)
+	resource_executor.java_gui_presented.connect(_hide_godot_status_after_java_gui)
 	controls.camera_dragged.connect(renderer.add_camera_drag)
 	controls.render_mailbox_executed.connect(_sync_renderpearl_resources)
 	# TouchControls submits and consumes the native smoke frame during its own
@@ -42,6 +43,14 @@ func _layout_renderpearl_display() -> void:
 		return
 	_renderpearl_display.position = Vector2.ZERO
 	_renderpearl_display.size = get_viewport().get_visible_rect().size
+
+func _hide_godot_status_after_java_gui() -> void:
+	# The status line is a Godot placeholder. Once Java's GuiRenderer has drawn
+	# into the viewport, that label must not sit on top of the game UI.
+	var status := controls.get_node_or_null("CanvasLayer/HUD/Status")
+	if status is CanvasItem:
+		status.visible = false
+
 
 func _sync_renderpearl_resources(native_bridge: Object) -> void:
 	resource_executor.synchronize(native_bridge)

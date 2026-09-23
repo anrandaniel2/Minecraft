@@ -119,6 +119,102 @@ public final class RenderCommandWriter {
         finishPacket(start);
     }
 
+    /**
+     * Declares a compiled pipeline before any render pass. Attribute arrays are
+     * parallel and may be empty. Shader identifier strings are retained verbatim
+     * so the native executor can select a translated shader family.
+     */
+    public void compilePipeline(
+            int pipelineId,
+            int family,
+            int topology,
+            int blend,
+            int vertexStride,
+            int[] attributeLocations,
+            int[] attributeOffsets,
+            int[] attributeFormats,
+            byte[] location,
+            byte[] vertexShader,
+            byte[] fragmentShader
+    ) {
+        requireFrameOutsidePass();
+        requireHandle(pipelineId, "pipelineId");
+        require(vertexStride >= 0, "Vertex stride must not be negative");
+        Objects.requireNonNull(attributeLocations, "attributeLocations");
+        Objects.requireNonNull(attributeOffsets, "attributeOffsets");
+        Objects.requireNonNull(attributeFormats, "attributeFormats");
+        require(attributeLocations.length == attributeOffsets.length
+                        && attributeLocations.length == attributeFormats.length,
+                "Pipeline attribute arrays must have the same length");
+        require(attributeLocations.length <= 16, "Pipeline has too many vertex attributes");
+        location = boundedIdentifier(location, "location");
+        vertexShader = boundedIdentifier(vertexShader, "vertexShader");
+        fragmentShader = boundedIdentifier(fragmentShader, "fragmentShader");
+        int start = beginPacket(RenderCommandProtocol.COMPILE_PIPELINE);
+        bytes.putInt(pipelineId);
+        bytes.putInt(family);
+        bytes.putInt(topology);
+        bytes.putInt(blend);
+        bytes.putInt(vertexStride);
+        bytes.putInt(attributeLocations.length);
+        bytes.putInt(location.length);
+        bytes.putInt(vertexShader.length);
+        bytes.putInt(fragmentShader.length);
+        for (int index = 0; index < attributeLocations.length; index++) {
+            bytes.putInt(attributeLocations[index]);
+            bytes.putInt(attributeOffsets[index]);
+            bytes.putInt(attributeFormats[index]);
+        }
+        putBytes(location);
+        putBytes(vertexShader);
+        putBytes(fragmentShader);
+        finishPacket(start);
+    }
+
+    /** Binds a named uniform-buffer range inside the active render pass. */
+    public void setUniformBuffer(String name, int bufferId, long offset, long length) {
+        requireRenderPass();
+        byte[] nameBytes = uniformName(name);
+        requireHandle(bufferId, "bufferId");
+        requireRange(offset, length);
+        int start = beginPacket(RenderCommandProtocol.SET_UNIFORM_BUFFER);
+        bytes.putInt(nameBytes.length);
+        bytes.putInt(bufferId);
+        bytes.putLong(offset);
+        bytes.putLong(length);
+        putBytes(nameBytes);
+        finishPacket(start);
+    }
+
+    /** Binds a named texture/sampler pair inside the active render pass. */
+    public void setTextureSampler(
+            String name,
+            int textureId,
+            int samplerId,
+            int baseMip,
+            int minFilter,
+            int magFilter,
+            int addressU,
+            int addressV
+    ) {
+        requireRenderPass();
+        byte[] nameBytes = uniformName(name);
+        requireHandle(textureId, "textureId");
+        requireHandle(samplerId, "samplerId");
+        require(baseMip >= 0, "Base mip must not be negative");
+        int start = beginPacket(RenderCommandProtocol.SET_TEXTURE_SAMPLER);
+        bytes.putInt(nameBytes.length);
+        bytes.putInt(textureId);
+        bytes.putInt(samplerId);
+        bytes.putInt(baseMip);
+        bytes.putInt(minFilter);
+        bytes.putInt(magFilter);
+        bytes.putInt(addressU);
+        bytes.putInt(addressV);
+        putBytes(nameBytes);
+        finishPacket(start);
+    }
+
     /** Begins a Godot-owned offscreen RenderPearl render pass. */
     public void beginRenderPass(
             int colorTextureId,
@@ -288,6 +384,19 @@ public final class RenderCommandWriter {
 
     private void requireRenderPass() {
         require(frameOpen && !frameComplete && renderPassOpen, "Operation requires an active render pass");
+    }
+
+    private static byte[] uniformName(String name) {
+        Objects.requireNonNull(name, "name");
+        byte[] encoded = name.getBytes(StandardCharsets.UTF_8);
+        require(encoded.length > 0 && encoded.length <= 128, "Uniform name must be 1 to 128 UTF-8 bytes");
+        return encoded;
+    }
+
+    private static byte[] boundedIdentifier(byte[] value, String name) {
+        byte[] encoded = value == null ? new byte[0] : value;
+        require(encoded.length <= 256, name + " exceeds 256 bytes");
+        return encoded;
     }
 
     private static void requireHandle(int handle, String name) {

@@ -88,7 +88,10 @@ public final class GodotGpuDeviceTest {
             throw new AssertionError("Device did not declare resources before using them");
         }
 
-        expectUnsupported(() -> surface.blitFromTexture(encoder, view));
+        surface.blitFromTexture(encoder, view);
+        if (surface.presentedTextureId() != ((GodotGpuTextureView) view).nativeHandle()) {
+            throw new AssertionError("Godot surface did not accept the Java main-target blit");
+        }
         surface.present();
         if (surface.isAcquired()) {
             throw new AssertionError("Godot surface remained acquired after present");

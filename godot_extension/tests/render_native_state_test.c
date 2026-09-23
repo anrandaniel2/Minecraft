@@ -312,6 +312,133 @@ int main(void) {
         return 1;
     }
 
+    if (minecraft_render_native_buffer_attribute_at(
+                state, 0, MINECRAFT_RENDER_BUFFER_ATTRIBUTE_USAGE
+        ) != 0x10u) {
+        fprintf(stderr, "native state did not retain buffer usage\n");
+        minecraft_render_native_state_destroy(state);
+        return 1;
+    }
+
+    /* Compile, uniform, and sampler packets must survive outside/inside a pass
+     * and be readable by the Godot GUI draw adapter. */
+    uint8_t gui[512] = {0};
+    size_t gui_size = 0;
+    begin_frame(gui, &gui_size, 6u);
+    p = packet(gui, &gui_size, MINECRAFT_RENDER_CREATE_BUFFER, 24u);
+    u32(p, 8u);
+    u32(p + 4, 128u);
+    u64(p + 8, 64u);
+    p = packet(gui, &gui_size, MINECRAFT_RENDER_COMPILE_PIPELINE, 80u);
+    u32(p, 11u);
+    u32(p + 4, 1u);
+    u32(p + 8, 4u);
+    u32(p + 12, 0u);
+    u32(p + 16, 16u);
+    u32(p + 20, 1u);
+    u32(p + 24, 3u);
+    u32(p + 28, 8u);
+    u32(p + 32, 8u);
+    u32(p + 36, 0u);
+    u32(p + 40, 0u);
+    u32(p + 44, 46u);
+    memcpy(p + 48, "gui", 3u);
+    memcpy(p + 51, "core/gui", 8u);
+    memcpy(p + 59, "core/gui", 8u);
+    begin_pass(gui, &gui_size, 3u);
+    p = packet(gui, &gui_size, MINECRAFT_RENDER_SET_PIPELINE, 16u);
+    u32(p, 11u);
+    p = packet(gui, &gui_size, MINECRAFT_RENDER_SET_UNIFORM_BUFFER, 48u);
+    u32(p, 10u);
+    u32(p + 4, 8u);
+    u64(p + 16, 64u);
+    memcpy(p + 24, "Projection", 10u);
+    p = packet(gui, &gui_size, MINECRAFT_RENDER_SET_TEXTURE_SAMPLER, 48u);
+    u32(p, 8u);
+    u32(p + 4, 3u);
+    u32(p + 8, 1u);
+    u32(p + 16, 1u);
+    u32(p + 20, 1u);
+    u32(p + 24, 1u);
+    u32(p + 28, 1u);
+    memcpy(p + 32, "Sampler0", 8u);
+    p = packet(gui, &gui_size, MINECRAFT_RENDER_SET_SCISSOR, 24u);
+    u32(p, 2u);
+    u32(p + 4, 3u);
+    u32(p + 8, 10u);
+    u32(p + 12, 12u);
+    p = packet(gui, &gui_size, MINECRAFT_RENDER_DRAW, 24u);
+    u32(p, 3u);
+    u32(p + 4, 1u);
+    end_frame(gui, &gui_size);
+    if (minecraft_render_submit_frame(gui, gui_size) < 0 ||
+            minecraft_render_native_execute_latest(state) < 0 ||
+            minecraft_render_native_frame_pass_count(state) != 1 ||
+            minecraft_render_native_draw_count(state) != 1 ||
+            minecraft_render_native_pipeline_attribute(
+                    state, 11u, MINECRAFT_RENDER_PIPELINE_ATTRIBUTE_FAMILY
+            ) != 1 ||
+            minecraft_render_native_pipeline_vertex_attribute(
+                    state, 11u, 0u, MINECRAFT_RENDER_VERTEX_ATTRIBUTE_FORMAT
+            ) != 46 ||
+            minecraft_render_native_draw_attribute(
+                    state, 0u, MINECRAFT_RENDER_DRAW_ATTRIBUTE_FAMILY
+            ) != 1 ||
+            minecraft_render_native_draw_attribute(
+                    state, 0u, MINECRAFT_RENDER_DRAW_ATTRIBUTE_SCISSOR_WIDTH
+            ) != 10 ||
+            minecraft_render_native_draw_attribute(
+                    state, 0u, MINECRAFT_RENDER_DRAW_ATTRIBUTE_PROJECTION_BUFFER_ID
+            ) != 8 ||
+            minecraft_render_native_draw_attribute(
+                    state, 0u, MINECRAFT_RENDER_DRAW_ATTRIBUTE_SAMPLER0_TEXTURE_ID
+            ) != 3 ||
+            minecraft_render_native_draw_attribute(
+                    state, 0u, MINECRAFT_RENDER_DRAW_ATTRIBUTE_SAMPLER0_ADDRESS_U
+            ) != 1) {
+        fprintf(stderr, "native state did not retain compiled GUI draw bindings\n");
+        minecraft_render_native_state_destroy(state);
+        return 1;
+    }
+
+    if (minecraft_render_native_pipeline_attribute(
+                state, 11u, MINECRAFT_RENDER_PIPELINE_ATTRIBUTE_FLAGS
+        ) != 0) {
+        fprintf(stderr, "plain GUI pipeline was marked grayscale\n");
+        minecraft_render_native_state_destroy(state);
+        return 1;
+    }
+
+    uint8_t gray[256] = {0};
+    size_t gray_size = 0;
+    begin_frame(gray, &gray_size, 7u);
+    p = packet(gray, &gray_size, MINECRAFT_RENDER_COMPILE_PIPELINE, 72u);
+    u32(p, 12u);
+    u32(p + 4, 3u);
+    u32(p + 8, 7u);
+    u32(p + 16, 24u);
+    u32(p + 24, 28u);
+    memcpy(p + 36, "pipeline/gui_text_grayscale", 28u);
+    begin_pass(gray, &gray_size, 3u);
+    p = packet(gray, &gray_size, MINECRAFT_RENDER_SET_PIPELINE, 16u);
+    u32(p, 12u);
+    p = packet(gray, &gray_size, MINECRAFT_RENDER_DRAW, 24u);
+    u32(p, 4u);
+    u32(p + 4, 1u);
+    end_frame(gray, &gray_size);
+    if (minecraft_render_submit_frame(gray, gray_size) < 0 ||
+            minecraft_render_native_execute_latest(state) < 0 ||
+            minecraft_render_native_pipeline_attribute(
+                    state, 12u, MINECRAFT_RENDER_PIPELINE_ATTRIBUTE_FLAGS
+            ) != 1 ||
+            minecraft_render_native_draw_attribute(
+                    state, 0u, MINECRAFT_RENDER_DRAW_ATTRIBUTE_TOPOLOGY
+            ) != 7) {
+        fprintf(stderr, "grayscale GUI text pipeline flag was not retained\n");
+        minecraft_render_native_state_destroy(state);
+        return 1;
+    }
+
     minecraft_render_native_state_destroy(state);
     return 0;
 }

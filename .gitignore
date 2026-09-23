@@ -23,6 +23,9 @@ out/
 .tools/
 godot_extension/build/
 godot_extension/.godot/
+godot_extension/native-image/libraries/
+godot_extension/run/
+minecraft-godot-run/
 __pycache__/
 # Reproducibly staged from extracted/assets/minecraft by tools/stage_minecraft_assets.py.
 godot_extension/minecraft_assets/

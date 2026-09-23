@@ -29,10 +29,11 @@ import java.util.function.Consumer;
  * transport is native; tests use an in-memory validator/capture.
  */
 final class GodotCommandEncoder implements CommandEncoder {
-    private final RenderCommandWriter writer = new RenderCommandWriter();
+    private final RenderCommandWriter writer;
     private final RenderCommandTransport transport;
     private final int targetWidth;
     private final int targetHeight;
+    private final Runnable sharedFrameSubmit;
     private GodotRenderPass activePass;
     private boolean submitted;
 
@@ -63,8 +64,33 @@ final class GodotCommandEncoder implements CommandEncoder {
         this.targetWidth = targetWidth;
         this.targetHeight = targetHeight;
         this.transport = Objects.requireNonNull(transport, "transport");
+        this.sharedFrameSubmit = null;
+        this.writer = new RenderCommandWriter();
         writer.beginFrame(frameId, targetWidth, targetHeight);
         Objects.requireNonNull(framePrelude, "framePrelude").accept(writer);
+    }
+
+    /**
+     * Appends to a device-owned frame. Minecraft 26.3 records GUI uploads and
+     * draws on encoders it never submits; {@code Minecraft.renderFrame} submits
+     * a later encoder. Those commands have to share one frame or the viewport
+     * only receives the empty final submit.
+     */
+    GodotCommandEncoder(
+            RenderCommandWriter sharedWriter,
+            int targetWidth,
+            int targetHeight,
+            RenderCommandTransport transport,
+            Runnable sharedFrameSubmit
+    ) {
+        if (targetWidth <= 0 || targetHeight <= 0) {
+            throw new IllegalArgumentException("Offscreen target dimensions must be positive");
+        }
+        this.writer = Objects.requireNonNull(sharedWriter, "sharedWriter");
+        this.targetWidth = targetWidth;
+        this.targetHeight = targetHeight;
+        this.transport = Objects.requireNonNull(transport, "transport");
+        this.sharedFrameSubmit = Objects.requireNonNull(sharedFrameSubmit, "sharedFrameSubmit");
     }
 
     @Override
@@ -73,10 +99,14 @@ final class GodotCommandEncoder implements CommandEncoder {
         if (activePass != null) {
             throw new IllegalStateException("Cannot submit while a RenderPass is still open");
         }
-        byte[] frame = writer.finishFrame();
-        int result = transport.submit(frame);
-        if (result <= 0) {
-            throw new IllegalStateException("Native RenderPearl frame submission failed: " + result);
+        if (sharedFrameSubmit != null) {
+            sharedFrameSubmit.run();
+        } else {
+            byte[] frame = writer.finishFrame();
+            int result = transport.submit(frame);
+            if (result <= 0) {
+                throw new IllegalStateException("Native RenderPearl frame submission failed: " + result);
+            }
         }
         submitted = true;
     }
@@ -133,12 +163,18 @@ final class GodotCommandEncoder implements CommandEncoder {
 
     @Override
     public void clearColorTexture(GpuTexture texture, Vector4fc color) {
-        throw unsupported("standalone color clears");
+        requireOpenOutsidePass();
+        Objects.requireNonNull(color, "color");
+        GodotGpuTexture colorTexture = requireTexture(texture);
+        writer.beginRenderPass(
+                colorTexture.nativeHandle(), 0, color.x(), color.y(), color.z(), color.w(), 0.0
+        );
+        writer.endRenderPass();
     }
 
     @Override
     public void clearColorAndDepthTextures(GpuTexture colorTexture, Vector4fc color, GpuTexture depthTexture, double depth) {
-        throw unsupported("standalone color/depth clears");
+        clearColorAndDepthTextures(colorTexture, color, depthTexture, depth, 0, 0, 0, 0, 0);
     }
 
     @Override
@@ -153,12 +189,29 @@ final class GodotCommandEncoder implements CommandEncoder {
             int regionHeight,
             int mipLevel
     ) {
-        throw unsupported("regional color/depth clears");
+        requireOpenOutsidePass();
+        Objects.requireNonNull(color, "color");
+        if (mipLevel != 0) {
+            throw unsupported("clears of a non-zero mip");
+        }
+        GodotGpuTexture colorTarget = requireTexture(colorTexture);
+        int depthId = depthTexture == null ? 0 : requireTexture(depthTexture).nativeHandle();
+        writer.beginRenderPass(
+                colorTarget.nativeHandle(), depthId, color.x(), color.y(), color.z(), color.w(), depth
+        );
+        if (regionWidth > 0 && regionHeight > 0) {
+            writer.setScissor(regionX, regionY, regionWidth, regionHeight);
+        }
+        writer.endRenderPass();
     }
 
     @Override
     public void clearDepthTexture(GpuTexture texture, double depth) {
-        throw unsupported("standalone depth clears");
+        requireOpenOutsidePass();
+        Objects.requireNonNull(texture, "texture");
+        // GuiRenderer always clears depth before the main UI pass. The viewport
+        // drawer does not attach that depth image, so a thrown clear would abort
+        // the Java UI without changing the presented color target.
     }
 
     @Override
@@ -177,21 +230,49 @@ final class GodotCommandEncoder implements CommandEncoder {
         source.get(bytes);
         buffer.writeFrom(destination.offset(), ByteBuffer.wrap(bytes));
         writer.writeBuffer(buffer.nativeHandle(), destination.offset(), bytes);
+        buffer.clearDirty(destination.offset(), bytes.length);
     }
 
     @Override
     public void copyToBuffer(GpuBufferSlice source, GpuBufferSlice target) {
-        throw unsupported("buffer-to-buffer copies");
+        requireOpenOutsidePass();
+        Objects.requireNonNull(source, "source");
+        Objects.requireNonNull(target, "target");
+        if (!(source.buffer() instanceof GodotGpuBuffer sourceBuffer)
+                || !(target.buffer() instanceof GodotGpuBuffer targetBuffer)) {
+            throw new IllegalArgumentException("Buffer copy requires Godot RenderPearl buffers");
+        }
+        if (source.length() > Integer.MAX_VALUE || target.length() < source.length()) {
+            throw new IllegalArgumentException("Buffer copy range is larger than the destination slice");
+        }
+        int length = (int) source.length();
+        byte[] bytes = sourceBuffer.copyRange(source.offset(), length);
+        targetBuffer.writeFrom(target.offset(), ByteBuffer.wrap(bytes));
+        writer.writeBuffer(targetBuffer.nativeHandle(), target.offset(), bytes);
+        targetBuffer.clearDirty(target.offset(), length);
     }
 
     @Override
     public void writeToTexture(GpuTexture texture, NativeImage image) {
-        throw unsupported("NativeImage texture uploads");
+        writeToTexture(texture, image, 0, 0, 0, 0);
     }
 
     @Override
     public void writeToTexture(GpuTexture texture, NativeImage image, int depthOrLayer, int destX, int destY, int mipLevel) {
-        throw unsupported("regional NativeImage texture uploads");
+        Objects.requireNonNull(image, "image");
+        if (depthOrLayer != 0) {
+            throw unsupported("NativeImage uploads to a non-zero array layer");
+        }
+        writeToTexture(
+                texture,
+                ByteBuffer.wrap(rgbaBytes(image)),
+                image.getWidth(),
+                image.getHeight(),
+                1,
+                destX,
+                destY,
+                mipLevel
+        );
     }
 
     @Override
@@ -303,6 +384,72 @@ final class GodotCommandEncoder implements CommandEncoder {
         }
     }
 
+    private static GodotGpuTexture requireTexture(GpuTexture texture) {
+        if (!(texture instanceof GodotGpuTexture godotTexture)) {
+            throw new IllegalArgumentException("Texture was not created by GodotRenderPearlBackend");
+        }
+        return godotTexture;
+    }
+
+    /**
+     * NativeImage.getPixel returns ARGB. Godot RGBA8 is tightly packed R, G, B, A.
+     * Luminance glyphs become .rrrr so the extracted text shader can sample coverage.
+     */
+    private static byte[] rgbaBytes(NativeImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int count = width * height;
+        byte[] rgba = new byte[count * 4];
+        if ("RGBA".equals(image.format().name())) {
+            int[] pixels = image.getPixels();
+            if (pixels.length < count) {
+                throw new IllegalArgumentException("NativeImage pixel array is shorter than its dimensions");
+            }
+            for (int index = 0; index < count; index++) {
+                int argb = pixels[index];
+                rgba[index * 4] = (byte) ((argb >>> 16) & 0xFF);
+                rgba[index * 4 + 1] = (byte) ((argb >>> 8) & 0xFF);
+                rgba[index * 4 + 2] = (byte) (argb & 0xFF);
+                rgba[index * 4 + 3] = (byte) ((argb >>> 24) & 0xFF);
+            }
+            return rgba;
+        }
+        ByteBuffer raw = image.getPixelBytes().duplicate();
+        raw.order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        String format = image.format().name();
+        int components = switch (format) {
+            case "RGB" -> 3;
+            case "LUMINANCE_ALPHA" -> 2;
+            case "LUMINANCE" -> 1;
+            default -> throw new IllegalArgumentException("Unsupported NativeImage format " + format);
+        };
+        if (raw.remaining() < count * components) {
+            throw new IllegalArgumentException("NativeImage byte buffer is shorter than its dimensions");
+        }
+        for (int index = 0; index < count; index++) {
+            int red;
+            int green;
+            int blue;
+            int alpha = 255;
+            if (components == 1) {
+                red = green = blue = raw.get() & 0xFF;
+                alpha = red;
+            } else if (components == 2) {
+                red = green = blue = raw.get() & 0xFF;
+                alpha = raw.get() & 0xFF;
+            } else {
+                red = raw.get() & 0xFF;
+                green = raw.get() & 0xFF;
+                blue = raw.get() & 0xFF;
+            }
+            rgba[index * 4] = (byte) red;
+            rgba[index * 4 + 1] = (byte) green;
+            rgba[index * 4 + 2] = (byte) blue;
+            rgba[index * 4 + 3] = (byte) alpha;
+        }
+        return rgba;
+    }
+
     private static GodotGpuTextureView requireTextureView(GpuTextureView view, String attachmentName) {
         if (!(view instanceof GodotGpuTextureView godotView)) {
             throw new IllegalArgumentException(
@@ -313,8 +460,13 @@ final class GodotCommandEncoder implements CommandEncoder {
     }
 
     private static float[] clearColor(Object value) {
-        if (value instanceof Optional<?> optional && optional.orElse(null) instanceof Vector4fc color) {
-            return new float[] {color.x(), color.y(), color.z(), color.w()};
+        if (value instanceof Optional<?> optional) {
+            if (optional.orElse(null) instanceof Vector4fc color) {
+                return new float[] {color.x(), color.y(), color.z(), color.w()};
+            }
+            // Empty clear means load the existing attachment. Negative alpha is
+            // the no-clear signal; it is not a displayable color.
+            return new float[] {0.0f, 0.0f, 0.0f, -1.0f};
         }
         return new float[] {0.0f, 0.0f, 0.0f, 1.0f};
     }

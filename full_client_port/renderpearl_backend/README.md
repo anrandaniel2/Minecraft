@@ -100,8 +100,13 @@ OpenGL/Vulkan context-sharing layer.
 1. **Build input** — recover the complete Java 25 source graph in CI and resolve
    Mojang runtime dependencies. The small `decompiled_sample/` Native Image
    demo is not a substitute for this step.
-2. **Platform-neutral boot** — replace the stock `Window`/native-surface and
-   desktop event bootstrap with a Godot lifecycle adapter.
+2. **Platform-neutral boot** — `GodotGpuBackend` is the `GpuBackend` the extracted
+   client must construct. It does not open a native window. `tools/redirect_graphics_backend.py`
+   writes a classpath overlay of `PreferredGraphicsApi` that replaces the default
+   `GlBackend` slot with `GodotGpuBackend` (same constant-pool string length; the
+   extracted class is not modified). `libSDL3` queries from stock `Window` are
+   answered by `godot_extension/src/sdl3_viewport_stub.c` so boot does not open a
+   display. The overlay must precede `extracted/` on the classpath.
 3. **Minimal RenderPearl device** — implement `GpuDevice`, resources,
    `CommandEncoder`, and `GpuSurface` for an offscreen Godot target; validate
    clear, texture upload, triangle and indexed draw.
@@ -130,14 +135,13 @@ allocates the existing resource adapters, updates command-frame dimensions from
 a FIFO Godot-owned surface configuration, and emits encoders through the
 neutral transport. Each device encoder begins by declaring its still-live
 buffer/texture resources before any uploads or pass commands; initial buffer
-contents are encoded immediately after their allocation packet. The surface
-tracks configure/acquire/present lifecycles but
-intentionally rejects `blitFromTexture`: presenting into Godot needs the next
-native `RenderingDevice` packet executor. Pipeline translation is equally
-explicit: `compilePipeline` returns a failed future rather than pretending a
-Minecraft shader compiled. These adapters are an API/lifecycle seam, not a
-claim that command execution or Minecraft terrain is already routed through
-the backend.
+contents are encoded immediately after their allocation packet. The surface tracks configure/acquire/present. `blitFromTexture` accepts the
+Java main render-target view instead of throwing: `renderFrame` blits after
+GuiRenderer has already submitted passes into a Godot color target, and the
+viewport executor presents that target. `compilePipeline` completes with a
+pending pipeline. GUI shader families are classified for the viewport drawer;
+unknown pipelines are family 0 and skipped at draw time so resource reload is
+not aborted. This is not a claim that world terrain is already on screen.
 
 `GodotCommandEncoder` and `GodotRenderPass` now record descriptor-backed
 single-color render passes, buffer uploads, tightly packed byte-buffer texture

@@ -11,9 +11,15 @@ import com.mojang.renderpearl.api.device.DeviceType;
 import com.mojang.renderpearl.api.device.GpuDevice;
 import com.mojang.renderpearl.api.device.GpuSurface;
 import com.mojang.renderpearl.api.device.HintsAndWorkarounds;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
 import com.mojang.renderpearl.api.pipeline.CompiledRenderPipeline;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.pipeline.ShaderSource;
+import com.mojang.renderpearl.api.pipeline.ShaderType;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
+import com.mojang.renderpearl.api.vertex.VertexFormatElement;
+import net.minecraft.resources.Identifier;
 import com.mojang.renderpearl.api.textures.AddressMode;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuSampler;
@@ -21,9 +27,13 @@ import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -68,8 +78,10 @@ public final class GodotGpuDevice implements GpuDevice {
     private final RenderCommandTransport transport;
     private final AtomicLong nextFrameId = new AtomicLong();
     private final Object resourcesLock = new Object();
+    private RenderCommandWriter openFrame;
     private final List<GodotGpuBuffer> buffers = new ArrayList<>();
     private final List<GodotGpuTexture> textures = new ArrayList<>();
+    private final List<GodotCompiledRenderPipeline> pipelines = new ArrayList<>();
     private volatile int targetWidth;
     private volatile int targetHeight;
     private volatile boolean closed;
@@ -94,28 +106,50 @@ public final class GodotGpuDevice implements GpuDevice {
     @Override
     public CommandEncoder createCommandEncoder() {
         requireOpen();
+        if (openFrame == null) {
+            openFrame = new RenderCommandWriter();
+            openFrame.beginFrame(nextFrameId.getAndIncrement(), targetWidth, targetHeight);
+        }
+        // GuiRenderer.upload() and GuiRenderer.draw() each create an encoder and
+        // never submit it. Keep one frame open until Minecraft.renderFrame submits.
+        recordLiveResources(openFrame);
+        return new GodotCommandEncoder(openFrame, targetWidth, targetHeight, transport, this::submitOpenFrame);
+    }
+
+    private void submitOpenFrame() {
+        RenderCommandWriter frame = openFrame;
+        if (frame == null) {
+            return;
+        }
+        openFrame = null;
+        byte[] bytes = frame.finishFrame();
+        int result = transport.submit(bytes);
+        if (result <= 0) {
+            throw new IllegalStateException("Native RenderPearl frame submission failed: " + result);
+        }
+    }
+
+    private void recordLiveResources(RenderCommandWriter writer) {
         List<GodotGpuBuffer> frameBuffers;
         List<GodotGpuTexture> frameTextures;
+        List<GodotCompiledRenderPipeline> framePipelines;
         synchronized (resourcesLock) {
             buffers.removeIf(GodotGpuBuffer::isClosed);
             textures.removeIf(GodotGpuTexture::isClosed);
+            pipelines.removeIf(GodotCompiledRenderPipeline::isClosed);
             frameBuffers = List.copyOf(buffers);
             frameTextures = List.copyOf(textures);
+            framePipelines = List.copyOf(pipelines);
         }
-        return new GodotCommandEncoder(
-                nextFrameId.getAndIncrement(),
-                targetWidth,
-                targetHeight,
-                transport,
-                writer -> {
-                    for (GodotGpuBuffer buffer : frameBuffers) {
-                        buffer.recordCreate(writer);
-                    }
-                    for (GodotGpuTexture texture : frameTextures) {
-                        texture.recordCreate(writer);
-                    }
-                }
-        );
+        for (GodotGpuBuffer buffer : frameBuffers) {
+            buffer.recordCreate(writer);
+        }
+        for (GodotGpuTexture texture : frameTextures) {
+            texture.recordCreate(writer);
+        }
+        for (GodotCompiledRenderPipeline pipeline : framePipelines) {
+            pipeline.recordCreate(writer);
+        }
     }
 
     @Override
@@ -242,12 +276,25 @@ public final class GodotGpuDevice implements GpuDevice {
         Objects.requireNonNull(pipeline, "pipeline");
         Objects.requireNonNull(shaderSource, "shaderSource");
         Objects.requireNonNull(executor, "executor");
-        // Returning a fabricated handle would make later native draw failures
-        // look like successful shader compilation. Keep this boundary honest
-        // until GLSL-to-Godot shader/pipeline translation is implemented.
-        return CompletableFuture.failedFuture(new UnsupportedOperationException(
-                "Godot RenderingDevice pipeline translation is not implemented yet"
-        ));
+        CompiledPipelineDescription description;
+        try {
+            description = describePipeline(pipeline, shaderSource);
+        } catch (RuntimeException ignored) {
+            // A failed future aborts Minecraft resource reload before GuiRenderer
+            // can draw. Unknown or not-yet-translated pipelines stay family 0 and
+            // are skipped by the viewport executor instead of failing startup.
+            description = new CompiledPipelineDescription(
+                    GodotCompiledRenderPipeline.FAMILY_UNKNOWN,
+                    0,
+                    GodotCompiledRenderPipeline.BLEND_OPAQUE,
+                    0,
+                    new GodotCompiledRenderPipeline.Attribute[0],
+                    utf8(pipeline.getLocation()),
+                    new byte[0],
+                    new byte[0]
+            );
+        }
+        return CompletableFuture.completedFuture(new PipelinePending(description));
     }
 
     @Override
@@ -295,6 +342,185 @@ public final class GodotGpuDevice implements GpuDevice {
     private void requireOpen() {
         if (closed) {
             throw new IllegalStateException("Godot GpuDevice is closed");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private CompiledPipelineDescription describePipeline(RenderPipeline pipeline, ShaderSource shaderSource) {
+        Identifier vertexShader = shaderIdentifier(pipeline, ShaderType.VERTEX);
+        Identifier fragmentShader = shaderIdentifier(pipeline, ShaderType.FRAGMENT);
+        int family = pipelineFamily(pipeline.getLocation(), vertexShader, fragmentShader);
+        validateShaderSource(shaderSource, vertexShader, ShaderType.VERTEX);
+        validateShaderSource(shaderSource, fragmentShader, ShaderType.FRAGMENT);
+        VertexFormat format = pipeline.getVertexFormatBindings().isEmpty()
+                ? null
+                : pipeline.getVertexFormatBinding(0);
+        GodotCompiledRenderPipeline.Attribute[] attributes = vertexAttributes(format, family);
+        return new CompiledPipelineDescription(
+                family,
+                pipeline.getPrimitiveTopology().ordinal(),
+                blendCode(pipeline),
+                format == null ? 0 : format.getVertexSize(),
+                attributes,
+                utf8(pipeline.getLocation()),
+                utf8(vertexShader),
+                utf8(fragmentShader)
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Identifier shaderIdentifier(RenderPipeline pipeline, ShaderType type) {
+        for (Map.Entry<?, ?> entry : pipeline.getShaders().entrySet()) {
+            if (entry.getKey() == type && entry.getValue() instanceof Identifier identifier) {
+                return identifier;
+            }
+        }
+        return null;
+    }
+
+    private static void validateShaderSource(
+            ShaderSource shaderSource,
+            Identifier identifier,
+            ShaderType type
+    ) {
+        if (identifier == null) {
+            return;
+        }
+        try {
+            // Touch the source so a present shader is resolved, but never fail
+            // compilation. Unknown world pipelines are family 0 and skipped
+            // when drawing; a failed future would abort client startup.
+            shaderSource.getShader(identifier, type);
+        } catch (RuntimeException ignored) {
+            // Missing includes or not-yet-translated shaders stay descriptive.
+        }
+    }
+
+    private static int pipelineFamily(Identifier location, Identifier vertexShader, Identifier fragmentShader) {
+        String key = (text(location) + " " + text(vertexShader) + " " + text(fragmentShader))
+                .toLowerCase(Locale.ROOT);
+        boolean gui = key.contains("gui");
+        // "gui_textured" also contains the substring "gui_text", so textured
+        // pipelines have to be classified before text pipelines.
+        if (gui && (key.contains("textured") || key.contains("position_tex") || key.contains("panorama"))) {
+            return GodotCompiledRenderPipeline.FAMILY_GUI_TEXTURED;
+        }
+        if (key.contains("gui_text") || key.contains("text_grayscale")
+                || (gui && key.contains("/text")) || key.contains("core/text")) {
+            return GodotCompiledRenderPipeline.FAMILY_GUI_TEXT;
+        }
+        if (key.contains("core/gui") || key.contains("pipeline/gui") || key.contains(":gui")) {
+            return GodotCompiledRenderPipeline.FAMILY_GUI_COLOR;
+        }
+        return GodotCompiledRenderPipeline.FAMILY_UNKNOWN;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int blendCode(RenderPipeline pipeline) {
+        List<?> states = pipeline.getColorTargetStates();
+        if (states.isEmpty() || !(states.getFirst() instanceof ColorTargetState state)) {
+            return GodotCompiledRenderPipeline.BLEND_OPAQUE;
+        }
+        Optional<BlendFunction> blend = state.blendFunction();
+        if (blend.isEmpty()) {
+            return GodotCompiledRenderPipeline.BLEND_OPAQUE;
+        }
+        BlendFunction function = blend.get();
+        if (function == BlendFunction.TRANSLUCENT) {
+            return GodotCompiledRenderPipeline.BLEND_ALPHA;
+        }
+        if (function == BlendFunction.TRANSLUCENT_PREMULTIPLIED_ALPHA) {
+            return GodotCompiledRenderPipeline.BLEND_PREMULTIPLIED;
+        }
+        if (function == BlendFunction.ADDITIVE) {
+            return GodotCompiledRenderPipeline.BLEND_ADDITIVE;
+        }
+        if (function == BlendFunction.INVERT) {
+            return GodotCompiledRenderPipeline.BLEND_INVERT;
+        }
+        return GodotCompiledRenderPipeline.BLEND_ALPHA;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static GodotCompiledRenderPipeline.Attribute[] vertexAttributes(VertexFormat format, int family) {
+        if (format == null) {
+            return new GodotCompiledRenderPipeline.Attribute[0];
+        }
+        List<VertexFormatElement> elements = format.getElements();
+        GodotCompiledRenderPipeline.Attribute[] attributes =
+                new GodotCompiledRenderPipeline.Attribute[elements.size()];
+        for (int index = 0; index < elements.size(); index++) {
+            VertexFormatElement element = elements.get(index);
+            attributes[index] = new GodotCompiledRenderPipeline.Attribute(
+                    shaderLocation(element.name(), family),
+                    element.offset(),
+                    element.format().ordinal()
+            );
+        }
+        return attributes;
+    }
+
+    private static int shaderLocation(String elementName, int family) {
+        if ("Position".equals(elementName)) {
+            return 0;
+        }
+        if ("Color".equals(elementName)) {
+            return family == GodotCompiledRenderPipeline.FAMILY_GUI_TEXTURED ? 2 : 1;
+        }
+        if ("UV0".equals(elementName)) {
+            return family == GodotCompiledRenderPipeline.FAMILY_GUI_TEXTURED ? 1 : 2;
+        }
+        return 255;
+    }
+
+    private static String text(Identifier identifier) {
+        return identifier == null ? "" : identifier.toString();
+    }
+
+    private static byte[] utf8(Identifier identifier) {
+        return text(identifier).getBytes(StandardCharsets.UTF_8);
+    }
+
+    private record CompiledPipelineDescription(
+            int family,
+            int topology,
+            int blend,
+            int vertexStride,
+            GodotCompiledRenderPipeline.Attribute[] attributes,
+            byte[] location,
+            byte[] vertexShader,
+            byte[] fragmentShader
+    ) {
+    }
+
+    private final class PipelinePending implements CompiledRenderPipeline.Pending {
+        private final CompiledPipelineDescription description;
+        private GodotCompiledRenderPipeline compiled;
+
+        private PipelinePending(CompiledPipelineDescription description) {
+            this.description = description;
+        }
+
+        @Override
+        public synchronized CompiledRenderPipeline finishCompile() {
+            requireOpen();
+            if (compiled == null || compiled.isClosed()) {
+                compiled = new GodotCompiledRenderPipeline(
+                        registry,
+                        description.family(),
+                        description.topology(),
+                        description.blend(),
+                        description.vertexStride(),
+                        description.attributes(),
+                        description.location(),
+                        description.vertexShader(),
+                        description.fragmentShader()
+                );
+                synchronized (resourcesLock) {
+                    pipelines.add(compiled);
+                }
+            }
+            return compiled;
         }
     }
 }

@@ -68,6 +68,17 @@ static bool has_write_texture_size(const MinecraftRenderPacketHeader *header,
     return has_inline_data_size(header, packet_bytes, 40u, 36u);
 }
 
+static bool has_trailing_name(const MinecraftRenderPacketHeader *header,
+                              const uint8_t *packet_bytes,
+                              uint32_t minimum_size,
+                              uint32_t max_name_length) {
+    if (!has_inline_data_size(header, packet_bytes, minimum_size, MINECRAFT_RENDER_PACKET_HEADER_BYTES)) {
+        return false;
+    }
+    uint32_t name_length = read_u32_le(packet_bytes + MINECRAFT_RENDER_PACKET_HEADER_BYTES);
+    return name_length <= max_name_length;
+}
+
 static bool reject(MinecraftRenderExecutionState *state, int result) {
     state->result = result;
     return false;
@@ -209,6 +220,100 @@ static bool dispatch_packet(const MinecraftRenderPacketHeader *header,
                                           read_u32_le(payload + 4), read_u64_le(payload + 8),
                                           read_u64_le(payload + 16)) ||
                    reject(state, MINECRAFT_RENDER_VISITOR_REJECTED);
+
+        case MINECRAFT_RENDER_COMPILE_PIPELINE: {
+            if (header->packet_size < 44u) {
+                return reject(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            }
+            uint32_t attribute_count = read_u32_le(payload + 20);
+            uint32_t location_length = read_u32_le(payload + 24);
+            uint32_t vertex_shader_length = read_u32_le(payload + 28);
+            uint32_t fragment_shader_length = read_u32_le(payload + 32);
+            if (attribute_count > MINECRAFT_RENDER_MAX_PIPELINE_ATTRIBUTES ||
+                    location_length > MINECRAFT_RENDER_MAX_SHADER_IDENTIFIER_BYTES ||
+                    vertex_shader_length > MINECRAFT_RENDER_MAX_SHADER_IDENTIFIER_BYTES ||
+                    fragment_shader_length > MINECRAFT_RENDER_MAX_SHADER_IDENTIFIER_BYTES) {
+                return reject(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            }
+            uint64_t raw_size = 44ull + (uint64_t)attribute_count * 12ull + location_length +
+                    vertex_shader_length + fragment_shader_length;
+            uint64_t aligned_size = (raw_size + (MINECRAFT_RENDER_PACKET_ALIGNMENT - 1u)) &
+                    ~(uint64_t)(MINECRAFT_RENDER_PACKET_ALIGNMENT - 1u);
+            if (aligned_size != header->packet_size) {
+                return reject(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            }
+            if (sink->compile_pipeline == NULL) {
+                return reject(state, MINECRAFT_RENDER_UNSUPPORTED_COMMAND);
+            }
+            MinecraftRenderPipelineAttribute attributes[MINECRAFT_RENDER_MAX_PIPELINE_ATTRIBUTES];
+            const uint8_t *attribute_bytes = payload + 36;
+            for (uint32_t index = 0; index < attribute_count; index++) {
+                const uint8_t *attribute = attribute_bytes + index * 12u;
+                attributes[index].location = read_u32_le(attribute);
+                attributes[index].offset = read_u32_le(attribute + 4);
+                attributes[index].format = read_u32_le(attribute + 8);
+            }
+            const uint8_t *strings = attribute_bytes + attribute_count * 12u;
+            MinecraftRenderCompiledPipeline pipeline = {
+                .pipeline_id = read_u32_le(payload),
+                .family = read_u32_le(payload + 4),
+                .topology = read_u32_le(payload + 8),
+                .blend = read_u32_le(payload + 12),
+                .vertex_stride = read_u32_le(payload + 16),
+                .attribute_count = attribute_count,
+                .attributes = attributes,
+                .location = strings,
+                .location_length = location_length,
+                .vertex_shader = strings + location_length,
+                .vertex_shader_length = vertex_shader_length,
+                .fragment_shader = strings + location_length + vertex_shader_length,
+                .fragment_shader_length = fragment_shader_length,
+            };
+            return sink->compile_pipeline(state->user_data, &pipeline) ||
+                   reject(state, MINECRAFT_RENDER_VISITOR_REJECTED);
+        }
+
+        case MINECRAFT_RENDER_SET_UNIFORM_BUFFER: {
+            if (!has_trailing_name(header, packet_bytes, 32u, MINECRAFT_RENDER_MAX_UNIFORM_NAME_BYTES)) {
+                return reject(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            }
+            if (sink->set_uniform_buffer == NULL) {
+                return reject(state, MINECRAFT_RENDER_UNSUPPORTED_COMMAND);
+            }
+            uint32_t name_length = read_u32_le(payload);
+            MinecraftRenderUniformBufferBinding binding = {
+                .name = payload + 24,
+                .name_length = name_length,
+                .buffer_id = read_u32_le(payload + 4),
+                .offset = read_u64_le(payload + 8),
+                .length = read_u64_le(payload + 16),
+            };
+            return sink->set_uniform_buffer(state->user_data, &binding) ||
+                   reject(state, MINECRAFT_RENDER_VISITOR_REJECTED);
+        }
+
+        case MINECRAFT_RENDER_SET_TEXTURE_SAMPLER: {
+            if (!has_trailing_name(header, packet_bytes, 40u, MINECRAFT_RENDER_MAX_UNIFORM_NAME_BYTES)) {
+                return reject(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            }
+            if (sink->set_texture_sampler == NULL) {
+                return reject(state, MINECRAFT_RENDER_UNSUPPORTED_COMMAND);
+            }
+            uint32_t name_length = read_u32_le(payload);
+            MinecraftRenderTextureSamplerBinding binding = {
+                .name = payload + 32,
+                .name_length = name_length,
+                .texture_id = read_u32_le(payload + 4),
+                .sampler_id = read_u32_le(payload + 8),
+                .base_mip = read_u32_le(payload + 12),
+                .min_filter = read_u32_le(payload + 16),
+                .mag_filter = read_u32_le(payload + 20),
+                .address_u = read_u32_le(payload + 24),
+                .address_v = read_u32_le(payload + 28),
+            };
+            return sink->set_texture_sampler(state->user_data, &binding) ||
+                   reject(state, MINECRAFT_RENDER_VISITOR_REJECTED);
+        }
 
         case MINECRAFT_RENDER_SET_SCISSOR:
             if (!has_exact_size(header, 24u)) {

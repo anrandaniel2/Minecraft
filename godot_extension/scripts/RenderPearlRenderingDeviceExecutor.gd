@@ -1,18 +1,26 @@
-## Godot-owned GPU resource uploader for decoded RenderPearl resource handles.
+## Godot-owned GPU resource uploader and GUI draw executor.
 ##
 ## Java never imports this class. The GDExtension owns the Java-to-native
-## mailbox and exposes only validated metadata/retained byte ranges; this
-## adapter allocates and uploads matching RenderingDevice resources. GPU calls
-## run on Godot's render thread. Pipeline, pass, bindings, and draw-list
-## execution remain separate backend slices.
+## mailbox and exposes only validated metadata/retained byte ranges. This
+## adapter uploads those resources and replays Java GuiRenderer draws into the
+## same offscreen target. It does not rebuild menus, HUD, or text as Godot
+## controls. GPU calls run on Godot's render thread.
 class_name RenderPearlRenderingDeviceExecutor
 extends Node
 
 signal color_target_presented(texture: Texture2DRD, size: Vector2i)
+signal java_gui_presented
+
+const GuiDrawListScript = preload("res://scripts/RenderPearlGuiDrawList.gd")
 
 const BUFFER_ID := 0
 const BUFFER_SIZE := 1
 const BUFFER_REVISION := 2
+const BUFFER_USAGE := 3
+
+const USAGE_VERTEX := 32
+const USAGE_INDEX := 64
+const USAGE_UNIFORM := 128
 
 const TEXTURE_ID := 0
 const TEXTURE_USAGE := 1
@@ -31,6 +39,7 @@ const PASS_CLEAR_RED_BITS := 4
 const PASS_CLEAR_GREEN_BITS := 5
 const PASS_CLEAR_BLUE_BITS := 6
 const PASS_CLEAR_ALPHA_BITS := 7
+const PASS_DRAW_START := 8
 
 # GDExtension transfer requests are capped in native code too. Keeping chunks
 # bounded avoids one untrusted mailbox packet allocating an unbounded Variant.
@@ -42,10 +51,14 @@ const RENDERPEARL_RGBA8_UNORM := 6
 var _rendering_device_available := false
 var _submitted_buffer_sizes: Dictionary = {}
 var _submitted_buffer_revisions: Dictionary = {}
+var _submitted_buffer_usages: Dictionary = {}
 var _submitted_texture_signatures: Dictionary = {}
 var _submitted_texture_revisions: Dictionary = {}
 var _gpu_buffers: Dictionary = {}
 var _gpu_buffer_sizes: Dictionary = {}
+var _gpu_buffer_usages: Dictionary = {}
+var _gui_draws: RefCounted = GuiDrawListScript.new()
+var java_gui_draw_count := 0
 var _gpu_textures: Dictionary = {}
 var _gpu_texture_signatures: Dictionary = {}
 var _gpu_framebuffers: Dictionary = {}
@@ -92,9 +105,17 @@ func _collect_snapshot(native_bridge: Object) -> Dictionary:
 	var buffers: Array = _collect_buffers(native_bridge)
 	var textures: Array = _collect_textures(native_bridge)
 	var render_pass := _collect_pass(native_bridge)
-	if buffers.is_empty() and textures.is_empty() and render_pass.is_empty():
+	var frame_passes: Array = _collect_frame_passes(native_bridge)
+	var draws: Array = _collect_draws(native_bridge)
+	if buffers.is_empty() and textures.is_empty() and render_pass.is_empty() and draws.is_empty():
 		return {}
-	return {"buffers": buffers, "textures": textures, "pass": render_pass}
+	return {
+		"buffers": buffers,
+		"textures": textures,
+		"pass": render_pass,
+		"passes": frame_passes,
+		"draws": draws,
+	}
 
 
 func _collect_buffers(native_bridge: Object) -> Array:
@@ -104,10 +125,12 @@ func _collect_buffers(native_bridge: Object) -> Array:
 		var resource_id: int = native_bridge.call(&"get_render_buffer_attribute", index, BUFFER_ID)
 		var size_bytes: int = native_bridge.call(&"get_render_buffer_attribute", index, BUFFER_SIZE)
 		var revision: int = native_bridge.call(&"get_render_buffer_attribute", index, BUFFER_REVISION)
+		var usage: int = native_bridge.call(&"get_render_buffer_attribute", index, BUFFER_USAGE)
 		if resource_id <= 0 or size_bytes <= 0 or revision <= 0:
 			continue
 		if _submitted_buffer_sizes.get(resource_id, -1) == size_bytes \
-				and _submitted_buffer_revisions.get(resource_id, -1) == revision:
+				and _submitted_buffer_revisions.get(resource_id, -1) == revision \
+				and _submitted_buffer_usages.get(resource_id, -1) == usage:
 			continue
 		var bytes := _read_buffer_bytes(native_bridge, resource_id, size_bytes)
 		if bytes.size() != size_bytes:
@@ -115,7 +138,13 @@ func _collect_buffers(native_bridge: Object) -> Array:
 			continue
 		_submitted_buffer_sizes[resource_id] = size_bytes
 		_submitted_buffer_revisions[resource_id] = revision
-		uploads.append({"id": resource_id, "size": size_bytes, "bytes": bytes})
+		_submitted_buffer_usages[resource_id] = usage
+		uploads.append({
+			"id": resource_id,
+			"size": size_bytes,
+			"usage": usage,
+			"bytes": bytes,
+		})
 	return uploads
 
 
@@ -209,6 +238,126 @@ func _read_texture_layers(
 	return layers
 
 
+func _collect_frame_passes(native_bridge: Object) -> Array:
+	if not native_bridge.has_method(&"get_render_frame_pass_count"):
+		return []
+	var passes: Array = []
+	var count: int = native_bridge.call(&"get_render_frame_pass_count")
+	for index in range(count):
+		var color_id: int = native_bridge.call(
+				&"get_render_frame_pass_attribute", index, PASS_COLOR_TEXTURE_ID
+		)
+		if color_id <= 0:
+			continue
+		var size := _texture_size(native_bridge, color_id)
+		var clear_alpha := _bits_to_float(
+			native_bridge.call(&"get_render_frame_pass_attribute", index, PASS_CLEAR_ALPHA_BITS)
+		)
+		passes.append({
+			"color_id": color_id,
+			"depth_id": native_bridge.call(&"get_render_frame_pass_attribute", index, PASS_DEPTH_TEXTURE_ID),
+			"draw_count": native_bridge.call(&"get_render_frame_pass_attribute", index, PASS_DRAW_COUNT),
+			"draw_start": native_bridge.call(&"get_render_frame_pass_attribute", index, PASS_DRAW_START),
+			"size": size,
+			"clear_enabled": clear_alpha >= 0.0,
+			"clear": Color(
+				_bits_to_float(native_bridge.call(&"get_render_frame_pass_attribute", index, PASS_CLEAR_RED_BITS)),
+				_bits_to_float(native_bridge.call(&"get_render_frame_pass_attribute", index, PASS_CLEAR_GREEN_BITS)),
+				_bits_to_float(native_bridge.call(&"get_render_frame_pass_attribute", index, PASS_CLEAR_BLUE_BITS)),
+				clampf(clear_alpha, 0.0, 1.0)
+			),
+		})
+	return passes
+
+
+func _collect_draws(native_bridge: Object) -> Array:
+	if not native_bridge.has_method(&"get_render_draw_count"):
+		return []
+	var draws: Array = []
+	var count: int = native_bridge.call(&"get_render_draw_count")
+	for index in range(count):
+		var pipeline_id: int = native_bridge.call(&"get_render_draw_attribute", index, 1)
+		var family: int = native_bridge.call(&"get_render_draw_attribute", index, 2)
+		var draw := {
+			"family": family,
+			"blend": native_bridge.call(&"get_render_draw_attribute", index, 3),
+			"topology": native_bridge.call(&"get_render_draw_attribute", index, 4),
+			"kind": native_bridge.call(&"get_render_draw_attribute", index, 5),
+			"count": native_bridge.call(&"get_render_draw_attribute", index, 6),
+			"instance_count": native_bridge.call(&"get_render_draw_attribute", index, 7),
+			"first": native_bridge.call(&"get_render_draw_attribute", index, 8),
+			"base_vertex": native_bridge.call(&"get_render_draw_attribute", index, 9),
+			"vertex_buffer_id": native_bridge.call(&"get_render_draw_attribute", index, 11),
+			"vertex_stride": native_bridge.call(&"get_render_draw_attribute", index, 12),
+			"vertex_offset": native_bridge.call(&"get_render_draw_attribute", index, 13),
+			"vertex_length": native_bridge.call(&"get_render_draw_attribute", index, 14),
+			"index_buffer_id": native_bridge.call(&"get_render_draw_attribute", index, 15),
+			"index_type": native_bridge.call(&"get_render_draw_attribute", index, 16),
+			"index_offset": native_bridge.call(&"get_render_draw_attribute", index, 17),
+			"scissor_x": native_bridge.call(&"get_render_draw_attribute", index, 19),
+			"scissor_y": native_bridge.call(&"get_render_draw_attribute", index, 20),
+			"scissor_width": native_bridge.call(&"get_render_draw_attribute", index, 21),
+			"scissor_height": native_bridge.call(&"get_render_draw_attribute", index, 22),
+			"sampler0_texture_id": native_bridge.call(&"get_render_draw_attribute", index, 29),
+			"sampler0_base_mip": native_bridge.call(&"get_render_draw_attribute", index, 30),
+			"sampler0_min_filter": native_bridge.call(&"get_render_draw_attribute", index, 31),
+			"sampler0_mag_filter": native_bridge.call(&"get_render_draw_attribute", index, 32),
+			"sampler0_address_u": native_bridge.call(&"get_render_draw_attribute", index, 33),
+			"sampler0_address_v": native_bridge.call(&"get_render_draw_attribute", index, 34),
+			"grayscale": _pipeline_flag(native_bridge, pipeline_id, 1),
+			"attributes": _collect_pipeline_attributes(native_bridge, pipeline_id),
+			"dynamic_bytes": _read_bound_uniform(native_bridge, index, 23, 24, 25),
+			"projection_bytes": _read_bound_uniform(native_bridge, index, 26, 27, 28),
+			"target_size": _texture_size(
+					native_bridge, native_bridge.call(&"get_render_draw_attribute", index, 0)
+			),
+		}
+		draws.append(draw)
+	return draws
+
+
+func _pipeline_flag(native_bridge: Object, pipeline_id: int, bit: int) -> bool:
+	if pipeline_id <= 0 or not native_bridge.has_method(&"get_render_pipeline_attribute"):
+		return false
+	# Attribute 5 is the native shader-identifier flag word. Bit 0 is grayscale.
+	var flags: int = native_bridge.call(&"get_render_pipeline_attribute", pipeline_id, 5)
+	return (flags & bit) != 0
+
+
+func _collect_pipeline_attributes(native_bridge: Object, pipeline_id: int) -> Array:
+	if pipeline_id <= 0 or not native_bridge.has_method(&"get_render_pipeline_attribute"):
+		return []
+	var count: int = native_bridge.call(&"get_render_pipeline_attribute", pipeline_id, 4)
+	var attributes: Array = []
+	for index in range(count):
+		attributes.append({
+			"location": native_bridge.call(&"get_render_pipeline_vertex_attribute", pipeline_id, index, 0),
+			"offset": native_bridge.call(&"get_render_pipeline_vertex_attribute", pipeline_id, index, 1),
+			"format": native_bridge.call(&"get_render_pipeline_vertex_attribute", pipeline_id, index, 2),
+		})
+	return attributes
+
+
+func _read_bound_uniform(
+		native_bridge: Object,
+		draw_index: int,
+		id_attribute: int,
+		offset_attribute: int,
+		length_attribute: int
+) -> PackedByteArray:
+	var buffer_id: int = native_bridge.call(&"get_render_draw_attribute", draw_index, id_attribute)
+	var length: int = native_bridge.call(&"get_render_draw_attribute", draw_index, length_attribute)
+	if buffer_id <= 0 or length <= 0:
+		return PackedByteArray()
+	var offset: int = native_bridge.call(&"get_render_draw_attribute", draw_index, offset_attribute)
+	# GUI dynamic/projection blocks are at most a few std140 matrices.
+	var request := mini(length, 256)
+	var bytes = native_bridge.call(&"get_render_buffer_bytes", buffer_id, offset, request)
+	if typeof(bytes) != TYPE_PACKED_BYTE_ARRAY:
+		return PackedByteArray()
+	return bytes
+
+
 func _collect_pass(native_bridge: Object) -> Dictionary:
 	var revision: int = native_bridge.call(&"get_render_pass_attribute", PASS_REVISION)
 	var color_id: int = native_bridge.call(&"get_render_pass_attribute", PASS_COLOR_TEXTURE_ID)
@@ -218,17 +367,19 @@ func _collect_pass(native_bridge: Object) -> Dictionary:
 	if size == Vector2i.ZERO:
 		return {}
 	_submitted_pass_revision = revision
+	var clear_alpha := _bits_to_float(native_bridge.call(&"get_render_pass_attribute", PASS_CLEAR_ALPHA_BITS))
 	return {
 		"revision": revision,
 		"color_id": color_id,
 		"depth_id": native_bridge.call(&"get_render_pass_attribute", PASS_DEPTH_TEXTURE_ID),
 		"draw_count": native_bridge.call(&"get_render_pass_attribute", PASS_DRAW_COUNT),
 		"size": size,
+		"clear_enabled": clear_alpha >= 0.0,
 		"clear": Color(
 			_bits_to_float(native_bridge.call(&"get_render_pass_attribute", PASS_CLEAR_RED_BITS)),
 			_bits_to_float(native_bridge.call(&"get_render_pass_attribute", PASS_CLEAR_GREEN_BITS)),
 			_bits_to_float(native_bridge.call(&"get_render_pass_attribute", PASS_CLEAR_BLUE_BITS)),
-			_bits_to_float(native_bridge.call(&"get_render_pass_attribute", PASS_CLEAR_ALPHA_BITS))
+			clampf(clear_alpha, 0.0, 1.0)
 		),
 	}
 
@@ -257,36 +408,62 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 	if rendering_device == null:
 		return
 	for buffer_variant in snapshot.get("buffers", []):
-		_apply_buffer(rendering_device, buffer_variant)
+		_apply_buffer(rendering_device, buffer_variant, snapshot)
 	for texture_variant in snapshot.get("textures", []):
 		_apply_texture(rendering_device, texture_variant)
+	var passes: Array = snapshot.get("passes", [])
+	var draws: Array = snapshot.get("draws", [])
+	if not passes.is_empty():
+		var result: Dictionary = _gui_draws.execute(
+				rendering_device, _gpu_buffers, _gpu_textures, _gpu_framebuffers, passes, draws
+		)
+		var completed: int = result.get("draws", 0)
+		if completed > 0:
+			java_gui_draw_count = completed
+			call_deferred("_emit_java_gui_presented")
+		# Blur pyramids are smaller than the main GUI target. Present the last
+		# largest target so an intermediate pass cannot cover the Java UI.
+		var best: Dictionary = {}
+		var best_area := 0
+		for presented_variant in result.get("presented", []):
+			var presented: Dictionary = presented_variant
+			var size: Vector2i = presented["size"]
+			var area := size.x * size.y
+			if area >= best_area:
+				best = presented
+				best_area = area
+		if not best.is_empty():
+			_present_color_target(best["rid"], best["size"])
+		return
 	var render_pass: Dictionary = snapshot.get("pass", {})
 	if not render_pass.is_empty():
 		_clear_color_target(rendering_device, render_pass)
 
 
-func _apply_buffer(rendering_device: RenderingDevice, buffer_upload: Dictionary) -> void:
+func _apply_buffer(rendering_device: RenderingDevice, buffer_upload: Dictionary, snapshot: Dictionary) -> void:
 	var resource_id: int = buffer_upload["id"]
 	var size_bytes: int = buffer_upload["size"]
+	var usage: int = buffer_upload.get("usage", 0)
 	var bytes: PackedByteArray = buffer_upload["bytes"]
 	var existing: RID = _gpu_buffers.get(resource_id, RID())
-	if existing.is_valid() and _gpu_buffer_sizes.get(resource_id, -1) == size_bytes:
+	if existing.is_valid() and _gpu_buffer_sizes.get(resource_id, -1) == size_bytes \
+			and _gpu_buffer_usages.get(resource_id, -1) == usage:
 		var update_result := rendering_device.buffer_update(existing, 0, size_bytes, bytes)
 		if update_result != OK:
 			push_warning("RenderPearl buffer %d upload failed: %d" % [resource_id, update_result])
 		return
 	if existing.is_valid():
 		rendering_device.free_rid(existing)
-	# Usage-specific buffer types belong with pipeline/binding realization.
-	# Storage buffers can retain the exact bytes until that slice exists.
-	var created := rendering_device.storage_buffer_create(size_bytes, bytes)
+	var created := _create_buffer(rendering_device, usage, size_bytes, bytes, resource_id, snapshot)
 	if not created.is_valid():
 		push_warning("RenderPearl buffer %d allocation failed" % resource_id)
 		_gpu_buffers.erase(resource_id)
 		_gpu_buffer_sizes.erase(resource_id)
+		_gpu_buffer_usages.erase(resource_id)
 		return
 	_gpu_buffers[resource_id] = created
 	_gpu_buffer_sizes[resource_id] = size_bytes
+	_gpu_buffer_usages[resource_id] = usage
 
 
 func _apply_texture(rendering_device: RenderingDevice, texture_upload: Dictionary) -> void:
@@ -349,10 +526,11 @@ func _clear_color_target(rendering_device: RenderingDevice, render_pass: Diction
 			push_warning("RenderPearl color target %d framebuffer allocation failed" % color_id)
 			return
 		_gpu_framebuffers[color_id] = framebuffer
+	var clear_enabled: bool = render_pass.get("clear_enabled", true)
 	var draw_list := rendering_device.draw_list_begin(
 		framebuffer,
-		RenderingDevice.DRAW_CLEAR_COLOR_0,
-		PackedColorArray([render_pass["clear"]]),
+		RenderingDevice.DRAW_CLEAR_COLOR_0 if clear_enabled else 0,
+		PackedColorArray([render_pass["clear"]]) if clear_enabled else PackedColorArray(),
 		1.0,
 		0,
 		Rect2()
@@ -375,6 +553,10 @@ func _present_color_target(color_texture: RID, size: Vector2i) -> void:
 	call_deferred("_emit_color_target", color_texture, size)
 
 
+func _emit_java_gui_presented() -> void:
+	java_gui_presented.emit()
+
+
 func _emit_color_target(color_texture: RID, size: Vector2i) -> void:
 	if _presented_texture == null:
 		_presented_texture = Texture2DRD.new()
@@ -394,9 +576,40 @@ func _free_gpu_resources() -> void:
 		rendering_device.free_rid(rid_variant)
 	_gpu_buffers.clear()
 	_gpu_buffer_sizes.clear()
+	_gpu_buffer_usages.clear()
 	_gpu_textures.clear()
 	_gpu_texture_signatures.clear()
 	_gpu_framebuffers.clear()
+
+
+func _create_buffer(
+		rendering_device: RenderingDevice,
+		usage: int,
+		size_bytes: int,
+		bytes: PackedByteArray,
+		resource_id: int,
+		snapshot: Dictionary
+) -> RID:
+	if usage & USAGE_INDEX != 0 and usage & USAGE_VERTEX == 0:
+		var index_type := _index_type_for(snapshot, resource_id)
+		var stride := 4 if index_type == RenderingDevice.INDEX_BUFFER_FORMAT_UINT32 else 2
+		if size_bytes % stride != 0:
+			push_warning("RenderPearl index buffer %d size is not aligned" % resource_id)
+			return RID()
+		return rendering_device.index_buffer_create(size_bytes // stride, index_type, bytes, false, 0)
+	if usage & USAGE_VERTEX != 0:
+		return rendering_device.vertex_buffer_create(size_bytes, bytes)
+	if usage & USAGE_UNIFORM != 0:
+		return rendering_device.uniform_buffer_create(size_bytes, bytes)
+	return rendering_device.storage_buffer_create(size_bytes, bytes)
+
+
+func _index_type_for(snapshot: Dictionary, buffer_id: int) -> int:
+	for draw_variant in snapshot.get("draws", []):
+		var draw: Dictionary = draw_variant
+		if int(draw.get("index_buffer_id", 0)) == buffer_id:
+			return int(draw.get("index_type", 0))
+	return RenderingDevice.INDEX_BUFFER_FORMAT_UINT16
 
 
 func _make_texture_format(

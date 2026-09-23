@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       publish_linux_binary:
-        description: 'Commit the verified Linux x86_64 .so files to this branch'
+        description: 'Commit the verified Linux x86_64 extracted-client libraries to this branch'
         required: true
-        default: false
+        default: true
         type: boolean
   push:
     paths:
-      - 'decompiled_sample/net/minecraft/client/Minecraft.java'
       - 'godot_extension/build.sh'
       - 'godot_extension/include/**'
       - 'godot_extension/java/**'
+      - 'godot_extension/native-image/**'
       - 'godot_extension/src/**'
       - 'godot_extension/tests/**'
       - 'godot_extension/minecraft.gdextension'
@@ -21,34 +21,137 @@ on:
       - 'godot_extension/scenes/**'
       - 'godot_extension/scripts/**'
       - 'extracted/assets/**'
+      - 'extracted/net/minecraft/client/**'
+      - 'full_client_port/renderpearl_backend/java/**'
       - 'tools/stage_minecraft_assets.py'
       - 'tools/verify_minecraft_resource_pack.py'
+      - 'tools/redirect_graphics_backend.py'
+      - 'tools/fetch_minecraft_libraries.py'
       - '.github/workflows/build-godot-extension.yml'
 
 permissions:
   contents: write
 
+concurrency:
+  group: extracted-client-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux-x86_64:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     steps:
       - name: Check out the current branch
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install GraalVM Community with Native Image
+      - name: Add swap for the extracted-client native image
+        run: |
+          set -euo pipefail
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
+      - name: Install GraalVM JDK 25 with Native Image
         uses: graalvm/setup-graalvm@v1
         with:
-          distribution: graalvm-community
-          java-version: '21'
+          distribution: graalvm
+          java-version: '25'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build shared libraries
+      - name: Download extracted-client runtime libraries
         run: |
+          set -euo pipefail
           java -version
           native-image --version
+          python3 tools/fetch_minecraft_libraries.py
+
+      - name: Collect native-image metadata from a short JVM probe
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          mkdir -p godot_extension/build/native-image-config
+          PROBE_CP="godot_extension/build/classes:extracted:$(paste -sd: godot_extension/native-image/libraries/classpath.txt)"
+          # The probe compiles nothing by itself. build.sh is the image build.
+          # Run the already-extracted classes only if a previous class output
+          # exists; otherwise compile just the launcher for the agent.
+          mkdir -p godot_extension/build/probe-classes godot_extension/build/overlay
+          python3 tools/redirect_graphics_backend.py \
+            --output godot_extension/build/overlay/net/minecraft/client/PreferredGraphicsApi.class
+          javac -d godot_extension/build/probe-classes \
+            -cp "godot_extension/build/overlay:extracted:$(paste -sd: godot_extension/native-image/libraries/classpath.txt)" \
+            godot_extension/java/ExtractedClientLauncher.java \
+            godot_extension/java/ExtractedClientInput.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandProtocol.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandWriter.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandTransport.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderResourceRegistry.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuBuffer.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuTexture.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuTextureView.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuSampler.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCompiledRenderPipeline.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderPass.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCommandEncoder.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuSurface.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuDevice.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuBackend.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotNativeRenderCommandTransport.java
+          export MINECRAFT_GODOT_NATIVE_DIR="$PWD/godot_extension/bin/natives"
+          export LD_LIBRARY_PATH="$MINECRAFT_GODOT_NATIVE_DIR:${LD_LIBRARY_PATH:-}"
+          set +e
+          timeout 90 java \
+            -agentlib:native-image-agent=config-output-dir=godot_extension/build/native-image-config \
+            -Dminecraft.godot.probeSeconds=20 \
+            -Dminecraft.godot.nativeDir="$MINECRAFT_GODOT_NATIVE_DIR" \
+            -cp "godot_extension/build/overlay:godot_extension/build/probe-classes:extracted:$(paste -sd: godot_extension/native-image/libraries/classpath.txt)" \
+            net.minecraft.godot.ExtractedClientLauncher
+          echo "JVM probe exit: $?"
+          set -e
+          find godot_extension/build/native-image-config -type f -print
+
+      - name: Build extracted-client shared libraries
+        run: |
+          set -euo pipefail
+          chmod +x godot_extension/build.sh
           ./godot_extension/build.sh
+
+      - name: Reject a sample-client image
+        run: |
+          set -euo pipefail
+          python3 - << 'PY'
+          from pathlib import Path
+          data = Path("godot_extension/bin/libminecraft_java.so").read_bytes()
+          required = (
+              b"ExtractedClientLauncher",
+              b"GodotGpuBackend",
+              b"net.minecraft.client.main.Main",
+          )
+          missing = [item.decode() for item in required if item not in data]
+          if missing:
+              raise SystemExit("extracted client markers missing: " + ", ".join(missing))
+          if b"touch input surface ready" in data:
+              raise SystemExit("sample client banner is still in libminecraft_java.so")
+          print(f"libminecraft_java.so is the extracted client ({len(data)} bytes)")
+          PY
+          nm -D --defined-only godot_extension/bin/libminecraft_java.so | grep -q ' minecraft_bootstrap$'
+          nm -D --defined-only godot_extension/bin/libminecraft_java.so | grep -q ' minecraft_client_running$'
+
+      - name: Upload Linux GDExtension bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-godot-extracted-client-linux-x86_64
+          path: |
+            godot_extension/bin/libminecraft_godot.so
+            godot_extension/bin/libminecraft_java.so
+            godot_extension/bin/libSDL3.so
+            godot_extension/bin/natives/
+            godot_extension/minecraft.gdextension
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Test neutral RenderPearl command ABI and typed executor
         run: |
@@ -84,6 +187,17 @@ jobs:
           readelf -d godot_extension/bin/libminecraft_godot.so | grep -q 'libminecraft_java.so'
           ldd godot_extension/bin/libminecraft_godot.so
 
+      - name: Boot the extracted client inside the native image
+        run: |
+          set -euo pipefail
+          gcc -std=c11 -O2 -Wall -Wextra -Werror \
+            -Igodot_extension/include \
+            godot_extension/tests/extracted_client_boot_test.c \
+            -Lgodot_extension/bin -lminecraft_java -ldl -pthread \
+            -o "$RUNNER_TEMP/extracted_client_boot_test"
+          export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
+          timeout 200 "$RUNNER_TEMP/extracted_client_boot_test" "$PWD/godot_extension/bin/natives"
+
       - name: Stage complete Minecraft client resource pack for Godot
         run: python3 tools/stage_minecraft_assets.py
 
@@ -101,29 +215,36 @@ jobs:
           GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_*' -print -quit)"
           test -n "$GODOT_BIN"
           chmod +x "$GODOT_BIN"
-          timeout 30 "$GODOT_BIN" --headless --path godot_extension --quit-after 5
+          export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
+          timeout 180 "$GODOT_BIN" --headless --path godot_extension --quit-after 5
 
-      - name: Upload Linux GDExtension bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: minecraft-godot-graalvm-linux-x86_64
-          path: |
-            godot_extension/bin/libminecraft_godot.so
-            godot_extension/bin/libminecraft_java.so
-            godot_extension/minecraft.gdextension
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Publish verified libraries to this branch
+      - name: Publish verified extracted-client libraries to this branch
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_linux_binary)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add godot_extension/bin/libminecraft_godot.so godot_extension/bin/libminecraft_java.so
+          JAVA_SIZE="$(stat -c%s godot_extension/bin/libminecraft_java.so)"
+          echo "extracted libminecraft_java.so is ${JAVA_SIZE} bytes"
+          if [[ "$JAVA_SIZE" -gt 95000000 ]]; then
+            echo "Native image exceeds GitHub's 100 MB file limit; publishing a release asset."
+            TAG="extracted-client-linux-${GITHUB_SHA}"
+            gh release delete "$TAG" --yes || true
+            git push origin ":refs/tags/${TAG}" || true
+            gh release create "$TAG" \
+              godot_extension/bin/libminecraft_java.so \
+              godot_extension/bin/libminecraft_godot.so \
+              --target "$GITHUB_REF_NAME" \
+              --title "Extracted Minecraft 26.3 native library ${GITHUB_SHA}" \
+              --notes "GraalVM native image of the extracted 26.3 client. The file is too large to commit."
+            exit 0
+          fi
+          git add godot_extension/bin/libminecraft_godot.so godot_extension/bin/libminecraft_java.so godot_extension/bin/natives
           if git diff --cached --quiet; then
             echo 'No binary changes to publish.'
             exit 0
           fi
-          git commit -m 'Build Linux GraalVM Godot extension'
+          git commit -m 'Build extracted Minecraft 26.3 GraalVM library'
           git push origin "HEAD:${GITHUB_REF_NAME}"

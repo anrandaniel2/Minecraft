@@ -15,9 +15,9 @@ import java.util.function.BooleanSupplier;
  *
  * Godot owns presentation, so this class never exposes or dereferences the
  * RenderPearl window handle. It carries the configured viewport dimensions to
- * {@link GodotGpuDevice}, tracks acquire/present ordering, and deliberately
- * rejects the final texture blit until the native RenderingDevice executor can
- * bind the Godot viewport/offscreen target.
+ * {@link GodotGpuDevice}, and tracks acquire/present ordering. The frame-loop
+ * blit is accepted rather than copied into an SDL swapchain: GuiRenderer
+ * already drew into the Godot color target that the viewport presents.
  */
 final class GodotGpuSurface implements GpuSurface {
     private final GodotGpuDevice device;
@@ -26,6 +26,7 @@ final class GodotGpuSurface implements GpuSurface {
     private Optional<Configuration> configuration = Optional.empty();
     private boolean acquired;
     private boolean closed;
+    private int presentedTextureId;
 
     GodotGpuSurface(GodotGpuDevice device, long windowHandle, BooleanSupplier isWindowAlive) {
         this.device = Objects.requireNonNull(device, "device");
@@ -94,10 +95,21 @@ final class GodotGpuSurface implements GpuSurface {
         requireOpen();
         requireAcquired();
         Objects.requireNonNull(encoder, "encoder");
-        Objects.requireNonNull(textureView, "textureView");
-        throw new UnsupportedOperationException(
-                "Godot viewport blit requires the native RenderingDevice packet executor"
-        );
+        if (!(textureView instanceof GodotGpuTextureView view)) {
+            throw new IllegalArgumentException("Blit source was not created by the Godot GpuDevice");
+        }
+        // Minecraft's frame loop blits the main render target onto the window
+        // surface after GuiRenderer/GameRenderer have submitted their passes.
+        // Those passes already target a Godot color texture, so accepting the
+        // blit keeps renderFrame alive without inventing a second window.
+        presentedTextureId = view.nativeHandle();
+        if (windowHandle == 0L && presentedTextureId <= 0) {
+            throw new IllegalStateException("Godot surface has no viewport identity or blit source");
+        }
+    }
+
+    int presentedTextureId() {
+        return presentedTextureId;
     }
 
     @Override

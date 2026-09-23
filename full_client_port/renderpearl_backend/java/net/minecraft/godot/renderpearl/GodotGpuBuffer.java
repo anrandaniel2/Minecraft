@@ -5,6 +5,8 @@ import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -22,6 +24,7 @@ final class GodotGpuBuffer implements GpuBuffer {
     private final long size;
     private final ByteBuffer staging;
     private byte[] initialContents;
+    private final List<long[]> dirtyRanges = new ArrayList<>();
 
     GodotGpuBuffer(GodotRenderResourceRegistry registry, int usage, long size) {
         this.registry = Objects.requireNonNull(registry, "registry");
@@ -57,6 +60,42 @@ final class GodotGpuBuffer implements GpuBuffer {
         if (initialContents != null && initialContents.length != 0) {
             commandWriter.writeBuffer(nativeHandle(), 0L, initialContents);
         }
+        // Mapped GUI/world uploads often never submit their own encoder.
+        // The next submitted frame's prelude is what actually reaches native code.
+        flushDirty(commandWriter);
+    }
+
+    byte[] copyRange(long offset, int length) {
+        requireOpen();
+        if (offset < 0 || length < 0 || offset > size - length) {
+            throw new IllegalArgumentException("Read range lies outside buffer bounds");
+        }
+        ByteBuffer source = staging.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+        source.position((int) offset);
+        byte[] bytes = new byte[length];
+        source.get(bytes);
+        return bytes;
+    }
+
+    void clearDirty(long offset, long length) {
+        dirtyRanges.removeIf(range -> range[0] == offset && range[1] == length);
+    }
+
+    private void markDirty(long offset, long length) {
+        if (length > 0) {
+            dirtyRanges.add(new long[] {offset, length});
+        }
+    }
+
+    private void flushDirty(RenderCommandWriter writer) {
+        if (dirtyRanges.isEmpty()) {
+            return;
+        }
+        List<long[]> pending = List.copyOf(dirtyRanges);
+        dirtyRanges.clear();
+        for (long[] range : pending) {
+            writer.writeBuffer(nativeHandle(), range[0], copyRange(range[0], (int) range[1]));
+        }
     }
 
     void writeFrom(long offset, ByteBuffer source) {
@@ -70,6 +109,7 @@ final class GodotGpuBuffer implements GpuBuffer {
         ByteBuffer destination = staging.duplicate().order(ByteOrder.LITTLE_ENDIAN);
         destination.position((int) offset);
         destination.put(input);
+        markDirty(offset, length);
     }
 
     @Override
