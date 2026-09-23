@@ -73,9 +73,12 @@ jobs:
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandTransport.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderPass.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCommandEncoder.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuSurface.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuDevice.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuResourceAdapterTest.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderPassTest.java \
-            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCommandEncoderTest.java
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCommandEncoderTest.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuDeviceTest.java
           ADAPTER_TEST_CLASSPATH="build/renderpearl-resource-adapters:build/renderpearl-command-protocol:$RENDERPEARL_CLASSPATH"
           java -cp "$ADAPTER_TEST_CLASSPATH" \
             net.minecraft.godot.renderpearl.GodotGpuResourceAdapterTest
@@ -83,6 +86,8 @@ jobs:
             net.minecraft.godot.renderpearl.GodotRenderPassTest
           java -cp "$ADAPTER_TEST_CLASSPATH" \
             net.minecraft.godot.renderpearl.GodotCommandEncoderTest
+          java -cp "$ADAPTER_TEST_CLASSPATH" \
+            net.minecraft.godot.renderpearl.GodotGpuDeviceTest
 
       - name: Upload full-client port inventory
         uses: actions/upload-artifact@v4
