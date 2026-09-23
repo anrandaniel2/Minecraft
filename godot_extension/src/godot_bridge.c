@@ -280,6 +280,84 @@ static void method_execute_render_mailbox(void *userdata,
     return_int(result, minecraft_render_native_execute_latest(render_native_state));
 }
 
+static void method_get_render_buffer_count(void *userdata, GDExtensionClassInstancePtr instance,
+        const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
+        GDExtensionVariantPtr result, GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    (void)args;
+    if (argument_count != 0) {
+        set_argument_error(error, (int)argument_count, 0);
+        return_int(result, 0);
+        return;
+    }
+    set_call_ok(error);
+    return_int(result, (int64_t)minecraft_render_native_buffer_count(render_native_state));
+}
+
+static void method_get_render_buffer_attribute(void *userdata, GDExtensionClassInstancePtr instance,
+        const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
+        GDExtensionVariantPtr result, GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    if (argument_count != 2) {
+        set_argument_error(error, (int)argument_count, 2);
+        return_int(result, 0);
+        return;
+    }
+    int64_t index = variant_int(args[0]);
+    int64_t attribute = variant_int(args[1]);
+    if (index < 0 || attribute < 0) {
+        set_argument_error(error, index < 0 ? 0 : 1, 0);
+        return_int(result, 0);
+        return;
+    }
+    uint64_t value = attribute == 0
+            ? minecraft_render_native_buffer_id_at(render_native_state, (size_t)index)
+            : minecraft_render_native_buffer_size_at(render_native_state, (size_t)index);
+    set_call_ok(error);
+    return_int(result, (int64_t)value);
+}
+
+static void method_get_render_texture_count(void *userdata, GDExtensionClassInstancePtr instance,
+        const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
+        GDExtensionVariantPtr result, GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    (void)args;
+    if (argument_count != 0) {
+        set_argument_error(error, (int)argument_count, 0);
+        return_int(result, 0);
+        return;
+    }
+    set_call_ok(error);
+    return_int(result, (int64_t)minecraft_render_native_texture_count(render_native_state));
+}
+
+static void method_get_render_texture_attribute(void *userdata, GDExtensionClassInstancePtr instance,
+        const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
+        GDExtensionVariantPtr result, GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    if (argument_count != 2) {
+        set_argument_error(error, (int)argument_count, 2);
+        return_int(result, 0);
+        return;
+    }
+    int64_t index = variant_int(args[0]);
+    int64_t attribute = variant_int(args[1]);
+    if (index < 0 || attribute < 0) {
+        set_argument_error(error, index < 0 ? 0 : 1, 0);
+        return_int(result, 0);
+        return;
+    }
+    uint32_t value = minecraft_render_native_texture_attribute_at(
+            render_native_state, (size_t)index, (uint32_t)attribute
+    );
+    set_call_ok(error);
+    return_int(result, value);
+}
+
 static void method_get_touch_mask(void *userdata, GDExtensionClassInstancePtr instance,
         const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
         GDExtensionVariantPtr result, GDExtensionCallError *error) {
@@ -391,6 +469,53 @@ static void ptrcall_execute_render_mailbox(void *userdata,
     *(int64_t *)result = minecraft_render_native_execute_latest(render_native_state);
 }
 
+static void ptrcall_get_render_buffer_count(void *userdata,
+        GDExtensionClassInstancePtr instance, const GDExtensionConstTypePtr *args,
+        GDExtensionTypePtr result) {
+    (void)userdata;
+    (void)instance;
+    (void)args;
+    *(int64_t *)result = (int64_t)minecraft_render_native_buffer_count(render_native_state);
+}
+
+static void ptrcall_get_render_buffer_attribute(void *userdata,
+        GDExtensionClassInstancePtr instance, const GDExtensionConstTypePtr *args,
+        GDExtensionTypePtr result) {
+    (void)userdata;
+    (void)instance;
+    int64_t index = *(const int64_t *)args[0];
+    int64_t attribute = *(const int64_t *)args[1];
+    if (index < 0 || attribute < 0) {
+        *(int64_t *)result = 0;
+        return;
+    }
+    *(int64_t *)result = attribute == 0
+            ? (int64_t)minecraft_render_native_buffer_id_at(render_native_state, (size_t)index)
+            : (int64_t)minecraft_render_native_buffer_size_at(render_native_state, (size_t)index);
+}
+
+static void ptrcall_get_render_texture_count(void *userdata,
+        GDExtensionClassInstancePtr instance, const GDExtensionConstTypePtr *args,
+        GDExtensionTypePtr result) {
+    (void)userdata;
+    (void)instance;
+    (void)args;
+    *(int64_t *)result = (int64_t)minecraft_render_native_texture_count(render_native_state);
+}
+
+static void ptrcall_get_render_texture_attribute(void *userdata,
+        GDExtensionClassInstancePtr instance, const GDExtensionConstTypePtr *args,
+        GDExtensionTypePtr result) {
+    (void)userdata;
+    (void)instance;
+    int64_t index = *(const int64_t *)args[0];
+    int64_t attribute = *(const int64_t *)args[1];
+    *(int64_t *)result = index < 0 || attribute < 0 ? 0 :
+            (int64_t)minecraft_render_native_texture_attribute_at(
+                    render_native_state, (size_t)index, (uint32_t)attribute
+            );
+}
+
 static void ptrcall_get_touch_mask(void *userdata, GDExtensionClassInstancePtr instance,
         const GDExtensionConstTypePtr *args, GDExtensionTypePtr result) {
     (void)userdata; (void)instance; (void)args;
@@ -474,6 +599,14 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
             ptrcall_submit_render_protocol_smoke_frame, 1);
     register_method("execute_render_mailbox", 0, method_execute_render_mailbox,
             ptrcall_execute_render_mailbox, 1);
+    register_method("get_render_buffer_count", 0, method_get_render_buffer_count,
+            ptrcall_get_render_buffer_count, 1);
+    register_method("get_render_buffer_attribute", 2, method_get_render_buffer_attribute,
+            ptrcall_get_render_buffer_attribute, 1);
+    register_method("get_render_texture_count", 0, method_get_render_texture_count,
+            ptrcall_get_render_texture_count, 1);
+    register_method("get_render_texture_attribute", 2, method_get_render_texture_attribute,
+            ptrcall_get_render_texture_attribute, 1);
     register_method("get_touch_mask", 0, method_get_touch_mask, ptrcall_get_touch_mask, 1);
     register_method("get_active_touch_count", 0, method_get_active_touch_count,
             ptrcall_get_active_touch_count, 1);

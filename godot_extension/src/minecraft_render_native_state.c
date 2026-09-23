@@ -457,6 +457,65 @@ size_t minecraft_render_native_texture_count(const MinecraftRenderNativeState *s
     return state == NULL ? 0 : state->texture_count;
 }
 
+uint32_t minecraft_render_native_buffer_id_at(const MinecraftRenderNativeState *state, size_t index) {
+    if (state == NULL) {
+        return 0;
+    }
+    for (const MinecraftRenderBuffer *buffer = state->buffers; buffer != NULL; buffer = buffer->next) {
+        if (index-- == 0) {
+            return buffer->id;
+        }
+    }
+    return 0;
+}
+
+uint64_t minecraft_render_native_buffer_size_at(const MinecraftRenderNativeState *state, size_t index) {
+    if (state == NULL) {
+        return 0;
+    }
+    for (const MinecraftRenderBuffer *buffer = state->buffers; buffer != NULL; buffer = buffer->next) {
+        if (index-- == 0) {
+            return buffer->size;
+        }
+    }
+    return 0;
+}
+
+uint32_t minecraft_render_native_texture_attribute_at(
+        const MinecraftRenderNativeState *state,
+        size_t index,
+        uint32_t attribute
+) {
+    if (state == NULL) {
+        return 0;
+    }
+    for (const MinecraftRenderTexture *texture = state->textures;
+            texture != NULL; texture = texture->next) {
+        if (index-- != 0) {
+            continue;
+        }
+        switch (attribute) {
+            case MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_ID:
+                return texture->id;
+            case MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_USAGE:
+                return texture->usage;
+            case MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_FORMAT:
+                return texture->format;
+            case MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_WIDTH:
+                return texture->width;
+            case MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_HEIGHT:
+                return texture->height;
+            case MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_DEPTH_OR_LAYERS:
+                return texture->depth_or_layers;
+            case MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_MIP_LEVELS:
+                return texture->mip_levels;
+            default:
+                return 0;
+        }
+    }
+    return 0;
+}
+
 size_t minecraft_render_native_texture_upload_count(
         const MinecraftRenderNativeState *state,
         uint32_t texture_id

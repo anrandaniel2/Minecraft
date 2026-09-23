@@ -117,6 +117,14 @@ int main(void) {
     if (result != 10 || minecraft_render_native_execute_latest(state) != 10 ||
             minecraft_render_native_buffer_count(state) != 1 ||
             minecraft_render_native_texture_count(state) != 1 ||
+            minecraft_render_native_buffer_id_at(state, 0) != 7u ||
+            minecraft_render_native_buffer_size_at(state, 0) != 64u ||
+            minecraft_render_native_texture_attribute_at(
+                    state, 0, MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_ID
+            ) != 3u ||
+            minecraft_render_native_texture_attribute_at(
+                    state, 0, MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_WIDTH
+            ) != 64u ||
             minecraft_render_native_texture_upload_count(state, 3u) != 1 ||
             minecraft_render_native_texture_uploaded_bytes(state, 3u) != 4u) {
         fprintf(stderr, "native state rejected a valid resource-backed frame\n");

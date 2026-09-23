@@ -7,6 +7,8 @@
 extends Control
 
 signal camera_dragged(relative_pixels: Vector2)
+# Fired only after the native sink successfully consumed a submitted frame.
+signal render_mailbox_executed(native_bridge: Object)
 
 const FORWARD := 1
 const BACKWARD := 2
@@ -52,6 +54,8 @@ func _ready() -> void:
 			var executed_packets: int = minecraft_touch.call(&"execute_render_mailbox")
 			if executed_packets != submitted_packets:
 				push_error("Minecraft RenderPearl native sink rejected the smoke frame: %d" % executed_packets)
+			else:
+				render_mailbox_executed.emit(minecraft_touch)
 	_layout_touch_targets()
 	get_viewport().size_changed.connect(_layout_touch_targets)
 
@@ -103,6 +107,12 @@ func _process(_delta: float) -> void:
 	if Input.is_action_pressed(ACTION_SNEAK): action_mask |= SNEAK
 
 	minecraft_touch.call(&"set_virtual_joystick_mask", action_mask)
+	if using_native_bridge:
+		var executed_packets: int = minecraft_touch.call(&"execute_render_mailbox")
+		if executed_packets > 0:
+			render_mailbox_executed.emit(minecraft_touch)
+		elif executed_packets != -7:
+			push_error("Minecraft RenderPearl native sink rejected a frame: %d" % executed_packets)
 	var mask: int = minecraft_touch.call(&"get_touch_mask")
 	var bridge_name := "Native Java bridge" if using_native_bridge else "Android input fallback"
 	status_label.text = "%s — input mask: %d" % [bridge_name, mask]

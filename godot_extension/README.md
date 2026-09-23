@@ -36,6 +36,8 @@ The Java class contains generic, synchronized methods:
   command transport; it does not invoke Godot APIs from Java.
 - `executeRenderMailbox()` — detaches the latest submitted command frame and
   executes it through the native resource/lifecycle sink.
+- `getRenderBuffer*()` / `getRenderTexture*()` — expose only validated native
+  resource metadata to the Godot-side RenderingDevice allocator.
 
 The mask uses these bits: `FORWARD=1`, `BACKWARD=2`, `LEFT=4`, `RIGHT=8`,
 `JUMP=16`, `SNEAK=32`, `ACTIVE=64`.
@@ -115,6 +117,12 @@ out-of-range writes are rejected before the future Godot `RenderingDevice`
 sink is introduced. The decoder itself has no Godot dependency. This gives the
 Java render thread and the Godot render thread clear ownership boundaries: a
 later Java submission cannot change the byte frame currently being executed.
+
+`RenderPearlRenderingDeviceExecutor.gd` runs on Godot's side of that boundary.
+On RenderingDevice-capable Forward+/Mobile builds, it mirrors validated native
+buffer and RGBA8 texture metadata into actual Godot GPU allocations. It skips
+cleanly in headless/Compatibility mode; retained upload regions are staged for
+the next resource-update bridge slice.
 
 ## Run in Godot
 

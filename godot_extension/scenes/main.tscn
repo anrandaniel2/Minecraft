@@ -1,8 +1,9 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/MinecraftGodotRenderer.gd" id="2_renderer"]
 [ext_resource type="Script" path="res://scripts/TouchControls.gd" id="3_controls"]
+[ext_resource type="Script" path="res://scripts/RenderPearlRenderingDeviceExecutor.gd" id="4_renderpearl_executor"]
 
 [sub_resource type="RectangleShape2D" id="JumpTouchShape"]
 size = Vector2(156, 96)
@@ -15,6 +16,9 @@ script = ExtResource("1_main")
 
 [node name="MinecraftGodotRenderer" type="Node3D" parent="."]
 script = ExtResource("2_renderer")
+
+[node name="RenderPearlRenderingDeviceExecutor" type="Node" parent="."]
+script = ExtResource("4_renderpearl_executor")
 
 [node name="TouchControls" type="Control" parent="."]
 layout_mode = 3
