@@ -194,7 +194,7 @@ public final class GodotGpuDevice implements GpuDevice {
     }
 
     @Override
-    public CompletableFuture<CompiledRenderPipeline> compilePipeline(
+    public CompletableFuture<CompiledRenderPipeline.Pending> compilePipeline(
             RenderPipeline pipeline,
             ShaderSource shaderSource,
             Executor executor
