@@ -133,7 +133,19 @@ int main(void) {
                     state, 0, MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_WIDTH
             ) != 64u ||
             minecraft_render_native_texture_upload_count(state, 3u) != 1 ||
-            minecraft_render_native_texture_uploaded_bytes(state, 3u) != 4u) {
+            minecraft_render_native_texture_uploaded_bytes(state, 3u) != 4u ||
+            minecraft_render_native_pass_attribute(
+                    state, MINECRAFT_RENDER_PASS_ATTRIBUTE_COLOR_TEXTURE_ID
+            ) != 3u ||
+            minecraft_render_native_pass_attribute(
+                    state, MINECRAFT_RENDER_PASS_ATTRIBUTE_DRAW_COUNT
+            ) != 1u ||
+            minecraft_render_native_pass_attribute(
+                    state, MINECRAFT_RENDER_PASS_ATTRIBUTE_REVISION
+            ) == 0u ||
+            minecraft_render_native_pass_attribute(
+                    state, MINECRAFT_RENDER_PASS_ATTRIBUTE_CLEAR_ALPHA_BITS
+            ) != 0x3f800000u) {
         fprintf(stderr, "native state rejected a valid resource-backed frame\n");
         minecraft_render_native_state_destroy(state);
         return 1;

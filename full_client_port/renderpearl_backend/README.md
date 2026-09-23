@@ -89,7 +89,9 @@ RGBA8 texture allocations, transfers retained native bytes in bounded 4 MiB
 `buffer_update()` / `texture_update()` on Godot's render thread. Texture
 regions are resolved into full mip-chain bytes per layer before Godot receives
 them, preserving later-write precedence for overlaps without mixing mip levels.
-Draw-list execution remains the next call to wire in.
+Completed passes clear that color target, and targets larger than the protocol
+smoke texture are presented in the Godot viewport. Draw submission remains the
+next call to wire in.
 Neither layer has direct Java-to-Godot calls. This is intentionally not an
 OpenGL/Vulkan context-sharing layer.
 

@@ -42,6 +42,17 @@ typedef enum MinecraftRenderTextureAttribute {
 /* A bounded GDExtension-to-GDScript transfer request. */
 #define MINECRAFT_RENDER_BRIDGE_MAX_CHUNK_BYTES (4u * 1024u * 1024u)
 
+typedef enum MinecraftRenderPassAttribute {
+    MINECRAFT_RENDER_PASS_ATTRIBUTE_COLOR_TEXTURE_ID = 0,
+    MINECRAFT_RENDER_PASS_ATTRIBUTE_DEPTH_TEXTURE_ID = 1,
+    MINECRAFT_RENDER_PASS_ATTRIBUTE_REVISION = 2,
+    MINECRAFT_RENDER_PASS_ATTRIBUTE_DRAW_COUNT = 3,
+    MINECRAFT_RENDER_PASS_ATTRIBUTE_CLEAR_RED_BITS = 4,
+    MINECRAFT_RENDER_PASS_ATTRIBUTE_CLEAR_GREEN_BITS = 5,
+    MINECRAFT_RENDER_PASS_ATTRIBUTE_CLEAR_BLUE_BITS = 6,
+    MINECRAFT_RENDER_PASS_ATTRIBUTE_CLEAR_ALPHA_BITS = 7,
+} MinecraftRenderPassAttribute;
+
 MinecraftRenderNativeState *minecraft_render_native_state_create(void);
 void minecraft_render_native_state_destroy(MinecraftRenderNativeState *state);
 
@@ -64,6 +75,11 @@ uint64_t minecraft_render_native_buffer_attribute_at(
 uint32_t minecraft_render_native_texture_attribute_at(
     const MinecraftRenderNativeState *state,
     size_t index,
+    uint32_t attribute
+);
+/* Latest completed render pass. Revision 0 means no pass has completed. */
+uint32_t minecraft_render_native_pass_attribute(
+    const MinecraftRenderNativeState *state,
     uint32_t attribute
 );
 

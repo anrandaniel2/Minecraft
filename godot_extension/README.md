@@ -129,8 +129,11 @@ are queued with `RenderingServer.call_on_render_thread()` because Godot 4.7
 rejects `RenderingDevice` use from the main thread. Texture uploads are
 resolved into full tightly packed mip-chain data per layer, so later
 overlapping native upload regions correctly win and mip levels stay separate.
-It skips cleanly in headless/Compatibility mode. Pipeline translation, pass
-creation, bindings, and draw-list execution remain separate work.
+It skips cleanly in headless/Compatibility mode. A completed pass clears its
+RGBA8 color target on that render thread. Targets larger than the 1×1 protocol
+smoke texture are presented full-screen through `Texture2DRD`, behind the touch
+HUD and in place of the resource-pack fallback. Pipeline translation, bindings,
+and draw submission remain separate work.
 
 ## Run in Godot
 

@@ -57,6 +57,21 @@ struct MinecraftRenderNativeState {
     uint32_t frame_width;
     uint32_t frame_height;
     uint32_t active_pipeline;
+    uint32_t pending_color_texture;
+    uint32_t pending_depth_texture;
+    uint32_t pending_draw_count;
+    float pending_clear_red;
+    float pending_clear_green;
+    float pending_clear_blue;
+    float pending_clear_alpha;
+    uint32_t completed_color_texture;
+    uint32_t completed_depth_texture;
+    uint32_t completed_draw_count;
+    uint32_t completed_pass_revision;
+    float completed_clear_red;
+    float completed_clear_green;
+    float completed_clear_blue;
+    float completed_clear_alpha;
     bool frame_active;
     bool pass_active;
     int callback_status;
@@ -309,10 +324,6 @@ static bool begin_render_pass(void *user_data, uint32_t color_texture_id,
                               uint32_t depth_texture_id, float clear_red,
                               float clear_green, float clear_blue,
                               float clear_alpha, double clear_depth) {
-    (void)clear_red;
-    (void)clear_green;
-    (void)clear_blue;
-    (void)clear_alpha;
     (void)clear_depth;
     MinecraftRenderNativeState *state = user_data;
     if (!state->frame_active || state->pass_active || find_texture(state, color_texture_id) == NULL ||
@@ -321,6 +332,13 @@ static bool begin_render_pass(void *user_data, uint32_t color_texture_id,
     }
     state->pass_active = true;
     state->active_pipeline = 0;
+    state->pending_color_texture = color_texture_id;
+    state->pending_depth_texture = depth_texture_id;
+    state->pending_draw_count = 0;
+    state->pending_clear_red = clear_red;
+    state->pending_clear_green = clear_green;
+    state->pending_clear_blue = clear_blue;
+    state->pending_clear_alpha = clear_alpha;
     return true;
 }
 
@@ -329,6 +347,14 @@ static bool end_render_pass(void *user_data) {
     if (!state->frame_active || !state->pass_active) {
         return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
     }
+    state->completed_color_texture = state->pending_color_texture;
+    state->completed_depth_texture = state->pending_depth_texture;
+    state->completed_draw_count = state->pending_draw_count;
+    state->completed_clear_red = state->pending_clear_red;
+    state->completed_clear_green = state->pending_clear_green;
+    state->completed_clear_blue = state->pending_clear_blue;
+    state->completed_clear_alpha = state->pending_clear_alpha;
+    state->completed_pass_revision = next_revision(state->completed_pass_revision);
     state->pass_active = false;
     state->active_pipeline = 0;
     return true;
@@ -387,7 +413,11 @@ static bool draw(void *user_data, uint32_t vertex_count, uint32_t instance_count
     (void)first_vertex;
     (void)first_instance;
     MinecraftRenderNativeState *state = user_data;
-    return state->pass_active ? true : fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    if (!state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    state->pending_draw_count++;
+    return true;
 }
 
 static bool draw_indexed(void *user_data, uint32_t index_count, uint32_t instance_count,
@@ -399,7 +429,11 @@ static bool draw_indexed(void *user_data, uint32_t index_count, uint32_t instanc
     (void)vertex_offset;
     (void)first_instance;
     MinecraftRenderNativeState *state = user_data;
-    return state->pass_active ? true : fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    if (!state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    state->pending_draw_count++;
+    return true;
 }
 
 static const MinecraftRenderCommandSink NATIVE_STATE_SINK = {
@@ -509,6 +543,41 @@ uint64_t minecraft_render_native_buffer_attribute_at(
         }
     }
     return 0;
+}
+
+static uint32_t float_bits(float value) {
+    uint32_t bits = 0;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+uint32_t minecraft_render_native_pass_attribute(
+        const MinecraftRenderNativeState *state,
+        uint32_t attribute
+) {
+    if (state == NULL || state->completed_pass_revision == 0) {
+        return 0;
+    }
+    switch (attribute) {
+        case MINECRAFT_RENDER_PASS_ATTRIBUTE_COLOR_TEXTURE_ID:
+            return state->completed_color_texture;
+        case MINECRAFT_RENDER_PASS_ATTRIBUTE_DEPTH_TEXTURE_ID:
+            return state->completed_depth_texture;
+        case MINECRAFT_RENDER_PASS_ATTRIBUTE_REVISION:
+            return state->completed_pass_revision;
+        case MINECRAFT_RENDER_PASS_ATTRIBUTE_DRAW_COUNT:
+            return state->completed_draw_count;
+        case MINECRAFT_RENDER_PASS_ATTRIBUTE_CLEAR_RED_BITS:
+            return float_bits(state->completed_clear_red);
+        case MINECRAFT_RENDER_PASS_ATTRIBUTE_CLEAR_GREEN_BITS:
+            return float_bits(state->completed_clear_green);
+        case MINECRAFT_RENDER_PASS_ATTRIBUTE_CLEAR_BLUE_BITS:
+            return float_bits(state->completed_clear_blue);
+        case MINECRAFT_RENDER_PASS_ATTRIBUTE_CLEAR_ALPHA_BITS:
+            return float_bits(state->completed_clear_alpha);
+        default:
+            return 0;
+    }
 }
 
 uint32_t minecraft_render_native_texture_attribute_at(

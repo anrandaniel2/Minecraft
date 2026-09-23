@@ -536,6 +536,28 @@ static void method_get_render_texture_mip_layer_bytes(void *userdata,
     set_call_ok(error);
 }
 
+static void method_get_render_pass_attribute(void *userdata, GDExtensionClassInstancePtr instance,
+        const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
+        GDExtensionVariantPtr result, GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    if (argument_count != 1) {
+        set_argument_error(error, (int)argument_count, 1);
+        return_int(result, 0);
+        return;
+    }
+    int64_t attribute = variant_int(args[0]);
+    if (attribute < 0) {
+        set_argument_error(error, 0, 0);
+        return_int(result, 0);
+        return;
+    }
+    set_call_ok(error);
+    return_int(result, minecraft_render_native_pass_attribute(
+            render_native_state, (uint32_t)attribute
+    ));
+}
+
 static void method_get_touch_mask(void *userdata, GDExtensionClassInstancePtr instance,
         const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
         GDExtensionVariantPtr result, GDExtensionCallError *error) {
@@ -694,6 +716,16 @@ static void ptrcall_get_render_texture_attribute(void *userdata,
             );
 }
 
+static void ptrcall_get_render_pass_attribute(void *userdata,
+        GDExtensionClassInstancePtr instance, const GDExtensionConstTypePtr *args,
+        GDExtensionTypePtr result) {
+    (void)userdata;
+    (void)instance;
+    int64_t attribute = *(const int64_t *)args[0];
+    *(int64_t *)result = attribute < 0 ? 0 :
+            (int64_t)minecraft_render_native_pass_attribute(render_native_state, (uint32_t)attribute);
+}
+
 static void ptrcall_get_touch_mask(void *userdata, GDExtensionClassInstancePtr instance,
         const GDExtensionConstTypePtr *args, GDExtensionTypePtr result) {
     (void)userdata; (void)instance; (void)args;
@@ -818,6 +850,8 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
             ptrcall_get_render_texture_count, 1);
     register_method("get_render_texture_attribute", 2, method_get_render_texture_attribute,
             ptrcall_get_render_texture_attribute, 1);
+    register_method("get_render_pass_attribute", 1, method_get_render_pass_attribute,
+            ptrcall_get_render_pass_attribute, 1);
     register_method("get_render_texture_mip_layer_size", 3,
             method_get_render_texture_mip_layer_size, NULL, 1);
     register_packed_byte_array_method("get_render_buffer_bytes", 3,

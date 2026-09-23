@@ -5,13 +5,43 @@ extends Node
 @onready var resource_executor: RenderPearlRenderingDeviceExecutor = $RenderPearlRenderingDeviceExecutor
 @onready var controls = $TouchControls
 
+var _renderpearl_display: TextureRect
+
+
 func _ready() -> void:
+	_renderpearl_display = TextureRect.new()
+	_renderpearl_display.name = "RenderPearlDisplay"
+	_renderpearl_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_renderpearl_display.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_renderpearl_display.stretch_mode = TextureRect.STRETCH_SCALE
+	_renderpearl_display.visible = false
+	add_child(_renderpearl_display)
+	_layout_renderpearl_display()
+	get_viewport().size_changed.connect(_layout_renderpearl_display)
+	# Keep the HUD above the presented color target. The 3D resource-pack view
+	# remains visible until a real RenderPearl target is larger than the 1×1
+	# protocol smoke texture.
+	move_child(_renderpearl_display, controls.get_index())
+	resource_executor.color_target_presented.connect(_show_renderpearl_target)
 	controls.camera_dragged.connect(renderer.add_camera_drag)
 	controls.render_mailbox_executed.connect(_sync_renderpearl_resources)
 	# TouchControls submits and consumes the native smoke frame during its own
 	# _ready(), before this parent receives child signals. Synchronize once here
 	# so desktop GPU resource allocation is covered at startup too.
 	_sync_renderpearl_resources(controls.minecraft_touch)
+
+
+func _show_renderpearl_target(texture: Texture2DRD, _size: Vector2i) -> void:
+	_renderpearl_display.texture = texture
+	_renderpearl_display.visible = true
+	_layout_renderpearl_display()
+
+
+func _layout_renderpearl_display() -> void:
+	if _renderpearl_display == null:
+		return
+	_renderpearl_display.position = Vector2.ZERO
+	_renderpearl_display.size = get_viewport().get_visible_rect().size
 
 func _sync_renderpearl_resources(native_bridge: Object) -> void:
 	resource_executor.synchronize(native_bridge)

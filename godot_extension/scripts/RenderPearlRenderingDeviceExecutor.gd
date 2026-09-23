@@ -8,6 +8,8 @@
 class_name RenderPearlRenderingDeviceExecutor
 extends Node
 
+signal color_target_presented(texture: Texture2DRD, size: Vector2i)
+
 const BUFFER_ID := 0
 const BUFFER_SIZE := 1
 const BUFFER_REVISION := 2
@@ -20,6 +22,15 @@ const TEXTURE_HEIGHT := 4
 const TEXTURE_DEPTH_OR_LAYERS := 5
 const TEXTURE_MIP_LEVELS := 6
 const TEXTURE_REVISION := 7
+
+const PASS_COLOR_TEXTURE_ID := 0
+const PASS_DEPTH_TEXTURE_ID := 1
+const PASS_REVISION := 2
+const PASS_DRAW_COUNT := 3
+const PASS_CLEAR_RED_BITS := 4
+const PASS_CLEAR_GREEN_BITS := 5
+const PASS_CLEAR_BLUE_BITS := 6
+const PASS_CLEAR_ALPHA_BITS := 7
 
 # GDExtension transfer requests are capped in native code too. Keeping chunks
 # bounded avoids one untrusted mailbox packet allocating an unbounded Variant.
@@ -37,6 +48,10 @@ var _gpu_buffers: Dictionary = {}
 var _gpu_buffer_sizes: Dictionary = {}
 var _gpu_textures: Dictionary = {}
 var _gpu_texture_signatures: Dictionary = {}
+var _gpu_framebuffers: Dictionary = {}
+var _submitted_pass_revision := 0
+var _presented_texture: Texture2DRD
+var _presented_rid := RID()
 
 
 func _ready() -> void:
@@ -76,9 +91,10 @@ func _exit_tree() -> void:
 func _collect_snapshot(native_bridge: Object) -> Dictionary:
 	var buffers: Array = _collect_buffers(native_bridge)
 	var textures: Array = _collect_textures(native_bridge)
-	if buffers.is_empty() and textures.is_empty():
+	var render_pass := _collect_pass(native_bridge)
+	if buffers.is_empty() and textures.is_empty() and render_pass.is_empty():
 		return {}
-	return {"buffers": buffers, "textures": textures}
+	return {"buffers": buffers, "textures": textures, "pass": render_pass}
 
 
 func _collect_buffers(native_bridge: Object) -> Array:
@@ -193,6 +209,49 @@ func _read_texture_layers(
 	return layers
 
 
+func _collect_pass(native_bridge: Object) -> Dictionary:
+	var revision: int = native_bridge.call(&"get_render_pass_attribute", PASS_REVISION)
+	var color_id: int = native_bridge.call(&"get_render_pass_attribute", PASS_COLOR_TEXTURE_ID)
+	if revision <= 0 or color_id <= 0 or revision == _submitted_pass_revision:
+		return {}
+	var size := _texture_size(native_bridge, color_id)
+	if size == Vector2i.ZERO:
+		return {}
+	_submitted_pass_revision = revision
+	return {
+		"revision": revision,
+		"color_id": color_id,
+		"depth_id": native_bridge.call(&"get_render_pass_attribute", PASS_DEPTH_TEXTURE_ID),
+		"draw_count": native_bridge.call(&"get_render_pass_attribute", PASS_DRAW_COUNT),
+		"size": size,
+		"clear": Color(
+			_bits_to_float(native_bridge.call(&"get_render_pass_attribute", PASS_CLEAR_RED_BITS)),
+			_bits_to_float(native_bridge.call(&"get_render_pass_attribute", PASS_CLEAR_GREEN_BITS)),
+			_bits_to_float(native_bridge.call(&"get_render_pass_attribute", PASS_CLEAR_BLUE_BITS)),
+			_bits_to_float(native_bridge.call(&"get_render_pass_attribute", PASS_CLEAR_ALPHA_BITS))
+		),
+	}
+
+
+func _texture_size(native_bridge: Object, texture_id: int) -> Vector2i:
+	var count: int = native_bridge.call(&"get_render_texture_count")
+	for index in range(count):
+		if native_bridge.call(&"get_render_texture_attribute", index, TEXTURE_ID) != texture_id:
+			continue
+		return Vector2i(
+			native_bridge.call(&"get_render_texture_attribute", index, TEXTURE_WIDTH),
+			native_bridge.call(&"get_render_texture_attribute", index, TEXTURE_HEIGHT)
+		)
+	return Vector2i.ZERO
+
+
+func _bits_to_float(bits: int) -> float:
+	var bytes := PackedByteArray()
+	bytes.resize(4)
+	bytes.encode_u32(0, bits & 0xFFFFFFFF)
+	return bytes.decode_float(0)
+
+
 func _apply_snapshot(snapshot: Dictionary) -> void:
 	var rendering_device := RenderingServer.get_rendering_device()
 	if rendering_device == null:
@@ -201,6 +260,9 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 		_apply_buffer(rendering_device, buffer_variant)
 	for texture_variant in snapshot.get("textures", []):
 		_apply_texture(rendering_device, texture_variant)
+	var render_pass: Dictionary = snapshot.get("pass", {})
+	if not render_pass.is_empty():
+		_clear_color_target(rendering_device, render_pass)
 
 
 func _apply_buffer(rendering_device: RenderingDevice, buffer_upload: Dictionary) -> void:
@@ -242,6 +304,7 @@ func _apply_texture(rendering_device: RenderingDevice, texture_upload: Dictionar
 				return
 		return
 	if existing.is_valid():
+		_release_framebuffer(rendering_device, resource_id)
 		rendering_device.free_rid(existing)
 	var texture_format := _make_texture_format(
 		texture_upload["format"],
@@ -264,11 +327,68 @@ func _apply_texture(rendering_device: RenderingDevice, texture_upload: Dictionar
 	_gpu_texture_signatures[resource_id] = signature
 
 
+func _release_framebuffer(rendering_device: RenderingDevice, texture_id: int) -> void:
+	var framebuffer: RID = _gpu_framebuffers.get(texture_id, RID())
+	if framebuffer.is_valid():
+		rendering_device.free_rid(framebuffer)
+	_gpu_framebuffers.erase(texture_id)
+	if _presented_rid == _gpu_textures.get(texture_id, RID()):
+		_presented_rid = RID()
+
+
+func _clear_color_target(rendering_device: RenderingDevice, render_pass: Dictionary) -> void:
+	var color_id: int = render_pass["color_id"]
+	var color_texture: RID = _gpu_textures.get(color_id, RID())
+	if not color_texture.is_valid():
+		return
+	var framebuffer: RID = _gpu_framebuffers.get(color_id, RID())
+	if not framebuffer.is_valid():
+		var attachments: Array[RID] = [color_texture]
+		framebuffer = rendering_device.framebuffer_create(attachments)
+		if not framebuffer.is_valid():
+			push_warning("RenderPearl color target %d framebuffer allocation failed" % color_id)
+			return
+		_gpu_framebuffers[color_id] = framebuffer
+	var draw_list := rendering_device.draw_list_begin(
+		framebuffer,
+		RenderingDevice.DRAW_CLEAR_COLOR_0,
+		PackedColorArray([render_pass["clear"]]),
+		1.0,
+		0,
+		Rect2()
+	)
+	if draw_list < 0:
+		push_warning("RenderPearl color target %d clear failed" % color_id)
+		return
+	rendering_device.draw_list_end()
+	_present_color_target(color_texture, render_pass["size"])
+
+
+func _present_color_target(color_texture: RID, size: Vector2i) -> void:
+	# The protocol smoke frame is a 1×1 transport check. Do not cover the
+	# resource-pack fallback viewport with that placeholder target.
+	if size.x <= 1 or size.y <= 1:
+		return
+	if _presented_rid == color_texture and _presented_texture != null:
+		return
+	_presented_rid = color_texture
+	call_deferred("_emit_color_target", color_texture, size)
+
+
+func _emit_color_target(color_texture: RID, size: Vector2i) -> void:
+	if _presented_texture == null:
+		_presented_texture = Texture2DRD.new()
+	_presented_texture.texture_rd_rid = color_texture
+	color_target_presented.emit(_presented_texture, size)
+
+
 func _free_gpu_resources() -> void:
 	var rendering_device := RenderingServer.get_rendering_device()
 	if rendering_device == null:
 		return
 	for rid_variant in _gpu_buffers.values():
+		rendering_device.free_rid(rid_variant)
+	for rid_variant in _gpu_framebuffers.values():
 		rendering_device.free_rid(rid_variant)
 	for rid_variant in _gpu_textures.values():
 		rendering_device.free_rid(rid_variant)
@@ -276,6 +396,7 @@ func _free_gpu_resources() -> void:
 	_gpu_buffer_sizes.clear()
 	_gpu_textures.clear()
 	_gpu_texture_signatures.clear()
+	_gpu_framebuffers.clear()
 
 
 func _make_texture_format(
