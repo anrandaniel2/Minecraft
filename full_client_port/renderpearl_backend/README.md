@@ -84,9 +84,14 @@ That sink currently retains CPU mirrors of declared buffers and the latest
 texture-upload regions, and rejects unknown handles/range violations. On
 Forward+/Mobile builds, the Godot-side `RenderPearlRenderingDeviceExecutor`
 now mirrors supported resource metadata into real `RenderingDevice` buffer and
-RGBA8 texture allocations; byte uploads and draw-list execution remain the
-next calls to wire in. Neither layer has direct Java-to-Godot calls. This is
-intentionally not an OpenGL/Vulkan context-sharing layer.
+RGBA8 texture allocations, transfers retained native bytes in bounded 4 MiB
+`PackedByteArray` chunks, and replays changed buffer/texture revisions through
+`buffer_update()` / `texture_update()` on Godot's render thread. Texture
+regions are resolved into full mip-chain bytes per layer before Godot receives
+them, preserving later-write precedence for overlaps without mixing mip levels.
+Draw-list execution remains the next call to wire in.
+Neither layer has direct Java-to-Godot calls. This is intentionally not an
+OpenGL/Vulkan context-sharing layer.
 
 ## Implementation order
 

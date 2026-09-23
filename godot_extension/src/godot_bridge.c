@@ -39,15 +39,34 @@ static GDExtensionInterfaceClassdbRegisterExtensionClassMethod classdb_register_
 static GDExtensionInterfaceGetVariantToTypeConstructor variant_to_int;
 static GDExtensionInterfaceGetVariantFromTypeConstructor variant_from_int;
 static GDExtensionInterfaceVariantNewNil variant_new_nil;
+static GDExtensionInterfaceVariantConstruct variant_construct;
+static GDExtensionInterfaceVariantCall variant_call;
+static GDExtensionInterfaceVariantDestroy variant_destroy;
+static GDExtensionInterfaceGetVariantGetInternalPtrFunc variant_get_internal_ptr;
+static GDExtensionInterfacePackedByteArrayOperatorIndex packed_byte_array_index;
+
+/* Godot's stable GDExtension Variant ABI reserves 24 bytes, aligned to 64-bit.
+ * This is only used for temporary Variant arguments/returns constructed through
+ * Godot's own ABI functions; no Godot C++ layout is assumed. */
+typedef union MinecraftGodotVariant {
+    uint8_t bytes[24];
+    uint64_t alignment;
+} MinecraftGodotVariant;
 
 static graal_isolate_t *java_isolate;
 static graal_isolatethread_t *java_main_thread;
 static MinecraftRenderNativeState *render_native_state;
 
 static GDExtensionStringNamePtr make_string_name(const char *text) {
-    GDExtensionStringNamePtr name = NULL;
-    string_name_new(&name, text);
-    return name;
+    /* Official Godot 4.7 StringName is one pointer. Every C ABI function takes
+     * a pointer to that object; returning the interned data pointer stored
+     * inside it would make ClassDB/Variant calls read the wrong memory. */
+    void *storage = calloc(1, sizeof(void *));
+    if (storage == NULL) {
+        return NULL;
+    }
+    string_name_new(storage, text);
+    return storage;
 }
 
 /* Godot interns StringNames created through the C ABI. They are kept for the
@@ -113,6 +132,72 @@ static void return_int(GDExtensionVariantPtr result, int64_t value) {
 
 static void return_nil(GDExtensionVariantPtr result) {
     variant_new_nil(result);
+}
+
+/*
+ * Copies one bounded native range into a real PackedByteArray Variant. The
+ * extension deliberately builds this through the public 4.7 ABI rather than
+ * treating PackedByteArray as a C struct: Godot allocates/owns all Variant and
+ * packed-array memory, and the caller receives an ordinary GDScript value.
+ */
+static bool return_packed_bytes(GDExtensionVariantPtr result, const uint8_t *bytes, size_t size) {
+    static const uint8_t empty_byte = 0;
+    if (bytes == NULL && size == 0) {
+        bytes = &empty_byte;
+    }
+    if (bytes == NULL || size > MINECRAFT_RENDER_BRIDGE_MAX_CHUNK_BYTES ||
+            size > INT64_MAX || variant_construct == NULL || variant_call == NULL ||
+            variant_destroy == NULL || variant_get_internal_ptr == NULL ||
+            packed_byte_array_index == NULL) {
+        return false;
+    }
+
+    GDExtensionCallError call_error = {0};
+    variant_construct(GDEXTENSION_VARIANT_TYPE_PACKED_BYTE_ARRAY, result, NULL, 0, &call_error);
+    if (call_error.error != GDEXTENSION_CALL_OK) {
+        return false;
+    }
+    if (size != 0) {
+        MinecraftGodotVariant length_argument = {0};
+        MinecraftGodotVariant resize_result = {0};
+        int64_t length = (int64_t)size;
+        GDExtensionVariantFromTypeConstructorFunc int_constructor =
+                variant_from_int(GDEXTENSION_VARIANT_TYPE_INT);
+        int_constructor(&length_argument, &length);
+        static GDExtensionStringNamePtr resize_name;
+        if (resize_name == NULL) {
+            resize_name = make_string_name("resize");
+        }
+        if (resize_name == NULL) {
+            variant_destroy(result);
+            variant_destroy(&length_argument);
+            return false;
+        }
+        const GDExtensionConstVariantPtr arguments[] = { &length_argument };
+        variant_call(result, resize_name, arguments, 1, &resize_result, &call_error);
+        int64_t resize_status = -1;
+        if (call_error.error == GDEXTENSION_CALL_OK) {
+            GDExtensionTypeFromVariantConstructorFunc int_reader =
+                    variant_to_int(GDEXTENSION_VARIANT_TYPE_INT);
+            int_reader(&resize_status, &resize_result);
+        }
+        variant_destroy(&length_argument);
+        variant_destroy(&resize_result);
+        if (call_error.error != GDEXTENSION_CALL_OK || resize_status != 0) {
+            variant_destroy(result);
+            return false;
+        }
+        GDExtensionVariantGetInternalPtrFunc get_packed_bytes =
+                variant_get_internal_ptr(GDEXTENSION_VARIANT_TYPE_PACKED_BYTE_ARRAY);
+        GDExtensionTypePtr packed_bytes = get_packed_bytes(result);
+        uint8_t *destination = packed_bytes == NULL ? NULL : packed_byte_array_index(packed_bytes, 0);
+        if (destination == NULL) {
+            variant_destroy(result);
+            return false;
+        }
+        memcpy(destination, bytes, size);
+    }
+    return true;
 }
 
 static GDExtensionObjectPtr minecraft_touch_create(void *class_userdata) {
@@ -312,9 +397,9 @@ static void method_get_render_buffer_attribute(void *userdata, GDExtensionClassI
         return_int(result, 0);
         return;
     }
-    uint64_t value = attribute == 0
-            ? minecraft_render_native_buffer_id_at(render_native_state, (size_t)index)
-            : minecraft_render_native_buffer_size_at(render_native_state, (size_t)index);
+    uint64_t value = minecraft_render_native_buffer_attribute_at(
+            render_native_state, (size_t)index, (uint32_t)attribute
+    );
     set_call_ok(error);
     return_int(result, (int64_t)value);
 }
@@ -356,6 +441,99 @@ static void method_get_render_texture_attribute(void *userdata, GDExtensionClass
     );
     set_call_ok(error);
     return_int(result, value);
+}
+
+static void method_get_render_buffer_bytes(void *userdata, GDExtensionClassInstancePtr instance,
+        const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
+        GDExtensionVariantPtr result, GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    if (argument_count != 3) {
+        set_argument_error(error, (int)argument_count, 3);
+        return_nil(result);
+        return;
+    }
+    int64_t buffer_id = variant_int(args[0]);
+    int64_t offset = variant_int(args[1]);
+    int64_t byte_count = variant_int(args[2]);
+    if (buffer_id <= 0 || offset < 0 || byte_count <= 0 ||
+            (uint64_t)byte_count > MINECRAFT_RENDER_BRIDGE_MAX_CHUNK_BYTES) {
+        set_argument_error(error, buffer_id <= 0 ? 0 : (offset < 0 ? 1 : 2), 0);
+        return_nil(result);
+        return;
+    }
+    uint8_t *copy = malloc((size_t)byte_count);
+    size_t copied = copy == NULL ? 0 : minecraft_render_native_copy_buffer_bytes(
+            render_native_state, (uint32_t)buffer_id, (uint64_t)offset, copy, (size_t)byte_count
+    );
+    bool ok = copied == (size_t)byte_count && return_packed_bytes(result, copy, copied);
+    free(copy);
+    if (!ok) {
+        return_nil(result);
+    }
+    set_call_ok(error);
+}
+
+static void method_get_render_texture_mip_layer_size(void *userdata,
+        GDExtensionClassInstancePtr instance, const GDExtensionConstVariantPtr *args,
+        GDExtensionInt argument_count, GDExtensionVariantPtr result,
+        GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    if (argument_count != 3) {
+        set_argument_error(error, (int)argument_count, 3);
+        return_int(result, 0);
+        return;
+    }
+    int64_t texture_id = variant_int(args[0]);
+    int64_t mip_level = variant_int(args[1]);
+    int64_t layer = variant_int(args[2]);
+    if (texture_id <= 0 || mip_level < 0 || layer < 0) {
+        set_argument_error(error, texture_id <= 0 ? 0 : (mip_level < 0 ? 1 : 2), 0);
+        return_int(result, 0);
+        return;
+    }
+    uint64_t size = minecraft_render_native_texture_mip_layer_size(
+            render_native_state, (uint32_t)texture_id, (uint32_t)mip_level, (uint32_t)layer
+    );
+    set_call_ok(error);
+    return_int(result, (int64_t)size);
+}
+
+static void method_get_render_texture_mip_layer_bytes(void *userdata,
+        GDExtensionClassInstancePtr instance, const GDExtensionConstVariantPtr *args,
+        GDExtensionInt argument_count, GDExtensionVariantPtr result,
+        GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    if (argument_count != 5) {
+        set_argument_error(error, (int)argument_count, 5);
+        return_nil(result);
+        return;
+    }
+    int64_t texture_id = variant_int(args[0]);
+    int64_t mip_level = variant_int(args[1]);
+    int64_t layer = variant_int(args[2]);
+    int64_t offset = variant_int(args[3]);
+    int64_t byte_count = variant_int(args[4]);
+    if (texture_id <= 0 || mip_level < 0 || layer < 0 || offset < 0 || byte_count <= 0 ||
+            (uint64_t)byte_count > MINECRAFT_RENDER_BRIDGE_MAX_CHUNK_BYTES) {
+        set_argument_error(error, texture_id <= 0 ? 0 :
+                (mip_level < 0 ? 1 : (layer < 0 ? 2 : (offset < 0 ? 3 : 4))), 0);
+        return_nil(result);
+        return;
+    }
+    uint8_t *copy = malloc((size_t)byte_count);
+    size_t copied = copy == NULL ? 0 : minecraft_render_native_copy_texture_mip_layer_bytes(
+            render_native_state, (uint32_t)texture_id, (uint32_t)mip_level, (uint32_t)layer,
+            (uint64_t)offset, copy, (size_t)byte_count
+    );
+    bool ok = copied == (size_t)byte_count && return_packed_bytes(result, copy, copied);
+    free(copy);
+    if (!ok) {
+        return_nil(result);
+    }
+    set_call_ok(error);
 }
 
 static void method_get_touch_mask(void *userdata, GDExtensionClassInstancePtr instance,
@@ -489,9 +667,9 @@ static void ptrcall_get_render_buffer_attribute(void *userdata,
         *(int64_t *)result = 0;
         return;
     }
-    *(int64_t *)result = attribute == 0
-            ? (int64_t)minecraft_render_native_buffer_id_at(render_native_state, (size_t)index)
-            : (int64_t)minecraft_render_native_buffer_size_at(render_native_state, (size_t)index);
+    *(int64_t *)result = (int64_t)minecraft_render_native_buffer_attribute_at(
+            render_native_state, (size_t)index, (uint32_t)attribute
+    );
 }
 
 static void ptrcall_get_render_texture_count(void *userdata,
@@ -562,6 +740,39 @@ static void register_method(const char *name, uint32_t argument_count,
     free_string_name(method_name);
 }
 
+/* PackedByteArray returns intentionally use the generic Variant callback only.
+ * The data bridge is always invoked through Object.call() from GDScript, which
+ * keeps Godot responsible for constructing the opaque packed-array return. */
+static void register_packed_byte_array_method(const char *name, uint32_t argument_count,
+        GDExtensionClassMethodCall call) {
+    GDExtensionStringNamePtr method_name = make_string_name(name);
+    GDExtensionPropertyInfo return_info = {0};
+    return_info.type = GDEXTENSION_VARIANT_TYPE_PACKED_BYTE_ARRAY;
+
+    GDExtensionPropertyInfo arguments[5] = {0};
+    GDExtensionClassMethodArgumentMetadata metadata[5] = {0};
+    for (uint32_t i = 0; i < argument_count; i++) {
+        arguments[i].type = GDEXTENSION_VARIANT_TYPE_INT;
+        metadata[i] = GDEXTENSION_METHOD_ARGUMENT_METADATA_INT_IS_INT64;
+    }
+
+    GDExtensionClassMethodInfo method = {0};
+    method.name = method_name;
+    method.call_func = call;
+    method.ptrcall_func = NULL;
+    method.method_flags = GDEXTENSION_METHOD_FLAGS_DEFAULT;
+    method.has_return_value = 1;
+    method.return_value_info = &return_info;
+    method.argument_count = argument_count;
+    method.arguments_info = argument_count ? arguments : NULL;
+    method.arguments_metadata = argument_count ? metadata : NULL;
+
+    GDExtensionStringNamePtr class_name = make_string_name(CLASS_NAME);
+    classdb_register_extension_class_method(godot_library, class_name, &method);
+    free_string_name(class_name);
+    free_string_name(method_name);
+}
+
 static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel level) {
     (void)userdata;
     if (level != GDEXTENSION_INITIALIZATION_SCENE) {
@@ -607,6 +818,12 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
             ptrcall_get_render_texture_count, 1);
     register_method("get_render_texture_attribute", 2, method_get_render_texture_attribute,
             ptrcall_get_render_texture_attribute, 1);
+    register_method("get_render_texture_mip_layer_size", 3,
+            method_get_render_texture_mip_layer_size, NULL, 1);
+    register_packed_byte_array_method("get_render_buffer_bytes", 3,
+            method_get_render_buffer_bytes);
+    register_packed_byte_array_method("get_render_texture_mip_layer_bytes", 5,
+            method_get_render_texture_mip_layer_bytes);
     register_method("get_touch_mask", 0, method_get_touch_mask, ptrcall_get_touch_mask, 1);
     register_method("get_active_touch_count", 0, method_get_active_touch_count,
             ptrcall_get_active_touch_count, 1);
@@ -654,11 +871,20 @@ GDExtensionBool GDEXTENSION_EXPORT godot_gdextension_init(
     variant_from_int = LOAD_GODOT_INTERFACE(GDExtensionInterfaceGetVariantFromTypeConstructor,
             "get_variant_from_type_constructor");
     variant_new_nil = LOAD_GODOT_INTERFACE(GDExtensionInterfaceVariantNewNil, "variant_new_nil");
+    variant_construct = LOAD_GODOT_INTERFACE(GDExtensionInterfaceVariantConstruct, "variant_construct");
+    variant_call = LOAD_GODOT_INTERFACE(GDExtensionInterfaceVariantCall, "variant_call");
+    variant_destroy = LOAD_GODOT_INTERFACE(GDExtensionInterfaceVariantDestroy, "variant_destroy");
+    variant_get_internal_ptr = LOAD_GODOT_INTERFACE(GDExtensionInterfaceGetVariantGetInternalPtrFunc,
+            "variant_get_ptr_internal_getter");
+    packed_byte_array_index = LOAD_GODOT_INTERFACE(GDExtensionInterfacePackedByteArrayOperatorIndex,
+            "packed_byte_array_operator_index");
 
     if (string_name_new == NULL || classdb_construct_object == NULL || object_set_instance == NULL ||
             classdb_register_extension_class == NULL ||
             classdb_register_extension_class_method == NULL || variant_to_int == NULL ||
-            variant_from_int == NULL || variant_new_nil == NULL) {
+            variant_from_int == NULL || variant_new_nil == NULL || variant_construct == NULL ||
+            variant_call == NULL || variant_destroy == NULL || variant_get_internal_ptr == NULL ||
+            packed_byte_array_index == NULL) {
         return 0;
     }
 

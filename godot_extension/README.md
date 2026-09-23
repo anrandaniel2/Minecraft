@@ -36,8 +36,9 @@ The Java class contains generic, synchronized methods:
   command transport; it does not invoke Godot APIs from Java.
 - `executeRenderMailbox()` — detaches the latest submitted command frame and
   executes it through the native resource/lifecycle sink.
-- `getRenderBuffer*()` / `getRenderTexture*()` — expose only validated native
-  resource metadata to the Godot-side RenderingDevice allocator.
+- `getRenderBuffer*()` / `getRenderTexture*()` — expose validated native
+  resource metadata, revisions, and bounded retained byte ranges to the
+  Godot-side `RenderingDevice` uploader. Byte chunks are capped at 4 MiB.
 
 The mask uses these bits: `FORWARD=1`, `BACKWARD=2`, `LEFT=4`, `RIGHT=8`,
 `JUMP=16`, `SNEAK=32`, `ACTIVE=64`.
@@ -120,9 +121,16 @@ later Java submission cannot change the byte frame currently being executed.
 
 `RenderPearlRenderingDeviceExecutor.gd` runs on Godot's side of that boundary.
 On RenderingDevice-capable Forward+/Mobile builds, it mirrors validated native
-buffer and RGBA8 texture metadata into actual Godot GPU allocations. It skips
-cleanly in headless/Compatibility mode; retained upload regions are staged for
-the next resource-update bridge slice.
+buffer and RGBA8 texture metadata into actual Godot GPU allocations, reads
+retained bytes through a bounded 4 MiB `PackedByteArray` bridge, and replays
+changed buffer/texture revisions with `storage_buffer_create()` /
+`buffer_update()` and `texture_create()` / `texture_update()`. Those GPU calls
+are queued with `RenderingServer.call_on_render_thread()` because Godot 4.7
+rejects `RenderingDevice` use from the main thread. Texture uploads are
+resolved into full tightly packed mip-chain data per layer, so later
+overlapping native upload regions correctly win and mip levels stay separate.
+It skips cleanly in headless/Compatibility mode. Pipeline translation, pass
+creation, bindings, and draw-list execution remain separate work.
 
 ## Run in Godot
 

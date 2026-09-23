@@ -4,10 +4,19 @@
 #include <string.h>
 
 #define MINECRAFT_RENDER_MAX_RESOURCE_BYTES (64u * 1024u * 1024u)
+/* Extracted 26.3 GpuFormat.RGBA8_UNORM ordinal. */
+#define MINECRAFT_RENDER_RGBA8_UNORM 6u
+#define MINECRAFT_RENDER_RGBA8_BYTES_PER_PIXEL 4u
+
+static uint32_t next_revision(uint32_t revision) {
+    /* Zero means "not initialized" to the Godot-side synchronizer. */
+    return revision == UINT32_MAX ? 1u : revision + 1u;
+}
 
 typedef struct MinecraftRenderBuffer {
     uint32_t id;
     uint32_t usage;
+    uint32_t revision;
     uint64_t size;
     uint8_t *bytes;
     struct MinecraftRenderBuffer *next;
@@ -35,6 +44,7 @@ typedef struct MinecraftRenderTexture {
     uint32_t mip_levels;
     uint64_t uploaded_bytes;
     uint32_t upload_count;
+    uint32_t revision;
     MinecraftRenderTextureUpload *uploads;
     struct MinecraftRenderTexture *next;
 } MinecraftRenderTexture;
@@ -137,6 +147,7 @@ static bool create_buffer(void *user_data, uint32_t buffer_id, uint32_t usage, u
     }
 
     MinecraftRenderBuffer *buffer = find_buffer(state, buffer_id);
+    bool allocation_changed = false;
     if (buffer == NULL) {
         buffer = calloc(1, sizeof(*buffer));
         if (buffer == NULL) {
@@ -146,6 +157,14 @@ static bool create_buffer(void *user_data, uint32_t buffer_id, uint32_t usage, u
         buffer->next = state->buffers;
         state->buffers = buffer;
         state->buffer_count++;
+        allocation_changed = true;
+    } else if (buffer->usage != usage || buffer->size != size) {
+        allocation_changed = true;
+    }
+    if (!allocation_changed) {
+        /* Device-owned declaration preludes repeat before every frame. They
+         * describe a live allocation; they must not erase retained contents. */
+        return true;
     }
 
     uint8_t *bytes = size == 0 ? NULL : calloc(1, (size_t)size);
@@ -156,6 +175,7 @@ static bool create_buffer(void *user_data, uint32_t buffer_id, uint32_t usage, u
     buffer->bytes = bytes;
     buffer->usage = usage;
     buffer->size = size;
+    buffer->revision = next_revision(buffer->revision);
     return true;
 }
 
@@ -170,6 +190,7 @@ static bool write_buffer(void *user_data, uint32_t buffer_id, uint64_t offset,
     }
     if (data_size != 0) {
         memcpy(buffer->bytes + (size_t)offset, data, data_size);
+        buffer->revision = next_revision(buffer->revision);
     }
     return true;
 }
@@ -179,11 +200,12 @@ static bool create_texture(void *user_data, uint32_t texture_id, uint32_t usage,
                            uint32_t depth_or_layers, uint32_t mip_levels) {
     MinecraftRenderNativeState *state = user_data;
     if (!state->frame_active || state->pass_active || texture_id == 0 || width == 0 || height == 0 ||
-            depth_or_layers == 0 || mip_levels == 0) {
+            depth_or_layers == 0 || mip_levels == 0 || mip_levels > 32u) {
         return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
     }
 
     MinecraftRenderTexture *texture = find_texture(state, texture_id);
+    bool allocation_changed = false;
     if (texture == NULL) {
         texture = calloc(1, sizeof(*texture));
         if (texture == NULL) {
@@ -193,12 +215,14 @@ static bool create_texture(void *user_data, uint32_t texture_id, uint32_t usage,
         texture->next = state->textures;
         state->textures = texture;
         state->texture_count++;
+        allocation_changed = true;
     } else if (texture->usage != usage || texture->format != format || texture->width != width ||
             texture->height != height || texture->depth_or_layers != depth_or_layers ||
             texture->mip_levels != mip_levels) {
         /* Reusing a handle with different allocation metadata invalidates all
          * CPU upload regions retained for the old native texture. */
         free_texture_uploads(texture);
+        allocation_changed = true;
     }
     texture->usage = usage;
     texture->format = format;
@@ -206,6 +230,9 @@ static bool create_texture(void *user_data, uint32_t texture_id, uint32_t usage,
     texture->height = height;
     texture->depth_or_layers = depth_or_layers;
     texture->mip_levels = mip_levels;
+    if (allocation_changed) {
+        texture->revision = next_revision(texture->revision);
+    }
     return true;
 }
 
@@ -274,6 +301,7 @@ static bool write_texture(void *user_data, uint32_t texture_id, uint32_t width,
     upload->bytes = copy;
     upload->data_size = data_size;
     texture->uploaded_bytes += data_size;
+    texture->revision = next_revision(texture->revision);
     return true;
 }
 
@@ -457,25 +485,27 @@ size_t minecraft_render_native_texture_count(const MinecraftRenderNativeState *s
     return state == NULL ? 0 : state->texture_count;
 }
 
-uint32_t minecraft_render_native_buffer_id_at(const MinecraftRenderNativeState *state, size_t index) {
+uint64_t minecraft_render_native_buffer_attribute_at(
+        const MinecraftRenderNativeState *state,
+        size_t index,
+        uint32_t attribute
+) {
     if (state == NULL) {
         return 0;
     }
     for (const MinecraftRenderBuffer *buffer = state->buffers; buffer != NULL; buffer = buffer->next) {
-        if (index-- == 0) {
-            return buffer->id;
+        if (index-- != 0) {
+            continue;
         }
-    }
-    return 0;
-}
-
-uint64_t minecraft_render_native_buffer_size_at(const MinecraftRenderNativeState *state, size_t index) {
-    if (state == NULL) {
-        return 0;
-    }
-    for (const MinecraftRenderBuffer *buffer = state->buffers; buffer != NULL; buffer = buffer->next) {
-        if (index-- == 0) {
-            return buffer->size;
+        switch (attribute) {
+            case MINECRAFT_RENDER_BUFFER_ATTRIBUTE_ID:
+                return buffer->id;
+            case MINECRAFT_RENDER_BUFFER_ATTRIBUTE_SIZE:
+                return buffer->size;
+            case MINECRAFT_RENDER_BUFFER_ATTRIBUTE_REVISION:
+                return buffer->revision;
+            default:
+                return 0;
         }
     }
     return 0;
@@ -509,9 +539,195 @@ uint32_t minecraft_render_native_texture_attribute_at(
                 return texture->depth_or_layers;
             case MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_MIP_LEVELS:
                 return texture->mip_levels;
+            case MINECRAFT_RENDER_TEXTURE_ATTRIBUTE_REVISION:
+                return texture->revision;
             default:
                 return 0;
         }
+    }
+    return 0;
+}
+
+size_t minecraft_render_native_copy_buffer_bytes(
+        const MinecraftRenderNativeState *state,
+        uint32_t buffer_id,
+        uint64_t offset,
+        uint8_t *destination,
+        size_t byte_count
+) {
+    if (state == NULL || destination == NULL || byte_count == 0 ||
+            byte_count > MINECRAFT_RENDER_BRIDGE_MAX_CHUNK_BYTES) {
+        return 0;
+    }
+    for (const MinecraftRenderBuffer *buffer = state->buffers;
+            buffer != NULL; buffer = buffer->next) {
+        if (buffer->id != buffer_id) {
+            continue;
+        }
+        if (offset > buffer->size || byte_count > buffer->size - offset || buffer->bytes == NULL) {
+            return 0;
+        }
+        memcpy(destination, buffer->bytes + (size_t)offset, byte_count);
+        return byte_count;
+    }
+    return 0;
+}
+
+static bool texture_mip_layer_layout(
+        const MinecraftRenderTexture *texture,
+        uint32_t mip_level,
+        uint32_t layer,
+        uint32_t *mip_width,
+        uint32_t *mip_height,
+        uint64_t *byte_count
+) {
+    if (texture == NULL || texture->format != MINECRAFT_RENDER_RGBA8_UNORM ||
+            mip_level >= texture->mip_levels || layer >= texture->depth_or_layers) {
+        return false;
+    }
+    uint32_t width = texture->width >> mip_level;
+    uint32_t height = texture->height >> mip_level;
+    if (width == 0) {
+        width = 1;
+    }
+    if (height == 0) {
+        height = 1;
+    }
+    uint64_t size = (uint64_t)width * (uint64_t)height * MINECRAFT_RENDER_RGBA8_BYTES_PER_PIXEL;
+    if (size > MINECRAFT_RENDER_MAX_RESOURCE_BYTES) {
+        return false;
+    }
+    *mip_width = width;
+    *mip_height = height;
+    *byte_count = size;
+    return true;
+}
+
+uint64_t minecraft_render_native_texture_mip_layer_size(
+        const MinecraftRenderNativeState *state,
+        uint32_t texture_id,
+        uint32_t mip_level,
+        uint32_t layer
+) {
+    if (state == NULL) {
+        return 0;
+    }
+    for (const MinecraftRenderTexture *texture = state->textures;
+            texture != NULL; texture = texture->next) {
+        if (texture->id != texture_id) {
+            continue;
+        }
+        uint32_t mip_width;
+        uint32_t mip_height;
+        uint64_t byte_count;
+        return texture_mip_layer_layout(texture, mip_level, layer, &mip_width, &mip_height, &byte_count)
+                ? byte_count : 0;
+    }
+    return 0;
+}
+
+static size_t texture_upload_count(const MinecraftRenderTexture *texture) {
+    size_t count = 0;
+    for (const MinecraftRenderTextureUpload *upload = texture->uploads;
+            upload != NULL; upload = upload->next) {
+        count++;
+    }
+    return count;
+}
+
+static void composite_texture_upload(
+        const MinecraftRenderTextureUpload *upload,
+        uint32_t mip_level,
+        uint32_t mip_width,
+        uint32_t mip_height,
+        uint32_t layer,
+        uint64_t range_offset,
+        uint8_t *destination,
+        size_t byte_count
+) {
+    /* Regions are retained per mip. Applying another mip's region here would
+     * paint it into the wrong Godot mip-chain slice. */
+    if (upload->mip_level != mip_level || upload->bytes == NULL ||
+            layer >= upload->depth_or_layers ||
+            upload->dest_x >= mip_width || upload->dest_y >= mip_height ||
+            upload->width > mip_width - upload->dest_x ||
+            upload->height > mip_height - upload->dest_y) {
+        return;
+    }
+    uint64_t source_layer_stride = (uint64_t)upload->width * upload->height *
+            MINECRAFT_RENDER_RGBA8_BYTES_PER_PIXEL;
+    if (source_layer_stride == 0 || source_layer_stride > upload->data_size ||
+            layer > (UINT64_MAX / source_layer_stride) ||
+            (uint64_t)layer * source_layer_stride >= upload->data_size) {
+        return;
+    }
+    uint64_t range_end = range_offset + byte_count;
+    for (uint32_t row = 0; row < upload->height; row++) {
+        uint64_t source_offset = (uint64_t)layer * source_layer_stride +
+                (uint64_t)row * upload->width * MINECRAFT_RENDER_RGBA8_BYTES_PER_PIXEL;
+        uint64_t row_bytes = (uint64_t)upload->width * MINECRAFT_RENDER_RGBA8_BYTES_PER_PIXEL;
+        if (source_offset > upload->data_size || row_bytes > upload->data_size - source_offset) {
+            return;
+        }
+        uint64_t target_offset = ((uint64_t)(upload->dest_y + row) * mip_width + upload->dest_x) *
+                MINECRAFT_RENDER_RGBA8_BYTES_PER_PIXEL;
+        uint64_t target_end = target_offset + row_bytes;
+        uint64_t copy_start = target_offset > range_offset ? target_offset : range_offset;
+        uint64_t copy_end = target_end < range_end ? target_end : range_end;
+        if (copy_start < copy_end) {
+            memcpy(destination + (size_t)(copy_start - range_offset),
+                    upload->bytes + (size_t)(source_offset + copy_start - target_offset),
+                    (size_t)(copy_end - copy_start));
+        }
+    }
+}
+
+size_t minecraft_render_native_copy_texture_mip_layer_bytes(
+        const MinecraftRenderNativeState *state,
+        uint32_t texture_id,
+        uint32_t mip_level,
+        uint32_t layer,
+        uint64_t offset,
+        uint8_t *destination,
+        size_t byte_count
+) {
+    if (state == NULL || destination == NULL || byte_count == 0 ||
+            byte_count > MINECRAFT_RENDER_BRIDGE_MAX_CHUNK_BYTES) {
+        return 0;
+    }
+    for (const MinecraftRenderTexture *texture = state->textures;
+            texture != NULL; texture = texture->next) {
+        if (texture->id != texture_id) {
+            continue;
+        }
+        uint32_t mip_width;
+        uint32_t mip_height;
+        uint64_t image_size;
+        if (!texture_mip_layer_layout(texture, mip_level, layer, &mip_width, &mip_height, &image_size) ||
+                offset > image_size || byte_count > image_size - offset) {
+            return 0;
+        }
+        memset(destination, 0, byte_count);
+        size_t upload_count = texture_upload_count(texture);
+        if (upload_count == 0) {
+            return byte_count;
+        }
+        const MinecraftRenderTextureUpload **uploads = calloc(upload_count, sizeof(*uploads));
+        if (uploads == NULL) {
+            return 0;
+        }
+        size_t index = 0;
+        for (const MinecraftRenderTextureUpload *upload = texture->uploads;
+                upload != NULL; upload = upload->next) {
+            uploads[index++] = upload;
+        }
+        /* The linked list is newest-first; compose oldest-to-newest. */
+        while (index != 0) {
+            composite_texture_upload(uploads[--index], mip_level, mip_width, mip_height, layer,
+                    offset, destination, byte_count);
+        }
+        free(uploads);
+        return byte_count;
     }
     return 0;
 }

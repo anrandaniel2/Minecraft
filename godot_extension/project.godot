@@ -44,8 +44,11 @@ stretch/mode="canvas_items"
 stretch/aspect="expand"
 
 [rendering]
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+; RenderingDevice is required for the RenderPearl viewport executor. Desktop
+; uses Forward+ and Android uses the Vulkan Mobile renderer; Compatibility is
+; intentionally a non-rendering safety fallback for the native protocol sink.
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="mobile"
 
 [rendering/textures/vram_compression]
 import_etc2_astc=true
