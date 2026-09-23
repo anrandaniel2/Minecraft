@@ -22,14 +22,14 @@ public final class GodotGpuDeviceTest {
     private GodotGpuDeviceTest() {
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         List<byte[]> submittedFrames = new ArrayList<>();
         GodotGpuDevice device = new GodotGpuDevice(16, 16, frame -> {
             submittedFrames.add(frame);
             return decodeOpcodes(frame).size();
         });
 
-        GpuSurface surface = device.createSurface(0L, () -> true);
+        GodotGpuSurface surface = (GodotGpuSurface) device.createSurface(0L, () -> true);
         if (!surface.supportedPresentModes().equals(List.of(GpuSurface.PresentMode.FIFO))) {
             throw new AssertionError("Godot surface must expose FIFO presentation");
         }
