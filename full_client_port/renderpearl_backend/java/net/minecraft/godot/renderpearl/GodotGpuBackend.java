@@ -15,7 +15,7 @@ import java.util.Objects;
  * imports: {@link #createWindow} returns a sentinel handle and does not open a
  * native window, and {@link #createDevice} returns {@link GodotGpuDevice}.
  */
-public final class GodotGpuBackend extends GpuBackend {
+public final class GodotGpuBackend implements GpuBackend {
     /** Non-zero handle so stock {@code Window} does not treat creation as failed. */
     public static final long WINDOW_HANDLE = 1L;
 
