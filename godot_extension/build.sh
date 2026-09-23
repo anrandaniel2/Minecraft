@@ -122,10 +122,20 @@ if [[ "${MINECRAFT_USE_NATIVE_IMAGE_CONFIG:-}" == 1 && -d "$CONFIG_DIR" && -n "$
   CONFIG_ARGS+=("-H:ConfigurationFileDirectories=$CONFIG_DIR")
 fi
 
+MEM_KB="$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
+HEAP_MB="$(( MEM_KB / 1024 - 2048 ))"
+if [[ "$HEAP_MB" -lt 6144 ]]; then
+  HEAP_MB=6144
+fi
+if [[ "$HEAP_MB" -gt 12288 ]]; then
+  HEAP_MB=12288
+fi
+echo "native-image heap ${HEAP_MB} MB (MemTotal ${MEM_KB} KB)"
 "$NATIVE_IMAGE" \
   --shared \
   --no-fallback \
   -O2 \
+  --parallelism=1 \
   -cp "$IMAGE_CP" \
   -H:+UnlockExperimentalVMOptions \
   -H:+ReportExceptionStackTraces \
@@ -134,7 +144,7 @@ fi
   -H:IncludeResources='version\.json|pack\.mcmeta|assets/.*|data/.*' \
   --initialize-at-build-time=minecraft.nativeimage.MinecraftNativeEntrypoints \
   --initialize-at-run-time=net.minecraft,com.mojang,org.lwjgl,io.netty,com.google,it.unimi,org.apache,org.slf4j,org.joml,com.ibm,org.jcraft,at.yawk,net.java,joptsimple,com.azure,com.microsoft,org.jspecify,com.github \
-  -J-Xmx6g \
+  -J-Xmx"${HEAP_MB}m" \
   "${CONFIG_ARGS[@]}"
 
 JAVA_LIBRARY="$NATIVE_DIR/minecraft_java.so"
