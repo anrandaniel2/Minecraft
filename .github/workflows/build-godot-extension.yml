@@ -117,7 +117,20 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x godot_extension/build.sh
-          ./godot_extension/build.sh
+          set +e
+          ./godot_extension/build.sh > "$RUNNER_TEMP/native-image.log" 2>&1
+          status=$?
+          set -e
+          tail -n 80 "$RUNNER_TEMP/native-image.log"
+          if [[ "$status" -ne 0 ]]; then
+            echo "::error::extracted client native-image failed"
+            tail -n 25 "$RUNNER_TEMP/native-image.log" | while IFS= read -r line; do
+              sanitized="${line//$'\r'/}"
+              sanitized="${sanitized//%/%%}"
+              echo "::error::${sanitized:0:400}"
+            done
+            exit "$status"
+          fi
 
       - name: Reject a sample-client image
         run: |

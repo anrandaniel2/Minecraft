@@ -107,17 +107,15 @@ fi
   --shared \
   --no-fallback \
   -O2 \
-  --gc=serial \
   -cp "$IMAGE_CP" \
   -H:+UnlockExperimentalVMOptions \
   -H:+ReportExceptionStackTraces \
   -H:Name=minecraft_java \
   -H:Path="$NATIVE_DIR" \
   -H:IncludeResources='version\.json|pack\.mcmeta|assets/.*|data/.*' \
-  -H:EnableURLProtocols=http,https \
-  --initialize-at-build-time=minecraft.nativeimage.MinecraftNativeEntrypoints,net.minecraft.godot.renderpearl.GodotNativeRenderCommandTransport \
+  --initialize-at-build-time=minecraft.nativeimage.MinecraftNativeEntrypoints \
   --initialize-at-run-time=net.minecraft,com.mojang,org.lwjgl,io.netty,com.google,it.unimi,org.apache,org.slf4j,org.joml,com.ibm,org.jcraft,at.yawk,net.java,joptsimple,com.azure,com.microsoft,org.jspecify,com.github \
-  -J-Xmx10g \
+  -J-Xmx6g \
   "${CONFIG_ARGS[@]}"
 
 JAVA_LIBRARY="$NATIVE_DIR/minecraft_java.so"
