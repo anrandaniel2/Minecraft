@@ -13,6 +13,18 @@ typedef struct MinecraftRenderBuffer {
     struct MinecraftRenderBuffer *next;
 } MinecraftRenderBuffer;
 
+typedef struct MinecraftRenderTextureUpload {
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth_or_layers;
+    uint32_t dest_x;
+    uint32_t dest_y;
+    uint32_t mip_level;
+    uint32_t data_size;
+    uint8_t *bytes;
+    struct MinecraftRenderTextureUpload *next;
+} MinecraftRenderTextureUpload;
+
 typedef struct MinecraftRenderTexture {
     uint32_t id;
     uint32_t usage;
@@ -23,6 +35,7 @@ typedef struct MinecraftRenderTexture {
     uint32_t mip_levels;
     uint64_t uploaded_bytes;
     uint32_t upload_count;
+    MinecraftRenderTextureUpload *uploads;
     struct MinecraftRenderTexture *next;
 } MinecraftRenderTexture;
 
@@ -58,6 +71,37 @@ static MinecraftRenderTexture *find_texture(MinecraftRenderNativeState *state, u
     for (MinecraftRenderTexture *texture = state->textures; texture != NULL; texture = texture->next) {
         if (texture->id == id) {
             return texture;
+        }
+    }
+    return NULL;
+}
+
+static void free_texture_uploads(MinecraftRenderTexture *texture) {
+    while (texture->uploads != NULL) {
+        MinecraftRenderTextureUpload *upload = texture->uploads;
+        texture->uploads = upload->next;
+        free(upload->bytes);
+        free(upload);
+    }
+    texture->uploaded_bytes = 0;
+    texture->upload_count = 0;
+}
+
+static MinecraftRenderTextureUpload *find_texture_upload(
+        MinecraftRenderTexture *texture,
+        uint32_t width,
+        uint32_t height,
+        uint32_t depth_or_layers,
+        uint32_t dest_x,
+        uint32_t dest_y,
+        uint32_t mip_level
+) {
+    for (MinecraftRenderTextureUpload *upload = texture->uploads;
+            upload != NULL; upload = upload->next) {
+        if (upload->width == width && upload->height == height &&
+                upload->depth_or_layers == depth_or_layers && upload->dest_x == dest_x &&
+                upload->dest_y == dest_y && upload->mip_level == mip_level) {
+            return upload;
         }
     }
     return NULL;
@@ -149,6 +193,12 @@ static bool create_texture(void *user_data, uint32_t texture_id, uint32_t usage,
         texture->next = state->textures;
         state->textures = texture;
         state->texture_count++;
+    } else if (texture->usage != usage || texture->format != format || texture->width != width ||
+            texture->height != height || texture->depth_or_layers != depth_or_layers ||
+            texture->mip_levels != mip_levels) {
+        /* Reusing a handle with different allocation metadata invalidates all
+         * CPU upload regions retained for the old native texture. */
+        free_texture_uploads(texture);
     }
     texture->usage = usage;
     texture->format = format;
@@ -179,12 +229,51 @@ static bool write_texture(void *user_data, uint32_t texture_id, uint32_t width,
         mip_height = 1;
     }
     if (dest_x > mip_width || dest_y > mip_height ||
-            width > mip_width - dest_x || height > mip_height - dest_y ||
-            UINT64_MAX - texture->uploaded_bytes < data_size) {
+            width > mip_width - dest_x || height > mip_height - dest_y) {
         return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
     }
+
+    MinecraftRenderTextureUpload *upload = find_texture_upload(
+            texture, width, height, depth_or_layers, dest_x, dest_y, mip_level
+    );
+    uint64_t retained_without_previous = texture->uploaded_bytes;
+    if (upload != NULL) {
+        retained_without_previous -= upload->data_size;
+    }
+    if (data_size > MINECRAFT_RENDER_MAX_RESOURCE_BYTES ||
+            retained_without_previous > MINECRAFT_RENDER_MAX_RESOURCE_BYTES - data_size) {
+        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    }
+
+    uint8_t *copy = data_size == 0 ? NULL : malloc(data_size);
+    if (data_size != 0 && copy == NULL) {
+        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    }
+    if (data_size != 0) {
+        memcpy(copy, data, data_size);
+    }
+    if (upload == NULL) {
+        upload = calloc(1, sizeof(*upload));
+        if (upload == NULL) {
+            free(copy);
+            return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        }
+        upload->width = width;
+        upload->height = height;
+        upload->depth_or_layers = depth_or_layers;
+        upload->dest_x = dest_x;
+        upload->dest_y = dest_y;
+        upload->mip_level = mip_level;
+        upload->next = texture->uploads;
+        texture->uploads = upload;
+        texture->upload_count++;
+    } else {
+        texture->uploaded_bytes -= upload->data_size;
+        free(upload->bytes);
+    }
+    upload->bytes = copy;
+    upload->data_size = data_size;
     texture->uploaded_bytes += data_size;
-    texture->upload_count++;
     return true;
 }
 
@@ -323,6 +412,7 @@ void minecraft_render_native_state_destroy(MinecraftRenderNativeState *state) {
     while (state->textures != NULL) {
         MinecraftRenderTexture *texture = state->textures;
         state->textures = texture->next;
+        free_texture_uploads(texture);
         free(texture);
     }
     free(state);
@@ -365,4 +455,36 @@ size_t minecraft_render_native_buffer_count(const MinecraftRenderNativeState *st
 
 size_t minecraft_render_native_texture_count(const MinecraftRenderNativeState *state) {
     return state == NULL ? 0 : state->texture_count;
+}
+
+size_t minecraft_render_native_texture_upload_count(
+        const MinecraftRenderNativeState *state,
+        uint32_t texture_id
+) {
+    if (state == NULL) {
+        return 0;
+    }
+    for (const MinecraftRenderTexture *texture = state->textures;
+            texture != NULL; texture = texture->next) {
+        if (texture->id == texture_id) {
+            return texture->upload_count;
+        }
+    }
+    return 0;
+}
+
+uint64_t minecraft_render_native_texture_uploaded_bytes(
+        const MinecraftRenderNativeState *state,
+        uint32_t texture_id
+) {
+    if (state == NULL) {
+        return 0;
+    }
+    for (const MinecraftRenderTexture *texture = state->textures;
+            texture != NULL; texture = texture->next) {
+        if (texture->id == texture_id) {
+            return texture->uploaded_bytes;
+        }
+    }
+    return 0;
 }

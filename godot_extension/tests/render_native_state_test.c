@@ -116,7 +116,9 @@ int main(void) {
     int result = minecraft_render_submit_frame(valid, valid_size);
     if (result != 10 || minecraft_render_native_execute_latest(state) != 10 ||
             minecraft_render_native_buffer_count(state) != 1 ||
-            minecraft_render_native_texture_count(state) != 1) {
+            minecraft_render_native_texture_count(state) != 1 ||
+            minecraft_render_native_texture_upload_count(state, 3u) != 1 ||
+            minecraft_render_native_texture_uploaded_bytes(state, 3u) != 4u) {
         fprintf(stderr, "native state rejected a valid resource-backed frame\n");
         minecraft_render_native_state_destroy(state);
         return 1;
@@ -135,14 +137,26 @@ int main(void) {
         return 1;
     }
 
-    uint8_t recovery[128] = {0};
+    uint8_t recovery[192] = {0};
     size_t recovery_size = 0;
     begin_frame(recovery, &recovery_size, 3u);
+    p = packet(recovery, &recovery_size, MINECRAFT_RENDER_WRITE_TEXTURE, 48u);
+    u32(p, 3u);
+    u32(p + 4, 1u);
+    u32(p + 8, 1u);
+    u32(p + 12, 1u);
+    u32(p + 28, 4u);
+    p[32] = 5u;
+    p[33] = 6u;
+    p[34] = 7u;
+    p[35] = 8u;
     begin_pass(recovery, &recovery_size, 3u);
     packet(recovery, &recovery_size, MINECRAFT_RENDER_DRAW, 24u);
     end_frame(recovery, &recovery_size);
-    if (minecraft_render_submit_frame(recovery, recovery_size) != 5 ||
-            minecraft_render_native_execute_latest(state) != 5) {
+    if (minecraft_render_submit_frame(recovery, recovery_size) != 6 ||
+            minecraft_render_native_execute_latest(state) != 6 ||
+            minecraft_render_native_texture_upload_count(state, 3u) != 1 ||
+            minecraft_render_native_texture_uploaded_bytes(state, 3u) != 4u) {
         fprintf(stderr, "native state did not recover after rejecting a frame\n");
         minecraft_render_native_state_destroy(state);
         return 1;

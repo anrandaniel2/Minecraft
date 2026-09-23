@@ -80,9 +80,10 @@ adapters and `GodotCommandEncoder` instances using this writer rather than
 talking to Godot directly. The C GDExtension will consume it and map packets to
 Godot. The native `MinecraftRenderCommandSink` decoder now checks exact packet
 payload layouts and dispatches typed fields to a native resource/lifecycle sink.
-That sink currently retains CPU mirrors of declared buffers and texture metadata
-and rejects unknown handles/range violations; the next replacement is a Godot
-`RenderingDevice` sink. Neither layer has direct Java-to-Godot calls. This is
+That sink currently retains CPU mirrors of declared buffers and the latest
+texture-upload regions, and rejects unknown handles/range violations; the next
+replacement is a Godot `RenderingDevice` sink. Neither layer has direct
+Java-to-Godot calls. This is
 intentionally not an OpenGL/Vulkan context-sharing layer.
 
 ## Implementation order

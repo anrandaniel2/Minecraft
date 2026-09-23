@@ -5,8 +5,9 @@
  * Native resource/lifecycle sink for decoded RenderPearl packets.
  *
  * This is the non-Godot half of the eventual RenderingDevice executor. It
- * owns validated buffer bytes and texture metadata on the GDExtension side so
- * command frames cannot reference unknown handles or out-of-range buffer data.
+ * owns validated buffer bytes plus the latest texture-upload regions on the
+ * GDExtension side so command frames cannot reference unknown handles or
+ * out-of-range resource data.
  * The later Godot sink will replace these CPU mirrors with RenderingDevice RIDs
  * while retaining the same lifetime and ordering checks.
  */
@@ -32,6 +33,15 @@ int minecraft_render_native_execute_latest(MinecraftRenderNativeState *state);
 int minecraft_render_native_last_execution_status(const MinecraftRenderNativeState *state);
 size_t minecraft_render_native_buffer_count(const MinecraftRenderNativeState *state);
 size_t minecraft_render_native_texture_count(const MinecraftRenderNativeState *state);
+/* Retained latest upload regions/bytes for one native texture handle. */
+size_t minecraft_render_native_texture_upload_count(
+    const MinecraftRenderNativeState *state,
+    uint32_t texture_id
+);
+uint64_t minecraft_render_native_texture_uploaded_bytes(
+    const MinecraftRenderNativeState *state,
+    uint32_t texture_id
+);
 
 #ifdef __cplusplus
 }
