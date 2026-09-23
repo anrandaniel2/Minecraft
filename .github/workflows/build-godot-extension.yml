@@ -121,11 +121,22 @@ jobs:
           ./godot_extension/build.sh > "$RUNNER_TEMP/native-image.log" 2>&1
           status=$?
           set -e
-          tail -n 80 "$RUNNER_TEMP/native-image.log"
+          mkdir -p godot_extension/build
+          cp "$RUNNER_TEMP/native-image.log" godot_extension/build/native-image.log
+          tail -n 40 "$RUNNER_TEMP/native-image.log"
           if [[ "$status" -ne 0 ]]; then
             python3 tools/report_native_image_failure.py "$RUNNER_TEMP/native-image.log"
             exit "$status"
           fi
+
+      - name: Upload native-image log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-image-log
+          path: godot_extension/build/native-image.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Reject a sample-client image
         run: |
@@ -184,7 +195,7 @@ jobs:
       - name: Boot the extracted client inside the native image
         run: |
           set -euo pipefail
-          gcc -std=c11 -O2 -Wall -Wextra -Werror \
+          gcc -std=c11 -O2 -Wall -Wextra -Werror -D_GNU_SOURCE \
             -Igodot_extension/include \
             godot_extension/tests/extracted_client_boot_test.c \
             -Lgodot_extension/bin -lminecraft_java -ldl -pthread \

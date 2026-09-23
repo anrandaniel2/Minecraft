@@ -3,6 +3,9 @@
  * sample touch surface. The process is expected to create an isolate, call
  * minecraft_bootstrap, and observe minecraft_client_running become 1.
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

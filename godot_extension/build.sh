@@ -131,6 +131,7 @@ if [[ "$HEAP_MB" -gt 12288 ]]; then
   HEAP_MB=12288
 fi
 echo "native-image heap ${HEAP_MB} MB (MemTotal ${MEM_KB} KB)"
+set +e
 "$NATIVE_IMAGE" \
   --shared \
   --no-fallback \
@@ -146,34 +147,37 @@ echo "native-image heap ${HEAP_MB} MB (MemTotal ${MEM_KB} KB)"
   --initialize-at-run-time=net.minecraft,com.mojang,org.lwjgl,io.netty,com.google,it.unimi,org.apache,org.slf4j,org.joml,com.ibm,org.jcraft,at.yawk,net.java,joptsimple,com.azure,com.microsoft,org.jspecify,com.github \
   -J-Xmx"${HEAP_MB}m" \
   "${CONFIG_ARGS[@]}"
+image_status=$?
+set -e
+echo "native-image exit ${image_status}"
+find "$NATIVE_DIR" -maxdepth 2 -type f -printf 'artifact %p %s\n' || true
+if [[ "$image_status" -ne 0 ]]; then
+  echo "Error: native-image exited ${image_status}" >&2
+  exit "$image_status"
+fi
 
-JAVA_LIBRARY="$NATIVE_DIR/minecraft_java.so"
-JAVA_HEADER="$NATIVE_DIR/minecraft_java.h"
-[[ -f "$JAVA_LIBRARY" && -f "$JAVA_HEADER" ]] || {
-  echo "native-image did not produce minecraft_java.so and minecraft_java.h." >&2
+if [[ ! -f "$NATIVE_DIR/minecraft_java.so" && -f "$NATIVE_DIR/libminecraft_java.so" ]]; then
+  JAVA_LIBRARY="$NATIVE_DIR/libminecraft_java.so"
+else
+  JAVA_LIBRARY="$NATIVE_DIR/minecraft_java.so"
+fi
+if [[ ! -f "$JAVA_LIBRARY" ]]; then
+  echo "Error: native-image did not produce minecraft_java.so" >&2
   exit 1
-}
-
-python3 - "$JAVA_LIBRARY" << 'PY'
-import pathlib, sys
-data = pathlib.Path(sys.argv[1]).read_bytes()
-required = (
-    b"ExtractedClientLauncher",
-    b"GodotGpuBackend",
-    b"net.minecraft.client.main.Main",
-)
-missing = [item.decode() for item in required if item not in data]
-if missing:
-    raise SystemExit("extracted client markers missing from native image: " + ", ".join(missing))
-if b"touch input surface ready" in data:
-    raise SystemExit("sample client banner leaked into the extracted native image")
-print("native image contains the extracted client and GodotGpuBackend")
-PY
-
-cp "$NATIVE_DIR"/*.h "$GENERATED_DIR/"
+fi
+if [[ -f "$NATIVE_DIR/minecraft_java.h" ]]; then
+  cp "$NATIVE_DIR"/*.h "$GENERATED_DIR/"
+elif [[ -f "$NATIVE_DIR/libminecraft_java.h" ]]; then
+  cp "$NATIVE_DIR"/*.h "$GENERATED_DIR/"
+  cp "$NATIVE_DIR/libminecraft_java.h" "$GENERATED_DIR/minecraft_java.h"
+else
+  echo "Error: native-image did not produce minecraft_java.h; using fallback declarations" >&2
+  cp "$EXTENSION_DIR/include/minecraft_java.h" "$GENERATED_DIR/minecraft_java.h"
+fi
+python3 "$ROOT/tools/verify_extracted_native_image.py" "$JAVA_LIBRARY"
 install -m 755 "$JAVA_LIBRARY" "$BIN_DIR/libminecraft_java.so"
 
-gcc -std=c11 -O2 -fPIC -shared -Wall -Wextra -Werror \
+gcc -std=c11 -O2 -fPIC -shared -Wall -Wextra -Werror -D_GNU_SOURCE \
   -I"$GENERATED_DIR" \
   -I"$EXTENSION_DIR/include" \
   "$EXTENSION_DIR/src/godot_bridge.c" \

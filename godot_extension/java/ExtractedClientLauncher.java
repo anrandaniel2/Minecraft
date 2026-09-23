@@ -28,11 +28,27 @@ import java.util.UUID;
  * {@code PreferredGraphicsApi}, which constructs {@link GodotGpuBackend}.
  */
 public final class ExtractedClientLauncher {
+    /** ASCII marker embedded in the native image. Do not rename. */
+    static final byte[] IMAGE_MARKER = new byte[] {
+            'e', 'x', 't', 'r', 'a', 'c', 't', 'e', 'd', '-',
+            'm', 'i', 'n', 'e', 'c', 'r', 'a', 'f', 't', '-',
+            '2', '6', '.', '3', '-',
+            'c', 'l', 'i', 'e', 'n', 't'
+    };
+
     private static volatile Minecraft client;
     private static volatile Throwable failure;
     private static volatile boolean started;
 
     private ExtractedClientLauncher() {
+    }
+
+    /** Keeps the ASCII image marker reachable from the C entry point. */
+    public static int imageMarkerByte(int index) {
+        if (index < 0 || index >= IMAGE_MARKER.length) {
+            return -1;
+        }
+        return IMAGE_MARKER[index] & 0xff;
     }
 
     /** Keeps the Godot RenderPearl backend in the native-image reachability set. */

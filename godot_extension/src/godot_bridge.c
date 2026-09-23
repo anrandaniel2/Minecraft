@@ -3,6 +3,9 @@
  * The Java layer does not know about Godot. This adapter owns the GDExtension
  * ABI and forwards plain integer touch data to the Java Native Image library.
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <dlfcn.h>
 #include <stdint.h>
 #include <stdio.h>

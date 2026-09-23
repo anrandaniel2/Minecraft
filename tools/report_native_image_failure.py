@@ -1,12 +1,26 @@
 #!/usr/bin/env python3
-"""Print native-image failure lines as GitHub Actions error annotations."""
+"""Print the native-image log tail as one GitHub Actions error annotation.
+
+GitHub keeps only the first few workflow annotations. Emitting one line per
+log row hid the real failure behind Graal's recommendations banner.
+"""
 
 from __future__ import annotations
 
 import pathlib
 import sys
 
-TOKENS = ("Error:", "error:", "Exception", "Fatal", "Caused by", "unknown option", "Missing")
+TAIL_LINES = 30
+MAX_CHARS = 3500
+
+
+def sanitize(text: str) -> str:
+    return (
+        text.replace("\r", "")
+        .replace("\n", " ")
+        .replace("%", "%%")
+        .replace("::", " ")
+    )
 
 
 def main() -> int:
@@ -14,12 +28,11 @@ def main() -> int:
         print("usage: report_native_image_failure.py LOG", file=sys.stderr)
         return 2
     lines = pathlib.Path(sys.argv[1]).read_text(errors="replace").splitlines()
-    picked = [line for line in lines if any(token in line for token in TOKENS)]
-    selected = picked[-20:] or lines[-20:]
-    print("::error::extracted client native-image failed")
-    for line in selected:
-        sanitized = line.replace("\r", "").replace("%", "%%")[:400]
-        print(f"::error::{sanitized}")
+    tail = [sanitize(line)[:240] for line in lines[-TAIL_LINES:]]
+    message = "TAIL " + " || ".join(tail)
+    if len(message) > MAX_CHARS:
+        message = message[-MAX_CHARS:]
+    print(f"::error::{message}")
     return 0
 
 
