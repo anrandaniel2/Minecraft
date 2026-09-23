@@ -104,10 +104,12 @@ The generated header and intermediate build directory are not committed.
 ### RenderPearl native mailbox boundary
 
 `minecraft_render_submit_frame()` validates and stores an owned copy of a
-completed Java command frame. The future Godot `RenderingDevice` executor uses
+completed Java command frame. The Godot `RenderingDevice` executor will use
 `minecraft_render_take_latest_frame()` to atomically detach the newest frame,
-executes its packets without holding the mailbox mutex, then calls
-`minecraft_render_release_frame()`. This gives the Java render thread and the
+pass it through the typed `MinecraftRenderCommandSink` decoder, then call
+`minecraft_render_release_frame()`. The decoder verifies every payload length
+and exposes only native numeric values and byte ranges to its sink callbacks;
+it has no Godot dependency itself. This gives the Java render thread and the
 Godot render thread clear ownership boundaries: a later Java submission cannot
 change the byte frame currently being executed.
 

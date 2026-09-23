@@ -78,7 +78,10 @@ this stream in Java without any Godot imports; its protocol test is compiled in
 full-client preflight CI. `GodotGpuDevice` now creates extracted 26.3 resource
 adapters and `GodotCommandEncoder` instances using this writer rather than
 talking to Godot directly. The C GDExtension will consume it and map packets to
-Godot. This is intentionally not an OpenGL/Vulkan context-sharing layer.
+Godot. The native `MinecraftRenderCommandSink` decoder now checks exact packet
+payload layouts and dispatches typed fields to a future Godot sink; it still has
+no Godot calls of its own. This is intentionally not an OpenGL/Vulkan
+context-sharing layer.
 
 ## Implementation order
 

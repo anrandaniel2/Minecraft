@@ -66,6 +66,7 @@ gcc -std=c11 -O2 -fPIC -shared -Wall -Wextra -Werror \
   -I"$GENERATED_DIR" \
   "$EXTENSION_DIR/src/godot_bridge.c" \
   "$EXTENSION_DIR/src/minecraft_render_abi.c" \
+  "$EXTENSION_DIR/src/minecraft_render_executor.c" \
   -L"$BIN_DIR" -lminecraft_java -pthread \
   -Wl,-rpath,'$ORIGIN' -Wl,-z,origin \
   -o "$BIN_DIR/libminecraft_godot.so"

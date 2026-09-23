@@ -50,7 +50,7 @@ jobs:
           native-image --version
           ./godot_extension/build.sh
 
-      - name: Test neutral RenderPearl command ABI
+      - name: Test neutral RenderPearl command ABI and typed executor
         run: |
           set -euo pipefail
           gcc -std=c11 -O2 -Wall -Wextra -Werror \
@@ -59,6 +59,13 @@ jobs:
             godot_extension/tests/render_abi_test.c \
             -pthread -o "$RUNNER_TEMP/render_abi_test"
           "$RUNNER_TEMP/render_abi_test"
+          gcc -std=c11 -O2 -Wall -Wextra -Werror \
+            -Igodot_extension/include \
+            godot_extension/src/minecraft_render_abi.c \
+            godot_extension/src/minecraft_render_executor.c \
+            godot_extension/tests/render_executor_test.c \
+            -pthread -o "$RUNNER_TEMP/render_executor_test"
+          "$RUNNER_TEMP/render_executor_test"
 
       - name: Verify exported extension and runtime dependency
         run: |

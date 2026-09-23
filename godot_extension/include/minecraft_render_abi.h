@@ -65,6 +65,8 @@ typedef enum MinecraftRenderValidationResult {
     MINECRAFT_RENDER_VISITOR_REJECTED = -6,
     /* No completed frame was pending when the Godot render thread polled. */
     MINECRAFT_RENDER_NO_FRAME = -7,
+    /* A valid opcode is not implemented by the native command sink yet. */
+    MINECRAFT_RENDER_UNSUPPORTED_COMMAND = -8,
 } MinecraftRenderValidationResult;
 
 /* Return false to stop processing with MINECRAFT_RENDER_VISITOR_REJECTED. */
