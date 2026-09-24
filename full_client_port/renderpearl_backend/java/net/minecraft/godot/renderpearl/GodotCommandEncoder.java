@@ -378,7 +378,11 @@ final class GodotCommandEncoder implements CommandEncoder {
 
     @Override
     public void writeTimestamp(GpuQueryPool pool, int index) {
-        throw unsupported("timestamp queries");
+        // TimerQuery records around frames. Missing GPU timestamps are skipped
+        // by the client when the pool returns empty values.
+        if (pool != null && (index < 0 || index >= pool.size())) {
+            throw new IndexOutOfBoundsException("Timestamp query index " + index);
+        }
     }
 
     private void requireOpen() {

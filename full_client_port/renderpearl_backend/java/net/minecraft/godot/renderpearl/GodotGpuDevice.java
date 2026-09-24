@@ -300,7 +300,7 @@ public final class GodotGpuDevice implements GpuDevice {
     @Override
     public GpuQueryPool createTimestampQueryPool(int size) {
         requireOpen();
-        throw new UnsupportedOperationException("Godot RenderPearl timestamp queries are not implemented");
+        return new GodotGpuQueryPool(size);
     }
 
     @Override

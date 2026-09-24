@@ -56,7 +56,10 @@ final class GodotRenderPass implements RenderPass {
 
     @Override
     public void writeTimestamp(GpuQueryPool pool, int index) {
-        throw unsupported("timestamp queries");
+        requireOpen();
+        if (pool != null && (index < 0 || index >= pool.size())) {
+            throw new IndexOutOfBoundsException("Timestamp query index " + index);
+        }
     }
 
     @Override
