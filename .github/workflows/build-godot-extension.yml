@@ -73,7 +73,6 @@ jobs:
           python3 tools/fetch_minecraft_libraries.py
 
       - name: Collect native-image metadata from a short JVM probe
-        continue-on-error: true
         run: |
           set -euo pipefail
           mkdir -p godot_extension/build/native-image-config
@@ -108,13 +107,23 @@ jobs:
           set +e
           timeout 90 java \
             -agentlib:native-image-agent=config-output-dir=godot_extension/build/native-image-config,experimental-class-define-support,config-write-period-secs=5 \
-            -Dminecraft.godot.probeSeconds=20 \
+            -Dminecraft.godot.jniProbeOnly=true \
             -Dminecraft.godot.nativeDir="$MINECRAFT_GODOT_NATIVE_DIR" \
             -cp "godot_extension/build/overlay:godot_extension/build/probe-classes:extracted:$(paste -sd: godot_extension/native-image/libraries/classpath.txt)" \
-            net.minecraft.godot.ExtractedClientLauncher
-          echo "JVM probe exit: $?"
+            net.minecraft.godot.ExtractedClientLauncher > "$RUNNER_TEMP/jni-probe.log" 2>&1
+          jni_status=$?
           set -e
-          find godot_extension/build/native-image-config -type f -print
+          echo "JNI probe exit: $jni_status"
+          find godot_extension/build/native-image-config -type f -print || true
+          if [[ "$jni_status" -ne 0 || ! -f godot_extension/build/native-image-config/predefined-classes-config.json ]]; then
+            {
+              echo "JNI probe exit $jni_status"
+              find godot_extension/build/native-image-config -print || true
+              tail -n 60 "$RUNNER_TEMP/jni-probe.log" || true
+            } > "$RUNNER_TEMP/jni-probe-report.log"
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/jni-probe-report.log"
+            exit 1
+          fi
 
       - name: Build extracted-client shared libraries
         run: |

@@ -112,6 +112,16 @@ public final class ExtractedClientLauncher {
      * the probe does not {@code System.exit} through the stock launcher.
      */
     public static void main(String[] args) throws InterruptedException {
+        if (Boolean.getBoolean("minecraft.godot.jniProbeOnly")) {
+            configureProcess();
+            loadNativeLibraries();
+            if (nativeLibraryFailure != null) {
+                System.err.println("JNI_PROBE_FAIL " + nativeLibraryFailure);
+                System.exit(1);
+            }
+            System.out.println("JNI_PROBE_OK");
+            return;
+        }
         start();
         int seconds = Integer.getInteger("minecraft.godot.probeSeconds", 8);
         long deadline = System.nanoTime() + seconds * 1_000_000_000L;
