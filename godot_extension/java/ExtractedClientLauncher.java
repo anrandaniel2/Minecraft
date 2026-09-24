@@ -156,6 +156,9 @@ public final class ExtractedClientLauncher {
             System.err.println("Detected Minecraft " + detected.id() + " (" + detected.name() + ")");
             Bootstrap.bootStrap();
             ClientBootstrap.bootstrap();
+            // Main.main registers this thread before constructing Minecraft.
+            // Window.setMode rejects the call otherwise.
+            com.mojang.blaze3d.systems.RenderSystem.initRenderThread();
             Minecraft created = new Minecraft(gameConfig());
             client = created;
             created.run();
