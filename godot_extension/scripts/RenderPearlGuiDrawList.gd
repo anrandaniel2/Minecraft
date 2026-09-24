@@ -311,7 +311,7 @@ func _index_array(rendering_device: RenderingDevice, draw: Dictionary, buffer_ri
 	var byte_offset := int(draw.get("index_offset", 0))
 	if byte_offset % stride != 0:
 		return RID()
-	return rendering_device.index_array_create(index_buffer, byte_offset // stride + first, int(draw.get("count", 0)))
+	return rendering_device.index_array_create(index_buffer, int(byte_offset / float(stride)) + first, int(draw.get("count", 0)))
 
 
 func _pipeline(
