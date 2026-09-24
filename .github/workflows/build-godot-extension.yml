@@ -88,7 +88,6 @@ jobs:
             -cp "godot_extension/build/overlay:extracted:$(paste -sd: godot_extension/native-image/libraries/classpath.txt)" \
             godot_extension/java/ExtractedClientLauncher.java \
             godot_extension/java/ExtractedClientInput.java \
-            godot_extension/java/LwjglJniBindings.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandProtocol.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandWriter.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandTransport.java \

@@ -84,9 +84,7 @@ public final class ExtractedClientLauncher {
             return;
         }
         started = true;
-        if (godotBackendType().getName().isEmpty()
-                || extractedMainType().getName().isEmpty()
-                || LwjglJniBindings.bindingsClass() == null) {
+        if (godotBackendType().getName().isEmpty() || extractedMainType().getName().isEmpty()) {
             throw new IllegalStateException("Extracted client image is missing its backend or entry class");
         }
         Thread thread = new Thread(ExtractedClientLauncher::runClient, "Render thread");

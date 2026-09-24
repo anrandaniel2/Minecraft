@@ -63,9 +63,41 @@ python3 "$ROOT/tools/redirect_graphics_backend.py" \
 # extracted initializer reflects on LWJGL structs that native-image does not
 # expose. This overlay keeps the class linkable without that reflection. The
 # Godot backend does not query the sets.
-"$JAVAC" -d "$OVERLAY" -cp "$ROOT/extracted" \
+"$JAVAC" -d "$OVERLAY" -cp "$ROOT/extracted:$(paste -sd: "$CLASSPATH_FILE")" \
   "$EXTENSION_DIR/java/com/mojang/renderpearl/backend/vulkan/VulkanFeatureSets.java" \
-  "$EXTENSION_DIR/java/com/mojang/blaze3d/platform/SdlDebug.java"
+  "$EXTENSION_DIR/java/com/mojang/blaze3d/platform/SdlDebug.java" \
+  "$EXTENSION_DIR/java/org/lwjgl/system/JNI.java"
+python3 - "$OVERLAY/org/lwjgl/system/JNI.class" << 'PY'
+import pathlib, sys
+data = pathlib.Path(sys.argv[1]).read_bytes()
+if b"GODOT_JNI_OVERLAY" not in data:
+    raise SystemExit("JNI overlay was not compiled into the image classpath")
+if b"JNIBindingsImpl" in data or b"ffmGenerate" in data:
+    raise SystemExit("JNI overlay still generates a hidden FFM class")
+print("JNI overlay uses native methods, not FFM class generation")
+PY
+python3 - "$ROOT/godot_extension/native-image/libraries" << 'PY'
+import pathlib, sys, zipfile
+root = pathlib.Path(sys.argv[1])
+removed = []
+for jar in root.glob("lwjgl-3*.jar"):
+    if jar.name.startswith("lwjgl-3") and "natives" not in jar.name:
+        with zipfile.ZipFile(jar, "r") as archive:
+            names = [name for name in archive.namelist() if name.endswith("org/lwjgl/system/JNI.class")]
+        if not names:
+            continue
+        temp = jar.with_suffix(".jar.tmp")
+        with zipfile.ZipFile(jar, "r") as source, zipfile.ZipFile(temp, "w") as target:
+            for info in source.infolist():
+                if info.filename.endswith("org/lwjgl/system/JNI.class"):
+                    removed.append(f"{jar.name}:{info.filename}")
+                    continue
+                target.writestr(info, source.read(info.filename))
+        temp.replace(jar)
+if not removed:
+    raise SystemExit("LWJGL jar has no JNI class to replace with the native-method overlay")
+print("removed versioned JNI classes:", ", ".join(removed))
+PY
 python3 - "$OVERLAY/com/mojang/renderpearl/backend/vulkan/VulkanFeatureSets.class" << 'PY'
 import pathlib, sys
 data = pathlib.Path(sys.argv[1]).read_bytes()
@@ -102,7 +134,6 @@ COMPILE_CP="$ROOT/extracted:$LIBRARY_CP"
   "$ADAPTER_DIR/GodotGpuBackend.java" \
   "$EXTENSION_DIR/java/ExtractedClientLauncher.java" \
   "$EXTENSION_DIR/java/ExtractedClientInput.java" \
-  "$EXTENSION_DIR/java/LwjglJniBindings.java" \
   "$EXTENSION_DIR/java/MinecraftNativeEntrypoints.java"
 
 if [[ -f "$CLASSES/net/minecraft/client/Minecraft.class" ]]; then
@@ -150,14 +181,9 @@ if [[ -f "$CONFIG_DIR/predefined-classes-config.json" ]]; then
   echo "predefined classes:"
   find "$PREDEFINED_DIR" -type f -printf '%p %s\n'
 fi
-# JNIBindingsImpl is a hidden class. The agent does not capture it. Generate
-# it while the image is built and retain the Class object.
-LWJGL_LIB="$BIN_DIR/natives/liblwjgl.so"
-if [[ ! -f "$LWJGL_LIB" ]]; then
-  echo "Error: $LWJGL_LIB is required to generate LWJGL JNI bindings at build time." >&2
-  exit 1
-fi
-export LD_LIBRARY_PATH="$BIN_DIR/natives:${LD_LIBRARY_PATH:-}"
+# JNI native methods are linked from liblwjgl.so at runtime. Register the class
+# so a missing JNI lookup is reported instead of failing the image build.
+CONFIG_ARGS+=("-H:ConfigurationFileDirectories=$EXTENSION_DIR/native-image/jni")
 
 MEM_KB="$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
 HEAP_MB="$(( MEM_KB / 1024 - 2048 ))"
@@ -180,12 +206,8 @@ set +e
   -H:Name=minecraft_java \
   -H:Path="$NATIVE_DIR" \
   -H:IncludeResources='version\.json|pack\.mcmeta|assets/.*|data/.*' \
-  --initialize-at-build-time=minecraft.nativeimage.MinecraftNativeEntrypoints,net.minecraft.godot.LwjglJniBindings,org.lwjgl.system.JNI,org.lwjgl.system.Library \
+  --initialize-at-build-time=minecraft.nativeimage.MinecraftNativeEntrypoints \
   --initialize-at-run-time=net.minecraft,com.mojang,org.lwjgl,io.netty,com.google,it.unimi,org.apache,org.slf4j,org.joml,com.ibm,org.jcraft,at.yawk,net.java,joptsimple,com.azure,com.microsoft,org.jspecify,com.github \
-  -J-Dorg.lwjgl.libname="$LWJGL_LIB" \
-  -J-Dorg.lwjgl.librarypath="$BIN_DIR/natives" \
-  -J-Dorg.lwjgl.util.NoFunctionChecks=true \
-  -J-Dorg.lwjgl.util.Debug=true \
   -J-Xmx"${HEAP_MB}m" \
   "${CONFIG_ARGS[@]}"
 image_status=$?
