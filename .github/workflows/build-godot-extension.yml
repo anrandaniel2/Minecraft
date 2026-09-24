@@ -107,7 +107,7 @@ jobs:
           export LD_LIBRARY_PATH="$MINECRAFT_GODOT_NATIVE_DIR:${LD_LIBRARY_PATH:-}"
           set +e
           timeout 90 java \
-            -agentlib:native-image-agent=config-output-dir=godot_extension/build/native-image-config \
+            -agentlib:native-image-agent=config-output-dir=godot_extension/build/native-image-config,experimental-class-define-support,config-write-period-secs=5 \
             -Dminecraft.godot.probeSeconds=20 \
             -Dminecraft.godot.nativeDir="$MINECRAFT_GODOT_NATIVE_DIR" \
             -cp "godot_extension/build/overlay:godot_extension/build/probe-classes:extracted:$(paste -sd: godot_extension/native-image/libraries/classpath.txt)" \

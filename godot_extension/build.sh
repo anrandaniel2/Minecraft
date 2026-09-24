@@ -134,6 +134,24 @@ CONFIG_ARGS=()
 if [[ "${MINECRAFT_USE_NATIVE_IMAGE_CONFIG:-}" == 1 && -d "$CONFIG_DIR" && -n "$(find "$CONFIG_DIR" -type f -print -quit)" ]]; then
   CONFIG_ARGS+=("-H:ConfigurationFileDirectories=$CONFIG_DIR")
 fi
+# LWJGL defines org.lwjgl.system.JNIBindingsImpl at runtime. Native image rejects
+# that unless the JVM probe captured the exact bytecode. Do not pass the rest of
+# the agent trace; a partial reflect config has crashed image builds.
+PREDEFINED_DIR="$BUILD_DIR/predefined-classes"
+if [[ -f "$CONFIG_DIR/predefined-classes-config.json" ]]; then
+  rm -rf "$PREDEFINED_DIR"
+  mkdir -p "$PREDEFINED_DIR"
+  cp "$CONFIG_DIR/predefined-classes-config.json" "$PREDEFINED_DIR/"
+  if [[ -d "$CONFIG_DIR/agent-extracted-predefined-classes" ]]; then
+    cp -a "$CONFIG_DIR/agent-extracted-predefined-classes" "$PREDEFINED_DIR/"
+  fi
+  CONFIG_ARGS+=("-H:ConfigurationFileDirectories=$PREDEFINED_DIR")
+  echo "predefined classes:"
+  find "$PREDEFINED_DIR" -type f -printf '%p %s\n'
+else
+  echo "Error: JVM probe did not capture predefined classes for LWJGL JNI bindings." >&2
+  exit 1
+fi
 
 MEM_KB="$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
 HEAP_MB="$(( MEM_KB / 1024 - 2048 ))"
