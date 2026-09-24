@@ -4,5 +4,7 @@ compatibility_minimum = "4.7"
 reloadable = true
 
 [libraries]
+linux.editor.x86_64 = "res://bin/libminecraft_godot.so"
 linux.debug.x86_64 = "res://bin/libminecraft_godot.so"
 linux.release.x86_64 = "res://bin/libminecraft_godot.so"
+linux.x86_64 = "res://bin/libminecraft_godot.so"

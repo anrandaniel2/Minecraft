@@ -258,8 +258,12 @@ jobs:
           chmod +x "$GODOT_BIN"
           export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
           export MINECRAFT_REQUIRE_JAVA_GUI=1
+          # A fresh checkout has no editor cache. Godot only loads GDExtensions
+          # listed here, so the native bridge is missing unless we write it.
+          mkdir -p godot_extension/.godot
+          printf '%s\n' 'res://minecraft.gdextension' > godot_extension/.godot/extension_list.cfg
           set +e
-          timeout 180 "$GODOT_BIN" --headless --path godot_extension > "$RUNNER_TEMP/godot-gui.log" 2>&1
+          timeout 240 "$GODOT_BIN" --headless --path godot_extension > "$RUNNER_TEMP/godot-gui.log" 2>&1
           godot_status=$?
           set -e
           tail -n 40 "$RUNNER_TEMP/godot-gui.log"
@@ -268,7 +272,7 @@ jobs:
               echo "GODOT_TAIL"
               tail -n 20 "$RUNNER_TEMP/godot-gui.log" || true
               echo "GODOT_MATCHES"
-              grep -n "Parse Error\\|SCRIPT ERROR\\|JAVA_GUI\\|TEX_UPLOAD\\|BOOT_\\|ERROR:" "$RUNNER_TEMP/godot-gui.log" || true
+              grep -n "Parse Error\\|SCRIPT ERROR\\|JAVA_GUI\\|TEX_UPLOAD\\|BOOT_\\|MINECRAFT_GD\\|ERROR:" "$RUNNER_TEMP/godot-gui.log" || true
             } > "$RUNNER_TEMP/godot-gui-report.log"
             python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui-report.log"
             exit 1

@@ -131,23 +131,39 @@ static void export_native_dir(void) {
 }
 
 static int java_start(void) {
+    static const unsigned long reservations[] = {
+        (unsigned long)16 * 1024 * 1024 * 1024,
+        (unsigned long)4 * 1024 * 1024 * 1024,
+        (unsigned long)1024 * 1024 * 1024,
+        (unsigned long)512 * 1024 * 1024,
+        0
+    };
     graal_create_isolate_params_t params;
-    int status;
+    int status = -1;
+    size_t index;
     if (java_isolate != NULL) {
         return 1;
     }
     export_native_dir();
-    memset(&params, 0, sizeof(params));
-    params.version = __graal_create_isolate_params_version;
-    /* The extracted client image is about 127 MB. The default reservation can
-     * fail before any Java code runs. This Graal header has no argc/argv. */
-    params.reserved_address_space_size = (unsigned long)16 * 1024 * 1024 * 1024;
-    status = graal_create_isolate(&params, &java_isolate, &java_main_thread);
-    if (status != 0) {
+    /* Godot may already own a large virtual mapping, so the 16 GB reservation
+     * used by the standalone boot test can fail here. Retry smaller sizes. */
+    for (index = 0; index < sizeof(reservations) / sizeof(reservations[0]); index++) {
+        memset(&params, 0, sizeof(params));
+        params.version = __graal_create_isolate_params_version;
+        params.reserved_address_space_size = reservations[index];
+        status = graal_create_isolate(&params, &java_isolate, &java_main_thread);
+        fprintf(stderr, "MINECRAFT_GD_ISOLATE status %d reserved %lu\n", status, reservations[index]);
+        if (status == 0) {
+            break;
+        }
         java_isolate = NULL;
         java_main_thread = NULL;
+    }
+    if (status != 0) {
+        fprintf(stderr, "MINECRAFT_GD_JAVA_FAILED\n");
         return 0;
     }
+    fprintf(stderr, "MINECRAFT_GD_BOOTSTRAP\n");
     minecraft_bootstrap(java_main_thread);
     return 1;
 }
@@ -1057,6 +1073,7 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
     if (level != GDEXTENSION_INITIALIZATION_SCENE) {
         return;
     }
+    fprintf(stderr, "MINECRAFT_GD_SCENE\n");
 
     if (!java_start()) {
         return;
@@ -1076,6 +1093,7 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
     classdb_register_extension_class(godot_library, class_name, parent_name, &class_info);
     free_string_name(parent_name);
     free_string_name(class_name);
+    fprintf(stderr, "MINECRAFT_GD_CLASS_READY\n");
 
     register_method("touch_down", 5, method_touch_down, ptrcall_touch_down, 0);
     register_method("touch_move", 5, method_touch_move, ptrcall_touch_move, 0);
