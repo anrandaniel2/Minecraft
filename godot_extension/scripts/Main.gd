@@ -28,10 +28,6 @@ func _ready() -> void:
 	resource_executor.java_gui_presented.connect(_hide_godot_status_after_java_gui)
 	controls.camera_dragged.connect(renderer.add_camera_drag)
 	controls.render_mailbox_executed.connect(_sync_renderpearl_resources)
-	# TouchControls submits and consumes the native smoke frame during its own
-	# _ready(), before this parent receives child signals. Synchronize once here
-	# so desktop GPU resource allocation is covered at startup too.
-	_sync_renderpearl_resources(controls.minecraft_touch)
 
 
 func _process(delta: float) -> void:

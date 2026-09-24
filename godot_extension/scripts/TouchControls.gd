@@ -44,18 +44,11 @@ func _ready() -> void:
 	if minecraft_touch == null:
 		minecraft_touch = MobileInputFallback.new()
 	if using_native_bridge:
-		# Smoke the Java -> native RenderPearl frame mailbox on desktop. This has
-		# no visual payload yet; it verifies the backend transport without letting
-		# Java call Godot APIs. Android remains on its Godot-only fallback.
-		var submitted_packets: int = minecraft_touch.call(&"submit_render_protocol_smoke_frame")
-		if submitted_packets <= 0:
-			push_error("Minecraft RenderPearl protocol smoke frame was rejected: %d" % submitted_packets)
-		else:
-			var executed_packets: int = minecraft_touch.call(&"execute_render_mailbox")
-			if executed_packets != submitted_packets:
-				push_error("Minecraft RenderPearl native sink rejected the smoke frame: %d" % executed_packets)
-			else:
-				render_mailbox_executed.emit(minecraft_touch)
+		# Do not submit a protocol smoke frame here. The extracted client is
+		# already booting on the isolate thread and will submit real GuiRenderer
+		# frames. A startup smoke call re-enters the extension through Graal and
+		# can replace those frames before the viewport reads them.
+		print("MINECRAFT_GD_BRIDGE_READY")
 	_layout_touch_targets()
 	get_viewport().size_changed.connect(_layout_touch_targets)
 
@@ -105,6 +98,14 @@ func _process(_delta: float) -> void:
 	if Input.is_action_pressed(ACTION_RIGHT): action_mask |= RIGHT
 	if Input.is_action_pressed(ACTION_JUMP): action_mask |= JUMP
 	if Input.is_action_pressed(ACTION_SNEAK): action_mask |= SNEAK
+
+	# The GUI proof must not call back into the isolate from Godot's thread.
+	# The client thread submits frames; this side only drains the mailbox.
+	if using_native_bridge and OS.get_environment("MINECRAFT_REQUIRE_JAVA_GUI") == "1":
+		var proof_packets: int = minecraft_touch.call(&"execute_render_mailbox")
+		if proof_packets > 0:
+			render_mailbox_executed.emit(minecraft_touch)
+		return
 
 	minecraft_touch.call(&"set_virtual_joystick_mask", action_mask)
 	if using_native_bridge:
