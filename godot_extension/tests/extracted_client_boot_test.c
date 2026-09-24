@@ -6,12 +6,22 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include <execinfo.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "minecraft_java.h"
+
+static void crash_handler(int signal_number) {
+    void *frames[32];
+    int count = backtrace(frames, 32);
+    fprintf(stderr, "BOOT_CRASH signal %d frames %d\n", signal_number, count);
+    backtrace_symbols_fd(frames, count, STDERR_FILENO);
+    _exit(128 + signal_number);
+}
 
 int main(int argc, char **argv) {
     const char *native_dir = argc > 1 ? argv[1] : "godot_extension/bin/natives";
@@ -21,6 +31,9 @@ int main(int argc, char **argv) {
     int ticks;
 
     setenv("MINECRAFT_GODOT_NATIVE_DIR", native_dir, 1);
+    signal(SIGSEGV, crash_handler);
+    signal(SIGABRT, crash_handler);
+    signal(SIGBUS, crash_handler);
     fprintf(stderr, "BOOT creating isolate\n");
     status = graal_create_isolate(NULL, &isolate, &thread);
     fprintf(stderr, "BOOT graal_create_isolate(NULL) status=%d thread=%p\n", status, (void *)thread);

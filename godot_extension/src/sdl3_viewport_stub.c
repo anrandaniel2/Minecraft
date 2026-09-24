@@ -422,6 +422,20 @@ STUB_EXPORT void SDL_free(void *memory) {
     free(memory);
 }
 
+STUB_EXPORT uint32_t SDL_GetMouseState(float *x, float *y) {
+    if (x != NULL) {
+        *x = 0.0f;
+    }
+    if (y != NULL) {
+        *y = 0.0f;
+    }
+    return 0;
+}
+
+STUB_EXPORT uint32_t SDL_GetGlobalMouseState(float *x, float *y) {
+    return SDL_GetMouseState(x, y);
+}
+
 STUB_EXPORT bool SDL_PollEvent(void *event) {
     (void)event;
     return false;

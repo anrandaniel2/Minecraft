@@ -298,6 +298,9 @@ final class GodotCommandEncoder implements CommandEncoder {
             throw new IllegalArgumentException("Texture was not created by GodotRenderPearlBackend");
         }
         Objects.requireNonNull(data, "data");
+        System.err.println(
+                "TEX_UPLOAD " + width + "x" + height + " mip " + mipLevel + " at " + destX + "," + destY
+        );
         if (width <= 0 || height <= 0 || depthOrLayers <= 0 || destX < 0 || destY < 0) {
             throw new IllegalArgumentException("Texture upload dimensions and destination must be valid");
         }
