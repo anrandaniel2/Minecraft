@@ -209,6 +209,9 @@ public final class ExtractedClientLauncher {
         }
         try {
             org.lwjgl.system.Library.initialize();
+            // Initialize JNI here so a later OpenAL miss cannot hide the first
+            // link error behind "Could not initialize class".
+            Class.forName("org.lwjgl.system.JNI");
             System.err.println("LWJGL_INIT ok");
         } catch (Throwable error) {
             nativeLibraryFailure = describe(error) + " natives=[" + listing + "]";
@@ -219,8 +222,9 @@ public final class ExtractedClientLauncher {
         try {
             NativeLibrariesBootstrap.loadLibraries();
         } catch (Throwable loadFailure) {
-            nativeLibraryFailure = describe(loadFailure);
-            System.err.println("Minecraft native library load failed; continuing with the Godot backend: " + nativeLibraryFailure);
+            // Audio and optional loaders are not the viewport. Do not let a
+            // missing OpenAL device abort the extracted client.
+            System.err.println("Minecraft native library load failed; continuing with the Godot backend: " + describe(loadFailure));
             loadFailure.printStackTrace(System.err);
         }
     }
