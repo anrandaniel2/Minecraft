@@ -288,5 +288,3 @@ jobs:
           fi
           git commit -m 'Build extracted Minecraft 26.3 GraalVM library'
           git push origin "HEAD:${GITHUB_REF_NAME}"
-git commit -m 'Build extracted Minecraft 26.3 GraalVM library'
-          git push origin "HEAD:${GITHUB_REF_NAME}"
