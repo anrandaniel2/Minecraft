@@ -596,7 +596,7 @@ func _create_buffer(
 		if size_bytes % stride != 0:
 			push_warning("RenderPearl index buffer %d size is not aligned" % resource_id)
 			return RID()
-		return rendering_device.index_buffer_create(size_bytes // stride, index_type, bytes, false, 0)
+		return rendering_device.index_buffer_create(int(size_bytes / stride), index_type, bytes, false, 0)
 	if usage & USAGE_VERTEX != 0:
 		return rendering_device.vertex_buffer_create(size_bytes, bytes)
 	if usage & USAGE_UNIFORM != 0:

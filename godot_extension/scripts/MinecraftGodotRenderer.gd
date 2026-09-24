@@ -46,7 +46,7 @@ func _ready() -> void:
 		apply_block_snapshot(_bootstrap_snapshot())
 	else:
 		push_warning(
-			"Minecraft resource pack is not staged. Run "
+			"Minecraft resource pack is not staged. Run " +
 			"python3 tools/stage_minecraft_assets.py before launching Godot."
 		)
 

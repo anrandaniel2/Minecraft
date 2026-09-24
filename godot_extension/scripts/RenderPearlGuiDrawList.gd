@@ -166,7 +166,7 @@ func _prepare_draw(
 	var vertex_count := int(draw.get("count", 0))
 	if indexed:
 		var remaining := int(draw.get("vertex_length", 0)) - vertex_shift * stride
-		vertex_count = remaining // stride if remaining > 0 else vertex_count
+		vertex_count = int(remaining / stride) if remaining > 0 else vertex_count
 	if vertex_count <= 0:
 		return {}
 	var buffers: Array[RID] = [vertex_buffer]
