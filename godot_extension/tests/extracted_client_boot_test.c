@@ -26,14 +26,9 @@ int main(int argc, char **argv) {
     fprintf(stderr, "BOOT graal_create_isolate(NULL) status=%d thread=%p\n", status, (void *)thread);
     if (status != 0 || thread == NULL) {
         graal_create_isolate_params_t params;
-        char arg0[] = "minecraft";
-        char *isolate_argv[] = {arg0, NULL};
         memset(&params, 0, sizeof(params));
         params.version = __graal_create_isolate_params_version;
         params.reserved_address_space_size = (unsigned long)16 * 1024 * 1024 * 1024;
-        params.argc = 1;
-        params.argv = isolate_argv;
-        params.ignore_unrecognized_args = 1;
         status = graal_create_isolate(&params, &isolate, &thread);
         fprintf(stderr, "BOOT graal_create_isolate(params) status=%d thread=%p\n", status, (void *)thread);
     }

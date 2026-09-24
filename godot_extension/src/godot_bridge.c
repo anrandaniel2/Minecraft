@@ -132,8 +132,6 @@ static void export_native_dir(void) {
 
 static int java_start(void) {
     graal_create_isolate_params_t params;
-    char arg0[] = "minecraft";
-    char *isolate_argv[] = {arg0, NULL};
     int status;
     if (java_isolate != NULL) {
         return 1;
@@ -141,12 +139,9 @@ static int java_start(void) {
     export_native_dir();
     memset(&params, 0, sizeof(params));
     params.version = __graal_create_isolate_params_version;
-    /* The extracted client image is large. The default reservation can fail
-     * before any Java code runs. */
+    /* The extracted client image is about 127 MB. The default reservation can
+     * fail before any Java code runs. This Graal header has no argc/argv. */
     params.reserved_address_space_size = (unsigned long)16 * 1024 * 1024 * 1024;
-    params.argc = 1;
-    params.argv = isolate_argv;
-    params.ignore_unrecognized_args = 1;
     status = graal_create_isolate(&params, &java_isolate, &java_main_thread);
     if (status != 0) {
         java_isolate = NULL;
