@@ -101,6 +101,7 @@ jobs:
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCommandEncoder.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuSurface.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuDevice.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuFence.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuQueryPool.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuBackend.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotNativeRenderCommandTransport.java

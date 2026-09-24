@@ -131,6 +131,7 @@ COMPILE_CP="$ROOT/extracted:$LIBRARY_CP"
   "$ADAPTER_DIR/GodotCommandEncoder.java" \
   "$ADAPTER_DIR/GodotGpuSurface.java" \
   "$ADAPTER_DIR/GodotGpuDevice.java" \
+  "$ADAPTER_DIR/GodotGpuFence.java" \
   "$ADAPTER_DIR/GodotGpuQueryPool.java" \
   "$ADAPTER_DIR/GodotGpuBackend.java" \
   "$EXTENSION_DIR/java/ExtractedClientLauncher.java" \

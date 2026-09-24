@@ -97,10 +97,10 @@ public final class GodotGpuDevice implements GpuDevice {
     }
 
     @Override
-    public GpuSurface createSurface(long windowHandle, BooleanSupplier isWindowAlive) {
+    public GpuSurface createSurface(long windowHandle, BooleanSupplier isIconified) {
         requireOpen();
-        Objects.requireNonNull(isWindowAlive, "isWindowAlive");
-        return new GodotGpuSurface(this, windowHandle, isWindowAlive);
+        Objects.requireNonNull(isIconified, "isIconified");
+        return new GodotGpuSurface(this, windowHandle, isIconified);
     }
 
     @Override

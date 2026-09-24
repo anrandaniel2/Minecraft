@@ -373,7 +373,8 @@ final class GodotCommandEncoder implements CommandEncoder {
 
     @Override
     public GpuFence createFence() {
-        throw unsupported("GPU fences");
+        requireOpen();
+        return new GodotGpuFence();
     }
 
     @Override

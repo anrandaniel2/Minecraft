@@ -22,16 +22,18 @@ import java.util.function.BooleanSupplier;
 final class GodotGpuSurface implements GpuSurface {
     private final GodotGpuDevice device;
     private final long windowHandle;
-    private final BooleanSupplier isWindowAlive;
+    private final BooleanSupplier isIconified;
     private Optional<Configuration> configuration = Optional.empty();
     private boolean acquired;
     private boolean closed;
     private int presentedTextureId;
 
-    GodotGpuSurface(GodotGpuDevice device, long windowHandle, BooleanSupplier isWindowAlive) {
+    GodotGpuSurface(GodotGpuDevice device, long windowHandle, BooleanSupplier isIconified) {
         this.device = Objects.requireNonNull(device, "device");
         this.windowHandle = windowHandle;
-        this.isWindowAlive = Objects.requireNonNull(isWindowAlive, "isWindowAlive");
+        // RenderPearl names this supplier isIconified. A minimized window is
+        // still a live Godot viewport, so it must not abort acquireNextTexture.
+        this.isIconified = Objects.requireNonNull(isIconified, "isIconified");
     }
 
     @Override
@@ -81,8 +83,9 @@ final class GodotGpuSurface implements GpuSurface {
         if (configuration.isEmpty()) {
             throw new IllegalStateException("Godot surface must be configured before acquireNextTexture");
         }
-        if (!isWindowAlive.getAsBoolean()) {
-            throw new IllegalStateException("Godot viewport is no longer available");
+        if (isIconified.getAsBoolean()) {
+            // Keep the acquired flag so present() can complete the frame. The
+            // viewport simply has nothing new to show while minimized.
         }
         if (acquired) {
             throw new IllegalStateException("Godot surface texture is already acquired");
@@ -116,8 +119,11 @@ final class GodotGpuSurface implements GpuSurface {
     public void present() {
         requireOpen();
         requireAcquired();
-        // The eventual native executor presents through Godot's frame loop;
-        // this method only completes RenderPearl surface ownership today.
+        // RenderPearl's supplier reports iconified, not "viewport destroyed".
+        // A minimized window still completes the frame; Godot owns presentation.
+        if (isIconified.getAsBoolean()) {
+            presentedTextureId = 0;
+        }
         acquired = false;
     }
 
