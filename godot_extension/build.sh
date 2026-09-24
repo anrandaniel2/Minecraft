@@ -102,6 +102,7 @@ COMPILE_CP="$ROOT/extracted:$LIBRARY_CP"
   "$ADAPTER_DIR/GodotGpuBackend.java" \
   "$EXTENSION_DIR/java/ExtractedClientLauncher.java" \
   "$EXTENSION_DIR/java/ExtractedClientInput.java" \
+  "$EXTENSION_DIR/java/LwjglJniBindings.java" \
   "$EXTENSION_DIR/java/MinecraftNativeEntrypoints.java"
 
 if [[ -f "$CLASSES/net/minecraft/client/Minecraft.class" ]]; then
@@ -148,10 +149,15 @@ if [[ -f "$CONFIG_DIR/predefined-classes-config.json" ]]; then
   CONFIG_ARGS+=("-H:ConfigurationFileDirectories=$PREDEFINED_DIR")
   echo "predefined classes:"
   find "$PREDEFINED_DIR" -type f -printf '%p %s\n'
-else
-  echo "Error: JVM probe did not capture predefined classes for LWJGL JNI bindings." >&2
+fi
+# JNIBindingsImpl is a hidden class. The agent does not capture it. Generate
+# it while the image is built and retain the Class object.
+LWJGL_LIB="$BIN_DIR/natives/liblwjgl.so"
+if [[ ! -f "$LWJGL_LIB" ]]; then
+  echo "Error: $LWJGL_LIB is required to generate LWJGL JNI bindings at build time." >&2
   exit 1
 fi
+export LD_LIBRARY_PATH="$BIN_DIR/natives:${LD_LIBRARY_PATH:-}"
 
 MEM_KB="$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
 HEAP_MB="$(( MEM_KB / 1024 - 2048 ))"
@@ -174,8 +180,12 @@ set +e
   -H:Name=minecraft_java \
   -H:Path="$NATIVE_DIR" \
   -H:IncludeResources='version\.json|pack\.mcmeta|assets/.*|data/.*' \
-  --initialize-at-build-time=minecraft.nativeimage.MinecraftNativeEntrypoints \
+  --initialize-at-build-time=minecraft.nativeimage.MinecraftNativeEntrypoints,net.minecraft.godot.LwjglJniBindings,org.lwjgl.system.JNI,org.lwjgl.system.Library \
   --initialize-at-run-time=net.minecraft,com.mojang,org.lwjgl,io.netty,com.google,it.unimi,org.apache,org.slf4j,org.joml,com.ibm,org.jcraft,at.yawk,net.java,joptsimple,com.azure,com.microsoft,org.jspecify,com.github \
+  -J-Dorg.lwjgl.libname="$LWJGL_LIB" \
+  -J-Dorg.lwjgl.librarypath="$BIN_DIR/natives" \
+  -J-Dorg.lwjgl.util.NoFunctionChecks=true \
+  -J-Dorg.lwjgl.util.Debug=true \
   -J-Xmx"${HEAP_MB}m" \
   "${CONFIG_ARGS[@]}"
 image_status=$?
