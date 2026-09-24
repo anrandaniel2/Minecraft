@@ -32,7 +32,7 @@ public final class GodotCommandEncoderTest {
             return countPackets(frame);
         });
         encoder.writeToBuffer(new GpuBufferSlice(vertexBuffer, 0, 4), ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
-        encoder.writeToTexture(target, ByteBuffer.wrap(new byte[] {9, 8, 7, 6}), 1, 1, 1, 0, 0, 0);
+        encoder.writeToTexture(target, ByteBuffer.wrap(new byte[] {9, 8, 7, 6}), 0, 1, 0, 0, 1, 1);
         RenderPassDescriptor descriptor = RenderPassDescriptor.builder(() -> "test")
                 .withColorAttachment(targetView, Optional.of(new Vector4f(0.1f, 0.2f, 0.3f, 1.0f)))
                 .build();

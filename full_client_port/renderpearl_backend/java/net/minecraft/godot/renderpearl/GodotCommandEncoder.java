@@ -258,7 +258,14 @@ final class GodotCommandEncoder implements CommandEncoder {
     }
 
     @Override
-    public void writeToTexture(GpuTexture texture, NativeImage image, int depthOrLayer, int destX, int destY, int mipLevel) {
+    public void writeToTexture(
+            GpuTexture texture,
+            NativeImage image,
+            int mipLevel,
+            int depthOrLayer,
+            int destX,
+            int destY
+    ) {
         Objects.requireNonNull(image, "image");
         if (depthOrLayer != 0) {
             throw unsupported("NativeImage uploads to a non-zero array layer");
@@ -266,12 +273,12 @@ final class GodotCommandEncoder implements CommandEncoder {
         writeToTexture(
                 texture,
                 ByteBuffer.wrap(rgbaBytes(image)),
-                image.getWidth(),
-                image.getHeight(),
+                mipLevel,
                 1,
                 destX,
                 destY,
-                mipLevel
+                image.getWidth(),
+                image.getHeight()
         );
     }
 
@@ -279,12 +286,12 @@ final class GodotCommandEncoder implements CommandEncoder {
     public void writeToTexture(
             GpuTexture texture,
             ByteBuffer data,
-            int width,
-            int height,
+            int mipLevel,
             int depthOrLayers,
             int destX,
             int destY,
-            int mipLevel
+            int width,
+            int height
     ) {
         requireOpenOutsidePass();
         if (!(texture instanceof GodotGpuTexture godotTexture)) {
