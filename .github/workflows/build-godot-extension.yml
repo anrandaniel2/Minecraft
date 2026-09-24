@@ -257,7 +257,20 @@ jobs:
           test -n "$GODOT_BIN"
           chmod +x "$GODOT_BIN"
           export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
-          timeout 180 "$GODOT_BIN" --headless --path godot_extension --quit-after 5
+          export MINECRAFT_REQUIRE_JAVA_GUI=1
+          set +e
+          timeout 180 "$GODOT_BIN" --headless --path godot_extension > "$RUNNER_TEMP/godot-gui.log" 2>&1
+          godot_status=$?
+          set -e
+          tail -n 40 "$RUNNER_TEMP/godot-gui.log"
+          if ! grep -q "JAVA_GUI_COMMANDS" "$RUNNER_TEMP/godot-gui.log"; then
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui.log"
+            exit 1
+          fi
+          if [[ "$godot_status" -ne 0 ]]; then
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui.log"
+            exit "$godot_status"
+          fi
 
       - name: Publish verified extracted-client libraries to this branch
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_linux_binary)

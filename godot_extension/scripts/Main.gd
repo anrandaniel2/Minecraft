@@ -6,6 +6,8 @@ extends Node
 @onready var controls = $TouchControls
 
 var _renderpearl_display: TextureRect
+var _java_gui_wait := 0.0
+var _java_gui_reported := false
 
 
 func _ready() -> void:
@@ -30,6 +32,27 @@ func _ready() -> void:
 	# _ready(), before this parent receives child signals. Synchronize once here
 	# so desktop GPU resource allocation is covered at startup too.
 	_sync_renderpearl_resources(controls.minecraft_touch)
+
+
+func _process(delta: float) -> void:
+	# CI sets this so a headless run proves the extracted client submitted Java
+	# GUI draws. A normal viewport must keep running after that proof.
+	if OS.get_environment("MINECRAFT_REQUIRE_JAVA_GUI") != "1" or _java_gui_reported:
+		return
+	_java_gui_wait += delta
+	var draws := 0
+	var bridge: Object = controls.minecraft_touch if controls != null else null
+	if bridge != null and bridge.has_method(&"get_render_draw_count"):
+		draws = int(bridge.call(&"get_render_draw_count"))
+	if draws > 0:
+		_java_gui_reported = true
+		print("JAVA_GUI_COMMANDS %d presented %d" % [draws, resource_executor.java_gui_draw_count])
+		get_tree().quit(0)
+		return
+	if _java_gui_wait >= 90.0:
+		_java_gui_reported = true
+		print("JAVA_GUI_MISSING device %s" % str(resource_executor != null))
+		get_tree().quit(2)
 
 
 func _show_renderpearl_target(texture: Texture2DRD, _size: Vector2i) -> void:
