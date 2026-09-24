@@ -10,7 +10,7 @@ from __future__ import annotations
 import pathlib
 import sys
 
-TAIL_LINES = 30
+TAIL_LINES = 50
 MAX_CHARS = 3500
 
 

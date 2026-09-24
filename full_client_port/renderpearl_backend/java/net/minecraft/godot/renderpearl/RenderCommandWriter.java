@@ -335,7 +335,9 @@ public final class RenderCommandWriter {
     }
 
     private int beginPacket(int opcode) {
-        ensureCapacity(RenderCommandProtocol.HEADER_BYTES);
+        // Callers write fixed fields after the header without another capacity
+        // check. The largest fixed prefix is a pipeline attribute list.
+        ensureCapacity(RenderCommandProtocol.HEADER_BYTES + 256);
         int start = bytes.position();
         bytes.putShort((short) opcode);
         bytes.putShort((short) 0);
