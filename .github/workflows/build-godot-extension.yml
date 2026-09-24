@@ -206,6 +206,7 @@ jobs:
             -Igodot_extension/build/generated \
             -Igodot_extension/include \
             godot_extension/tests/extracted_client_boot_test.c \
+            godot_extension/src/minecraft_render_abi.c \
             -Lgodot_extension/bin -lminecraft_java -ldl -pthread \
             -o "$RUNNER_TEMP/extracted_client_boot_test" >> "$RUNNER_TEMP/boot.log" 2>&1
           compile_status=$?
