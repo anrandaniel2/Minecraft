@@ -1073,13 +1073,11 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
     if (level != GDEXTENSION_INITIALIZATION_SCENE) {
         return;
     }
+    setvbuf(stderr, NULL, _IONBF, 0);
     fprintf(stderr, "MINECRAFT_GD_SCENE\n");
-
-    if (!java_start()) {
-        return;
-    }
     render_native_state = minecraft_render_native_state_create();
     if (render_native_state == NULL) {
+        fprintf(stderr, "MINECRAFT_GD_STATE_FAILED\n");
         return;
     }
 
@@ -1139,6 +1137,14 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
     register_method("get_touch_mask", 0, method_get_touch_mask, ptrcall_get_touch_mask, 1);
     register_method("get_active_touch_count", 0, method_get_active_touch_count,
             ptrcall_get_active_touch_count, 1);
+    fprintf(stderr, "MINECRAFT_GD_METHODS_READY\n");
+    /* Start the extracted client only after Godot has the class. A concurrent
+     * isolate boot during method registration was crashing this callback. */
+    if (!java_start()) {
+        fprintf(stderr, "MINECRAFT_GD_JAVA_START_FAILED\n");
+        return;
+    }
+    fprintf(stderr, "MINECRAFT_GD_INIT_DONE\n");
 }
 
 static void deinitialize_minecraft(void *userdata, GDExtensionInitializationLevel level) {

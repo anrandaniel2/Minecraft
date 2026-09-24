@@ -273,6 +273,8 @@ jobs:
               tail -n 20 "$RUNNER_TEMP/godot-gui.log" || true
               echo "GODOT_MATCHES"
               grep -n "Parse Error\\|SCRIPT ERROR\\|JAVA_GUI\\|TEX_UPLOAD\\|BOOT_\\|MINECRAFT_GD\\|ERROR:" "$RUNNER_TEMP/godot-gui.log" || true
+              echo "SYMBOL_MAP"
+              python3 tools/map_godot_extension_crash.py "$RUNNER_TEMP/godot-gui.log" godot_extension/bin/libminecraft_godot.so || true
             } > "$RUNNER_TEMP/godot-gui-report.log"
             python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui-report.log"
             exit 1
