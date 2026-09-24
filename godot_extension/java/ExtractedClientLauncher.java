@@ -140,7 +140,8 @@ public final class ExtractedClientLauncher {
                 System.err.println("Minecraft native library load failed; continuing with the Godot backend");
                 loadFailure.printStackTrace(System.err);
             }
-            WorldVersion detected = SharedConstants.tryDetectVersion();
+            SharedConstants.tryDetectVersion();
+            WorldVersion detected = SharedConstants.getCurrentVersion();
             if (detected == null || detected.name() == null || detected.name().isBlank()) {
                 throw new IllegalStateException("extracted client could not read /version.json");
             }
