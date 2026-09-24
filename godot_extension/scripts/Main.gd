@@ -40,10 +40,18 @@ func _process(delta: float) -> void:
 	if OS.get_environment("MINECRAFT_REQUIRE_JAVA_GUI") != "1" or _java_gui_reported:
 		return
 	_java_gui_wait += delta
-	var draws := 0
 	var bridge: Object = controls.minecraft_touch if controls != null else null
-	if bridge != null and bridge.has_method(&"get_render_draw_count"):
+	var native := bridge != null and bridge.has_method(&"get_render_draw_count")
+	var executed := -1
+	var passes := 0
+	var draws := 0
+	if native:
+		executed = int(bridge.call(&"execute_render_mailbox"))
+		passes = int(bridge.call(&"get_render_frame_pass_count"))
 		draws = int(bridge.call(&"get_render_draw_count"))
+	var elapsed := int(_java_gui_wait)
+	if elapsed > 0 and elapsed % 10 == 0 and int(_java_gui_wait - delta) != elapsed:
+		print("JAVA_GUI_WAIT native %s executed %d passes %d draws %d" % [str(native), executed, passes, draws])
 	if draws > 0:
 		_java_gui_reported = true
 		var presented := 0
@@ -56,7 +64,7 @@ func _process(delta: float) -> void:
 		return
 	if _java_gui_wait >= 90.0:
 		_java_gui_reported = true
-		print("JAVA_GUI_MISSING device %s" % str(resource_executor != null))
+		print("JAVA_GUI_MISSING native %s executed %d passes %d draws %d" % [str(native), executed, passes, draws])
 		get_tree().quit(2)
 
 
