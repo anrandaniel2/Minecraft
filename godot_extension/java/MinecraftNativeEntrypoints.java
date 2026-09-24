@@ -5,6 +5,9 @@ import net.minecraft.godot.ExtractedClientLauncher;
 import net.minecraft.godot.renderpearl.GodotNativeRenderCommandTransport;
 import org.graalvm.nativeimage.IsolateThread;
 import org.graalvm.nativeimage.c.function.CEntryPoint;
+import org.graalvm.nativeimage.c.type.CCharPointer;
+
+import java.nio.charset.StandardCharsets;
 
 /**
  * C ABI exported by the GraalVM native image of the extracted 26.3 client.
@@ -36,6 +39,22 @@ public final class MinecraftNativeEntrypoints {
     @CEntryPoint(name = "minecraft_client_stop")
     public static void clientStop(IsolateThread thread) {
         ExtractedClientLauncher.stop();
+    }
+
+    /** Copies the startup failure into a C buffer so the boot test can report it. */
+    @CEntryPoint(name = "minecraft_client_failure")
+    public static int clientFailure(IsolateThread thread, CCharPointer buffer, int capacity) {
+        Throwable failure = ExtractedClientLauncher.failure();
+        if (failure == null || buffer.isNull() || capacity <= 1) {
+            return 0;
+        }
+        byte[] bytes = String.valueOf(failure).getBytes(StandardCharsets.UTF_8);
+        int length = Math.min(bytes.length, capacity - 1);
+        for (int index = 0; index < length; index++) {
+            buffer.write(index, bytes[index]);
+        }
+        buffer.write(length, (byte) 0);
+        return length;
     }
 
     @CEntryPoint(name = "minecraft_touch_down")

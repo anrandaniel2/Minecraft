@@ -12,7 +12,25 @@
 
 typedef struct graal_isolate_t graal_isolate_t;
 typedef struct graal_isolatethread_t graal_isolatethread_t;
-typedef struct graal_create_isolate_params_t graal_create_isolate_params_t;
+
+/* Matches GraalVM's graal_isolate.h so callers can reserve a large heap
+ * without requiring the generated header. A newer generated header, when
+ * present, supplies the same field names. */
+typedef unsigned long __graal_uword;
+enum { __graal_create_isolate_params_version = 5 };
+struct __graal_create_isolate_params_t {
+    int version;
+    __graal_uword reserved_address_space_size;
+    const char *auxiliary_image_path;
+    __graal_uword auxiliary_image_reserved_space_size;
+    int argc;
+    char **argv;
+    int pkey;
+    char ignore_unrecognized_args;
+    char _reserved_4;
+    char _reserved_5;
+};
+typedef struct __graal_create_isolate_params_t graal_create_isolate_params_t;
 
 int graal_create_isolate(
     graal_create_isolate_params_t *params,
@@ -39,5 +57,6 @@ int minecraft_touch_mask(graal_isolatethread_t *thread);
 int minecraft_active_touch_count(graal_isolatethread_t *thread);
 int minecraft_client_running(graal_isolatethread_t *thread);
 void minecraft_client_stop(graal_isolatethread_t *thread);
+int minecraft_client_failure(graal_isolatethread_t *thread, char *buffer, int capacity);
 
 #endif

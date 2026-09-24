@@ -195,13 +195,33 @@ jobs:
       - name: Boot the extracted client inside the native image
         run: |
           set -euo pipefail
+          mkdir -p godot_extension/build
+          {
+            echo "BOOT library $(stat -c%s godot_extension/bin/libminecraft_java.so) bytes"
+            ldd godot_extension/bin/libminecraft_java.so || true
+            nm -D --defined-only godot_extension/bin/libminecraft_java.so | grep -E 'graal_create_isolate|minecraft_bootstrap|minecraft_client_failure' || true
+          } > "$RUNNER_TEMP/boot.log"
+          set +e
           gcc -std=c11 -O2 -Wall -Wextra -Werror -D_GNU_SOURCE \
+            -Igodot_extension/build/generated \
             -Igodot_extension/include \
             godot_extension/tests/extracted_client_boot_test.c \
             -Lgodot_extension/bin -lminecraft_java -ldl -pthread \
-            -o "$RUNNER_TEMP/extracted_client_boot_test"
-          export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
-          timeout 200 "$RUNNER_TEMP/extracted_client_boot_test" "$PWD/godot_extension/bin/natives"
+            -o "$RUNNER_TEMP/extracted_client_boot_test" >> "$RUNNER_TEMP/boot.log" 2>&1
+          compile_status=$?
+          boot_status=$compile_status
+          if [[ "$compile_status" -eq 0 ]]; then
+            export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
+            timeout 200 "$RUNNER_TEMP/extracted_client_boot_test" "$PWD/godot_extension/bin/natives" >> "$RUNNER_TEMP/boot.log" 2>&1
+            boot_status=$?
+          fi
+          set -e
+          cp "$RUNNER_TEMP/boot.log" godot_extension/build/boot.log
+          tail -n 40 "$RUNNER_TEMP/boot.log"
+          if [[ "$boot_status" -ne 0 ]]; then
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/boot.log"
+            exit "$boot_status"
+          fi
 
       - name: Stage complete Minecraft client resource pack for Godot
         run: python3 tools/stage_minecraft_assets.py
