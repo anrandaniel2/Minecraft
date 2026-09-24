@@ -64,7 +64,8 @@ python3 "$ROOT/tools/redirect_graphics_backend.py" \
 # expose. This overlay keeps the class linkable without that reflection. The
 # Godot backend does not query the sets.
 "$JAVAC" -d "$OVERLAY" -cp "$ROOT/extracted" \
-  "$EXTENSION_DIR/java/com/mojang/renderpearl/backend/vulkan/VulkanFeatureSets.java"
+  "$EXTENSION_DIR/java/com/mojang/renderpearl/backend/vulkan/VulkanFeatureSets.java" \
+  "$EXTENSION_DIR/java/com/mojang/blaze3d/platform/SdlDebug.java"
 python3 - "$OVERLAY/com/mojang/renderpearl/backend/vulkan/VulkanFeatureSets.class" << 'PY'
 import pathlib, sys
 data = pathlib.Path(sys.argv[1]).read_bytes()

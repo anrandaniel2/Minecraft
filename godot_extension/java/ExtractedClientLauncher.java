@@ -195,8 +195,6 @@ public final class ExtractedClientLauncher {
         // LWJGL looks up while binding the library.
         System.setProperty("org.lwjgl.util.NoFunctionChecks", "true");
         System.setProperty("org.lwjgl.system.allocator", "system");
-        System.setProperty("org.lwjgl.openal.explicitInit", "true");
-        System.setProperty("org.lwjgl.opengl.explicitInit", "true");
         String nativeDir = firstNonBlank(
                 System.getProperty("org.lwjgl.librarypath"),
                 System.getenv("MINECRAFT_GODOT_NATIVE_DIR")
