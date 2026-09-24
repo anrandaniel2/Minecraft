@@ -1,8 +1,8 @@
 ## Connects the Godot viewport renderer to the full-screen touch overlay.
 extends Node
 
-@onready var renderer: MinecraftGodotRenderer = $MinecraftGodotRenderer
-@onready var resource_executor: RenderPearlRenderingDeviceExecutor = $RenderPearlRenderingDeviceExecutor
+@onready var renderer = $MinecraftGodotRenderer
+@onready var resource_executor = $RenderPearlRenderingDeviceExecutor
 @onready var controls = $TouchControls
 
 var _renderpearl_display: TextureRect
@@ -46,7 +46,12 @@ func _process(delta: float) -> void:
 		draws = int(bridge.call(&"get_render_draw_count"))
 	if draws > 0:
 		_java_gui_reported = true
-		print("JAVA_GUI_COMMANDS %d presented %d" % [draws, resource_executor.java_gui_draw_count])
+		var presented := 0
+		if resource_executor != null:
+			var presented_value = resource_executor.get("java_gui_draw_count")
+			if presented_value != null:
+				presented = int(presented_value)
+		print("JAVA_GUI_COMMANDS %d presented %d" % [draws, presented])
 		get_tree().quit(0)
 		return
 	if _java_gui_wait >= 90.0:
