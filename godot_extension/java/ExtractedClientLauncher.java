@@ -6,6 +6,8 @@ import net.minecraft.client.ClientBootstrap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.PreferredGraphicsApi;
 import net.minecraft.client.User;
+import net.minecraft.SharedConstants;
+import net.minecraft.WorldVersion;
 import net.minecraft.client.main.GameConfig;
 import net.minecraft.client.main.Main;
 import net.minecraft.godot.renderpearl.GodotGpuBackend;
