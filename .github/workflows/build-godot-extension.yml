@@ -67,6 +67,9 @@ jobs:
           set -euo pipefail
           java -version
           native-image --version
+          gcc -shared -fPIC -O2 -Wall -Wextra -Werror \
+            -o godot_extension/bin/libSDL3.so \
+            godot_extension/src/sdl3_viewport_stub.c
           python3 tools/fetch_minecraft_libraries.py
 
       - name: Collect native-image metadata from a short JVM probe

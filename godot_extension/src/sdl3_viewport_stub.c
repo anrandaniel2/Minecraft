@@ -27,6 +27,75 @@ static int g_height = 720;
 static int g_size_ready = 0;
 static const char *g_error = "";
 
+/* Matches LWJGL's SDL_DisplayMode layout: eight 4-byte fields, then a pointer. */
+typedef struct GodotSdlDisplayMode {
+    uint32_t display_id;
+    uint32_t format;
+    int w;
+    int h;
+    float pixel_density;
+    float refresh_rate;
+    int refresh_rate_numerator;
+    int refresh_rate_denominator;
+    void *internal;
+} GodotSdlDisplayMode;
+
+/* Matches LWJGL's SDL_PixelFormatDetails layout. */
+typedef struct GodotSdlPixelFormatDetails {
+    uint32_t format;
+    uint8_t bits_per_pixel;
+    uint8_t bytes_per_pixel;
+    uint8_t padding[2];
+    uint32_t r_mask;
+    uint32_t g_mask;
+    uint32_t b_mask;
+    uint32_t a_mask;
+    uint8_t r_bits;
+    uint8_t g_bits;
+    uint8_t b_bits;
+    uint8_t a_bits;
+    uint8_t r_shift;
+    uint8_t g_shift;
+    uint8_t b_shift;
+    uint8_t a_shift;
+} GodotSdlPixelFormatDetails;
+
+static void ensure_size(void);
+
+static GodotSdlDisplayMode g_display_mode;
+static GodotSdlPixelFormatDetails g_pixel_format = {
+        0,
+        32,
+        4,
+        {0, 0},
+        0x000000ffu,
+        0x0000ff00u,
+        0x00ff0000u,
+        0xff000000u,
+        8,
+        8,
+        8,
+        8,
+        0,
+        8,
+        16,
+        24
+};
+
+static void *display_mode(void) {
+    ensure_size();
+    g_display_mode.display_id = 1;
+    g_display_mode.format = 0;
+    g_display_mode.w = g_width;
+    g_display_mode.h = g_height;
+    g_display_mode.pixel_density = 1.0f;
+    g_display_mode.refresh_rate = 60.0f;
+    g_display_mode.refresh_rate_numerator = 60;
+    g_display_mode.refresh_rate_denominator = 1;
+    g_display_mode.internal = NULL;
+    return &g_display_mode;
+}
+
 static void ensure_size(void) {
     const char *width;
     const char *height;
@@ -281,29 +350,45 @@ STUB_EXPORT const char *SDL_GetDisplayName(uint32_t display) {
 }
 
 STUB_EXPORT bool SDL_GetDisplayBounds(uint32_t display, void *rect) {
+    int *bounds = (int *)rect;
     (void)display;
-    (void)rect;
-    /* LWJGL owns the SDL_Rect layout. Decline so Monitor.tryCreate uses its
-     * logged fallback instead of reading a struct this stub does not define. */
-    return false;
+    ensure_size();
+    if (bounds == NULL) {
+        g_error = "display bounds buffer is null";
+        return false;
+    }
+    /* SDL_Rect is four ints. LWJGL allocates the buffer and reads x/y/w/h. */
+    bounds[0] = 0;
+    bounds[1] = 0;
+    bounds[2] = g_width;
+    bounds[3] = g_height;
+    return true;
 }
 
 STUB_EXPORT void *SDL_GetDesktopDisplayMode(uint32_t display) {
     (void)display;
-    return NULL;
+    return display_mode();
 }
 
 STUB_EXPORT void *SDL_GetFullscreenDisplayModes(uint32_t display, int *count) {
+    void **modes = (void **)malloc(sizeof(void *));
     (void)display;
-    if (count != NULL) {
-        *count = 0;
+    if (modes == NULL) {
+        if (count != NULL) {
+            *count = 0;
+        }
+        return NULL;
     }
-    return NULL;
+    modes[0] = display_mode();
+    if (count != NULL) {
+        *count = 1;
+    }
+    return modes;
 }
 
 STUB_EXPORT void *SDL_GetCurrentDisplayMode(uint32_t display) {
     (void)display;
-    return NULL;
+    return display_mode();
 }
 
 STUB_EXPORT void *SDL_GetClosestFullscreenDisplayMode(uint32_t display, int width, int height, float refresh, bool include_high_density) {
@@ -312,12 +397,25 @@ STUB_EXPORT void *SDL_GetClosestFullscreenDisplayMode(uint32_t display, int widt
     (void)height;
     (void)refresh;
     (void)include_high_density;
-    return NULL;
+    return display_mode();
 }
 
 STUB_EXPORT const void *SDL_GetPixelFormatDetails(uint32_t format) {
     (void)format;
-    return NULL;
+    return &g_pixel_format;
+}
+
+STUB_EXPORT char *SDL_GetClipboardText(void) {
+    char *text = (char *)malloc(1);
+    if (text != NULL) {
+        text[0] = '\0';
+    }
+    return text;
+}
+
+STUB_EXPORT bool SDL_SetClipboardText(const char *text) {
+    (void)text;
+    return true;
 }
 
 STUB_EXPORT void SDL_free(void *memory) {

@@ -45,10 +45,25 @@ int main(int argc, char **argv) {
             return 0;
         }
         if (running < 0) {
-            char message[1024];
+            char message[8192];
+            size_t offset = 0;
             message[0] = '\0';
             minecraft_client_failure(thread, message, (int)sizeof(message));
-            fprintf(stderr, "BOOT extracted client failed to start: %s\n", message);
+            fprintf(stderr, "BOOT extracted client failed to start\n");
+            if (message[0] == '\0') {
+                fprintf(stderr, "BOOT_FAIL no failure text\n");
+            }
+            while (message[offset] != '\0') {
+                char chunk[181];
+                size_t length = 0;
+                while (message[offset + length] != '\0' && length < sizeof(chunk) - 1) {
+                    chunk[length] = message[offset + length];
+                    length++;
+                }
+                chunk[length] = '\0';
+                fprintf(stderr, "BOOT_FAIL %s\n", chunk);
+                offset += length;
+            }
             return 2;
         }
         usleep(500000);

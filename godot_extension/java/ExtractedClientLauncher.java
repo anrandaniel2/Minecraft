@@ -14,6 +14,7 @@ import net.minecraft.godot.renderpearl.GodotGpuBackend;
 import net.minecraft.server.Bootstrap;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -21,6 +22,7 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * Starts the extracted 26.3 client. This class does not replace
@@ -40,6 +42,7 @@ public final class ExtractedClientLauncher {
 
     private static volatile Minecraft client;
     private static volatile Throwable failure;
+    private static volatile String nativeLibraryFailure;
     private static volatile boolean started;
 
     private ExtractedClientLauncher() {
@@ -134,12 +137,7 @@ public final class ExtractedClientLauncher {
     private static void runClient() {
         try {
             configureProcess();
-            try {
-                NativeLibrariesBootstrap.loadLibraries();
-            } catch (Throwable loadFailure) {
-                System.err.println("Minecraft native library load failed; continuing with the Godot backend");
-                loadFailure.printStackTrace(System.err);
-            }
+            loadNativeLibraries();
             SharedConstants.tryDetectVersion();
             WorldVersion detected = SharedConstants.getCurrentVersion();
             if (detected == null || detected.name() == null || detected.name().isBlank()) {
@@ -157,8 +155,95 @@ public final class ExtractedClientLauncher {
     }
 
     private static void remember(Throwable error) {
-        failure = error;
+        String detail = describe(error);
+        if (nativeLibraryFailure != null) {
+            detail = detail + " | native libraries: " + nativeLibraryFailure;
+        }
+        failure = new IllegalStateException(detail, error);
         error.printStackTrace(System.err);
+        System.err.println("BOOT_DETAIL " + detail);
+    }
+
+    private static String describe(Throwable error) {
+        StringBuilder builder = new StringBuilder();
+        Throwable current = error;
+        int depth = 0;
+        while (current != null && depth < 8) {
+            if (depth > 0) {
+                builder.append(" caused by ");
+            }
+            builder.append(current.getClass().getName());
+            String message = current.getMessage();
+            if (message != null && !message.isBlank()) {
+                builder.append(": ").append(message.replace('\n', ' ').replace('\r', ' '));
+            }
+            current = current.getCause();
+            depth++;
+        }
+        return builder.toString();
+    }
+
+    /**
+     * Loads LWJGL before bootstrap. A failed OpenAL load must not be the first
+     * touch of {@code org.lwjgl.system.JNI}: that poisons the class and hides
+     * the original link error from the later SDL viewport path.
+     */
+    private static void loadNativeLibraries() {
+        System.setProperty("org.lwjgl.util.Debug", "true");
+        System.setProperty("org.lwjgl.util.DebugLoader", "true");
+        // The viewport stub exports the SDL calls boot uses, not every symbol
+        // LWJGL looks up while binding the library.
+        System.setProperty("org.lwjgl.util.NoFunctionChecks", "true");
+        System.setProperty("org.lwjgl.system.allocator", "system");
+        System.setProperty("org.lwjgl.openal.explicitInit", "true");
+        System.setProperty("org.lwjgl.opengl.explicitInit", "true");
+        String nativeDir = firstNonBlank(
+                System.getProperty("org.lwjgl.librarypath"),
+                System.getenv("MINECRAFT_GODOT_NATIVE_DIR")
+        );
+        String listing = nativeDir == null ? "unset" : listNativeDirectory(nativeDir);
+        System.err.println("LWJGL natives " + nativeDir + " [" + listing + "]");
+        if (nativeDir != null) {
+            Path lwjgl = Path.of(nativeDir).resolve("liblwjgl.so");
+            if (Files.isRegularFile(lwjgl)) {
+                System.setProperty("org.lwjgl.libname", lwjgl.toAbsolutePath().toString());
+            }
+        }
+        try {
+            org.lwjgl.system.Library.initialize();
+            System.err.println("LWJGL_INIT ok");
+        } catch (Throwable error) {
+            nativeLibraryFailure = describe(error) + " natives=[" + listing + "]";
+            System.err.println("LWJGL_INIT_FAIL " + nativeLibraryFailure);
+            error.printStackTrace(System.err);
+            return;
+        }
+        try {
+            NativeLibrariesBootstrap.loadLibraries();
+        } catch (Throwable loadFailure) {
+            nativeLibraryFailure = describe(loadFailure);
+            System.err.println("Minecraft native library load failed; continuing with the Godot backend: " + nativeLibraryFailure);
+            loadFailure.printStackTrace(System.err);
+        }
+    }
+
+    private static String listNativeDirectory(String nativeDir) {
+        Path directory = Path.of(nativeDir);
+        if (!Files.isDirectory(directory)) {
+            return "missing-directory";
+        }
+        StringBuilder names = new StringBuilder();
+        try (Stream<Path> listing = Files.list(directory)) {
+            listing.map(path -> path.getFileName().toString()).sorted().forEach(name -> {
+                if (!names.isEmpty()) {
+                    names.append(',');
+                }
+                names.append(name);
+            });
+        } catch (IOException failure) {
+            return "unreadable:" + failure.getMessage();
+        }
+        return names.isEmpty() ? "empty" : names.toString();
     }
 
     private static void configureProcess() {

@@ -59,6 +59,18 @@ mkdir -p "$CLASSES" "$OVERLAY" "$NATIVE_DIR"
 python3 "$ROOT/tools/redirect_graphics_backend.py" \
   --source "$ROOT/extracted/net/minecraft/client/PreferredGraphicsApi.class" \
   --output "$OVERLAY/net/minecraft/client/PreferredGraphicsApi.class"
+# ClientBootstrap initializes VulkanFeatureSets before any device exists. The
+# extracted initializer reflects on LWJGL structs that native-image does not
+# expose. This overlay keeps the class linkable without that reflection. The
+# Godot backend does not query the sets.
+"$JAVAC" -d "$OVERLAY" -cp "$ROOT/extracted" \
+  "$EXTENSION_DIR/java/com/mojang/renderpearl/backend/vulkan/VulkanFeatureSets.java"
+python3 - "$OVERLAY/com/mojang/renderpearl/backend/vulkan/VulkanFeatureSets.class" << 'PY'
+import pathlib, sys
+data = pathlib.Path(sys.argv[1]).read_bytes()
+if b"org/lwjgl/vulkan/VkPhysicalDeviceFeatures2" in data:
+    raise SystemExit("Vulkan feature overlay still reflects on LWJGL structs")
+PY
 python3 - "$OVERLAY/net/minecraft/client/PreferredGraphicsApi.class" << 'PY'
 import pathlib, sys
 data = pathlib.Path(sys.argv[1]).read_bytes()
