@@ -263,7 +263,9 @@ jobs:
           mkdir -p godot_extension/.godot
           printf '%s\n' 'res://minecraft.gdextension' > godot_extension/.godot/extension_list.cfg
           set +e
-          timeout 240 "$GODOT_BIN" --headless --path godot_extension > "$RUNNER_TEMP/godot-gui.log" 2>&1
+          # Keep Godot's crash backtrace in the log. A redirected stdout is
+          # block-buffered, so a fatal signal otherwise drops handle_crash.
+          stdbuf -o0 -e0 timeout 240 "$GODOT_BIN" --headless --path godot_extension > "$RUNNER_TEMP/godot-gui.log" 2>&1
           godot_status=$?
           set -e
           tail -n 40 "$RUNNER_TEMP/godot-gui.log"

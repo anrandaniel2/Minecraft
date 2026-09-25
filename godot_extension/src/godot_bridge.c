@@ -284,6 +284,7 @@ static bool return_packed_bytes(GDExtensionVariantPtr result, const uint8_t *byt
 
 static GDExtensionObjectPtr minecraft_touch_create(void *class_userdata) {
     (void)class_userdata;
+    fprintf(stderr, "MINECRAFT_GD_CREATE\n");
     GDExtensionStringNamePtr class_name = make_string_name(CLASS_NAME);
     GDExtensionObjectPtr object = classdb_construct_object(class_name);
     MinecraftTouchInstance *instance = calloc(1, sizeof(*instance));
@@ -1131,6 +1132,7 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
         return;
     }
     setvbuf(stderr, NULL, _IONBF, 0);
+    setvbuf(stdout, NULL, _IONBF, 0);
     fprintf(stderr, "MINECRAFT_GD_SCENE\n");
     render_native_state = minecraft_render_native_state_create();
     if (render_native_state == NULL) {
