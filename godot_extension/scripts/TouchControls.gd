@@ -49,6 +49,8 @@ func _ready() -> void:
 		# re-enters the extension and can replace real GuiRenderer frames.
 		print("MINECRAFT_GD_BRIDGE_READY")
 		minecraft_touch.call(&"start_client")
+	else:
+		print("MINECRAFT_GD_BRIDGE_MISSING")
 	_layout_touch_targets()
 	get_viewport().size_changed.connect(_layout_touch_targets)
 

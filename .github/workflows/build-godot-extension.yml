@@ -265,18 +265,18 @@ jobs:
           set +e
           # Keep Godot's crash backtrace in the log. A redirected stdout is
           # block-buffered, so a fatal signal otherwise drops handle_crash.
-          stdbuf -o0 -e0 timeout 240 "$GODOT_BIN" --headless --path godot_extension > "$RUNNER_TEMP/godot-gui.log" 2>&1
+          stdbuf -o0 -e0 timeout 360 "$GODOT_BIN" --headless --path godot_extension > "$RUNNER_TEMP/godot-gui.log" 2>&1
           godot_status=$?
           set -e
           tail -n 40 "$RUNNER_TEMP/godot-gui.log"
           if ! grep -q "JAVA_GUI_COMMANDS" "$RUNNER_TEMP/godot-gui.log"; then
             {
-              echo "GODOT_KEY"
-              grep -n "Parse Error\\|SCRIPT ERROR\\|JAVA_GUI\\|LWJGL\\|BOOT_\\|BRIDGE\\|INIT_DONE\\|START_CLIENT\\|handle_crash\\|timeout:\\|ERROR:" "$RUNNER_TEMP/godot-gui.log" || true
+              echo "GODOT_STATUS $godot_status"
               echo "SYMBOL_MAP"
               python3 tools/map_godot_extension_crash.py "$RUNNER_TEMP/godot-gui.log" godot_extension/bin/libminecraft_godot.so || true
-              echo "GODOT_TAIL"
-              tail -n 30 "$RUNNER_TEMP/godot-gui.log" || true
+              echo "GODOT_MARKERS"
+              grep -E 'MINECRAFT_GD_(SCENE|CLASS_READY|CREATE|METHODS_READY|MAIN_READY|BRIDGE|START|ISOLATE|SYMBOL|MAILBOX|CLIENT)|JAVA_GUI_|BOOT_|LWJGL_|SCRIPT ERROR|Parse Error|Invalid call|handle_crash|timeout:' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_REG' | head -n 30 || true
+              echo "GODOT_MARKERS_END"
             } > "$RUNNER_TEMP/godot-gui-report.log"
             python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui-report.log"
             exit 1

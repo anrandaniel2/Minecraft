@@ -144,6 +144,43 @@ static void export_native_dir(void) {
     setenv("MINECRAFT_GODOT_NATIVE_DIR", path, 0);
 }
 
+/* Java's @CFunction looks up minecraft_render_submit_frame through the
+ * dynamic linker. Godot dlopens this library RTLD_LOCAL, so the symbol is
+ * invisible to libminecraft_java.so unless we promote it first. */
+static void publish_extension_symbols(void) {
+    Dl_info info;
+    void *handle = NULL;
+    void *symbol;
+    if (dladdr((void *)minecraft_render_submit_frame, &info) != 0 && info.dli_fname != NULL) {
+        handle = dlopen(info.dli_fname, RTLD_NOW | RTLD_GLOBAL | RTLD_NOLOAD);
+    }
+    symbol = dlsym(RTLD_DEFAULT, "minecraft_render_submit_frame");
+    fprintf(stderr, "MINECRAFT_GD_SYMBOL submit %p global %p handle %p\n",
+            (void *)minecraft_render_submit_frame, symbol, handle);
+}
+
+static void log_client_status(const char *tag) {
+    char message[480];
+    graal_isolatethread_t *thread;
+    int running;
+    if (java_isolate == NULL) {
+        fprintf(stderr, "MINECRAFT_GD_%s no-isolate\n", tag);
+        return;
+    }
+    thread = java_thread();
+    if (thread == NULL) {
+        fprintf(stderr, "MINECRAFT_GD_%s no-thread\n", tag);
+        return;
+    }
+    running = minecraft_client_running(thread);
+    fprintf(stderr, "MINECRAFT_GD_%s running %d\n", tag, running);
+    if (running < 0) {
+        message[0] = '\0';
+        minecraft_client_failure(thread, message, (int)sizeof(message));
+        fprintf(stderr, "MINECRAFT_GD_CLIENT_FAIL %s\n", message);
+    }
+}
+
 static int java_start(void) {
     static const unsigned long reservations[] = {
         (unsigned long)16 * 1024 * 1024 * 1024,
@@ -158,6 +195,7 @@ static int java_start(void) {
     if (java_isolate != NULL) {
         return 1;
     }
+    publish_extension_symbols();
     export_native_dir();
     /* Godot may already own a large virtual mapping, so the 16 GB reservation
      * used by the standalone boot test can fail here. Retry smaller sizes. */
@@ -385,6 +423,7 @@ static void method_start_client(void *userdata, GDExtensionClassInstancePtr inst
     fprintf(stderr, "MINECRAFT_GD_START_CLIENT\n");
     int started = java_start();
     fprintf(stderr, "MINECRAFT_GD_START_CLIENT_DONE %d\n", started);
+    log_client_status("START_STATUS");
     set_call_ok(error);
     return_int(result, started);
 }
@@ -476,6 +515,19 @@ static void method_execute_render_mailbox(void *userdata,
         return;
     }
     set_call_ok(error);
+    {
+        static int polls = 0;
+        static int logged_failure = 0;
+        polls++;
+        if (polls == 1 || polls == 300 || (java_isolate != NULL && !logged_failure &&
+                java_thread() != NULL && minecraft_client_running(java_thread()) < 0)) {
+            log_client_status("MAILBOX");
+            if (java_isolate != NULL && java_thread() != NULL &&
+                    minecraft_client_running(java_thread()) < 0) {
+                logged_failure = 1;
+            }
+        }
+    }
     return_int(result, minecraft_render_native_execute_latest(render_native_state));
 }
 

@@ -11,6 +11,7 @@ var _java_gui_reported := false
 
 
 func _ready() -> void:
+	print("MINECRAFT_GD_MAIN_READY")
 	_renderpearl_display = TextureRect.new()
 	_renderpearl_display.name = "RenderPearlDisplay"
 	_renderpearl_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -58,7 +59,9 @@ func _process(delta: float) -> void:
 		print("JAVA_GUI_COMMANDS %d presented %d" % [draws, presented])
 		get_tree().quit(0)
 		return
-	if _java_gui_wait >= 90.0:
+	# The standalone boot test allows 180s for construction. A 90s gate quit
+	# before a slow extracted client could submit its first GuiRenderer frame.
+	if _java_gui_wait >= 180.0:
 		_java_gui_reported = true
 		print("JAVA_GUI_MISSING native %s executed %d passes %d draws %d" % [str(native), executed, passes, draws])
 		get_tree().quit(2)
