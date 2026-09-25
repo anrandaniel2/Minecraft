@@ -310,8 +310,9 @@ jobs:
           proof_line="$(grep -m1 'JAVA_GUI_COMMANDS' "$RUNNER_TEMP/godot-gui.log")"
           echo "::notice title=Java GUI proof::${proof_line}"
           presented="$(awk '{print $4}' <<< "$proof_line")"
-          if [[ "${presented:-0}" -le 0 ]]; then
-            echo "Viewport did not present Java GUI draws: $proof_line"
+          text_draws="$(awk '{print $6}' <<< "$proof_line")"
+          if [[ "${presented:-0}" -le 0 || "${text_draws:-0}" -le 0 ]]; then
+            echo "Viewport did not present Java GUI text: $proof_line"
             exit 1
           fi
 

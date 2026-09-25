@@ -45,28 +45,31 @@ func _process(delta: float) -> void:
 	var passes := 0
 	var draws := 0
 	var gui_draws := 0
+	var text_draws := 0
 	if native:
 		# TouchControls already executed the mailbox this frame. Reading it
 		# again would consume the frame before the viewport can present it.
 		passes = int(bridge.call(&"get_render_frame_pass_count"))
 		draws = int(bridge.call(&"get_render_draw_count"))
-		gui_draws = _gui_family_draws(bridge, draws)
+		var families := _gui_family_counts(bridge, draws)
+		gui_draws = int(families.x)
+		text_draws = int(families.y)
 	var elapsed := int(_java_gui_wait)
-	if elapsed > 0 and elapsed % 10 == 0 and int(_java_gui_wait - delta) != elapsed:
-		print("JAVA_GUI_WAIT native %s passes %d draws %d gui %d presented %d" % [str(native), passes, draws, gui_draws, _presented_gui_draws()])
 	var presented := _presented_gui_draws()
-	# Mailbox draws are not enough. The Godot viewport has to replay them onto
-	# a RenderingDevice texture before this counts as rendered.
-	if gui_draws > 0 and presented > 0:
+	if elapsed > 0 and elapsed % 10 == 0 and int(_java_gui_wait - delta) != elapsed:
+		print("JAVA_GUI_WAIT native %s passes %d draws %d gui %d text %d presented %d" % [str(native), passes, draws, gui_draws, text_draws, presented])
+	# A single color quad can be the loading panel. Menu text is family 3,
+	# and the viewport must have replayed draws before this counts.
+	if text_draws > 0 and presented > 0:
 		_java_gui_reported = true
-		print("JAVA_GUI_COMMANDS %d presented %d" % [gui_draws, presented])
+		print("JAVA_GUI_COMMANDS %d presented %d text %d" % [gui_draws, presented, text_draws])
 		_exit_proof(bridge, 0)
 		return
 	# The standalone boot test allows 180s for construction. A 90s gate quit
 	# before a slow extracted client could submit its first GuiRenderer frame.
 	if _java_gui_wait >= 180.0:
 		_java_gui_reported = true
-		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d presented %d" % [str(native), passes, draws, gui_draws, _presented_gui_draws()])
+		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d text %d presented %d" % [str(native), passes, draws, gui_draws, text_draws, presented])
 		_exit_proof(bridge, 2)
 
 
@@ -77,13 +80,16 @@ func _presented_gui_draws() -> int:
 	return 0 if presented_value == null else int(presented_value)
 
 
-func _gui_family_draws(bridge: Object, draws: int) -> int:
+func _gui_family_counts(bridge: Object, draws: int) -> Vector2i:
 	var gui := 0
+	var text := 0
 	for index in range(draws):
 		var family := int(bridge.call(&"get_render_draw_attribute", index, 2))
 		if family >= 1 and family <= 3:
 			gui += 1
-	return gui
+		if family == 3:
+			text += 1
+	return Vector2i(gui, text)
 
 
 func _exit_proof(bridge: Object, code: int) -> void:
