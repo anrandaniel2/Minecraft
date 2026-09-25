@@ -84,13 +84,13 @@ final class GodotTransientMemory implements TransientMemory {
     }
 
     @Override
-    public GpuBufferSlice uploadStaging(List sources, long alignment, int usage) {
+    public GpuBufferSlice uploadStaging(List<ByteBuffer> sources, long alignment, int usage) {
         return upload(concatenate(sources), alignment, usage);
     }
 
     @Override
     public GpuBufferSlice uploadStaging(
-            List sources, long alignment, int usage, long sourceOffset, long sourceLength) {
+            List<ByteBuffer> sources, long alignment, int usage, long sourceOffset, long sourceLength) {
         return upload(window(concatenate(sources), sourceOffset, sourceLength), alignment, usage);
     }
 
@@ -106,23 +106,23 @@ final class GodotTransientMemory implements TransientMemory {
     }
 
     @Override
-    public GpuBufferSlice uploadGpu(List sources, long alignment, int usage) {
+    public GpuBufferSlice uploadGpu(List<ByteBuffer> sources, long alignment, int usage) {
         return upload(concatenate(sources), alignment, usage);
     }
 
     @Override
     public GpuBufferSlice uploadGpu(
-            List sources, long alignment, int usage, long sourceOffset, long sourceLength) {
+            List<ByteBuffer> sources, long alignment, int usage, long sourceOffset, long sourceLength) {
         return upload(window(concatenate(sources), sourceOffset, sourceLength), alignment, usage);
     }
 
     @Override
-    public List<GpuBufferSlice> multiUploadStaging(List sources, long alignment, int usage) {
+    public List<GpuBufferSlice> multiUploadStaging(List<ByteBuffer> sources, long alignment, int usage) {
         return uploadEach(sources, alignment, usage);
     }
 
     @Override
-    public List<GpuBufferSlice> multiUploadGpu(List sources, long alignment, int usage) {
+    public List<GpuBufferSlice> multiUploadGpu(List<ByteBuffer> sources, long alignment, int usage) {
         return uploadEach(sources, alignment, usage);
     }
 
@@ -139,7 +139,7 @@ final class GodotTransientMemory implements TransientMemory {
         return new GpuBufferSlice(buffer, 0L, pixelBytes);
     }
 
-    private List<GpuBufferSlice> uploadEach(List sources, long alignment, int usage) {
+    private List<GpuBufferSlice> uploadEach(List<ByteBuffer> sources, long alignment, int usage) {
         Objects.requireNonNull(sources, "sources");
         List<GpuBufferSlice> slices = new ArrayList<>(sources.size());
         for (Object source : sources) {
@@ -148,7 +148,7 @@ final class GodotTransientMemory implements TransientMemory {
         return slices;
     }
 
-    private static ByteBuffer concatenate(List sources) {
+    private static ByteBuffer concatenate(List<ByteBuffer> sources) {
         Objects.requireNonNull(sources, "sources");
         int total = 0;
         List<ByteBuffer> parts = new ArrayList<>(sources.size());

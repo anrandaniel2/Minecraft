@@ -283,7 +283,9 @@ jobs:
             python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui-report.log"
             exit 1
           fi
-          if [[ "$godot_status" -ne 0 ]]; then
+          # JAVA_GUI_COMMANDS is the gate. Isolate teardown can still hang after
+          # the proof, and timeout then reports 124. A proved frame is success.
+          if [[ "$godot_status" -ne 0 && "$godot_status" -ne 124 ]]; then
             python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui.log"
             exit "$godot_status"
           fi

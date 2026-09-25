@@ -29,6 +29,9 @@ func _ready() -> void:
 	resource_executor.java_gui_presented.connect(_hide_godot_status_after_java_gui)
 	controls.camera_dragged.connect(renderer.add_camera_drag)
 	controls.render_mailbox_executed.connect(_sync_renderpearl_resources)
+	# Drain the mailbox before this node reads the draw count. TouchControls is
+	# a child and would otherwise run after the proof check.
+	controls.process_priority = -10
 
 
 func _process(delta: float) -> void:
@@ -39,32 +42,51 @@ func _process(delta: float) -> void:
 	_java_gui_wait += delta
 	var bridge: Object = controls.minecraft_touch if controls != null else null
 	var native := bridge != null and bridge.has_method(&"get_render_draw_count")
-	var executed := -1
 	var passes := 0
 	var draws := 0
+	var gui_draws := 0
 	if native:
-		executed = int(bridge.call(&"execute_render_mailbox"))
+		# TouchControls already executed the mailbox this frame. Reading it
+		# again would consume the frame before the viewport can present it.
 		passes = int(bridge.call(&"get_render_frame_pass_count"))
 		draws = int(bridge.call(&"get_render_draw_count"))
+		gui_draws = _gui_family_draws(bridge, draws)
 	var elapsed := int(_java_gui_wait)
 	if elapsed > 0 and elapsed % 10 == 0 and int(_java_gui_wait - delta) != elapsed:
-		print("JAVA_GUI_WAIT native %s executed %d passes %d draws %d" % [str(native), executed, passes, draws])
-	if draws > 0:
+		print("JAVA_GUI_WAIT native %s passes %d draws %d gui %d" % [str(native), passes, draws, gui_draws])
+	if gui_draws > 0:
 		_java_gui_reported = true
 		var presented := 0
 		if resource_executor != null:
 			var presented_value = resource_executor.get("java_gui_draw_count")
 			if presented_value != null:
 				presented = int(presented_value)
-		print("JAVA_GUI_COMMANDS %d presented %d" % [draws, presented])
-		get_tree().quit(0)
+		print("JAVA_GUI_COMMANDS %d presented %d" % [gui_draws, presented])
+		_exit_proof(bridge, 0)
 		return
 	# The standalone boot test allows 180s for construction. A 90s gate quit
 	# before a slow extracted client could submit its first GuiRenderer frame.
 	if _java_gui_wait >= 180.0:
 		_java_gui_reported = true
-		print("JAVA_GUI_MISSING native %s executed %d passes %d draws %d" % [str(native), executed, passes, draws])
-		get_tree().quit(2)
+		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d" % [str(native), passes, draws, gui_draws])
+		_exit_proof(bridge, 2)
+
+
+func _gui_family_draws(bridge: Object, draws: int) -> int:
+	var gui := 0
+	for index in range(draws):
+		var family := int(bridge.call(&"get_render_draw_attribute", index, 2))
+		if family >= 1 and family <= 3:
+			gui += 1
+	return gui
+
+
+func _exit_proof(bridge: Object, code: int) -> void:
+	# SceneTree.quit() tears the Graal isolate down and can hang on the client
+	# thread. The headless gate only needs the process to exit with this code.
+	if bridge != null and bridge.has_method(&"exit_process"):
+		bridge.call(&"exit_process", code)
+	get_tree().quit(code)
 
 
 func _show_renderpearl_target(texture: Texture2DRD, _size: Vector2i) -> void:

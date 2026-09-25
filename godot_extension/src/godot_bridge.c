@@ -531,6 +531,24 @@ static void method_execute_render_mailbox(void *userdata,
     return_int(result, minecraft_render_native_execute_latest(render_native_state));
 }
 
+static void method_exit_process(void *userdata,
+        GDExtensionClassInstancePtr instance, const GDExtensionConstVariantPtr *args,
+        GDExtensionInt argument_count, GDExtensionVariantPtr result,
+        GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    (void)result;
+    if (argument_count != 1) {
+        set_argument_error(error, (int)argument_count, 1);
+        return;
+    }
+    int code = (int)variant_int(args[0]);
+    set_call_ok(error);
+    fprintf(stderr, "MINECRAFT_GD_RUN_EXIT %d\n", code);
+    fflush(stderr);
+    _exit(code);
+}
+
 static void method_get_render_buffer_count(void *userdata, GDExtensionClassInstancePtr instance,
         const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
         GDExtensionVariantPtr result, GDExtensionCallError *error) {
@@ -1228,6 +1246,7 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
             ptrcall_submit_render_protocol_smoke_frame, 1);
     register_method("execute_render_mailbox", 0, method_execute_render_mailbox,
             ptrcall_execute_render_mailbox, 1);
+    register_method("exit_process", 1, method_exit_process, NULL, 0);
     register_method("get_render_buffer_count", 0, method_get_render_buffer_count,
             ptrcall_get_render_buffer_count, 1);
     register_method("get_render_buffer_attribute", 2, method_get_render_buffer_attribute,
