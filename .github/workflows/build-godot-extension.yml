@@ -245,10 +245,12 @@ jobs:
       - name: Verify Godot resource renderer inputs
         run: python3 tools/verify_minecraft_resource_pack.py
 
-      - name: Load and run the complete-resource renderer in Godot headless
+      - name: Load and run the complete-resource renderer in a Godot viewport
         run: |
           set -euo pipefail
           GODOT_VERSION=4.7.2-stable
+          sudo apt-get update
+          sudo apt-get install -y xvfb mesa-vulkan-drivers vulkan-tools
           curl --fail --location --retry 3 \
             -o "$RUNNER_TEMP/godot.zip" \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
@@ -258,6 +260,15 @@ jobs:
           chmod +x "$GODOT_BIN"
           export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
           export MINECRAFT_REQUIRE_JAVA_GUI=1
+          # --headless forces the dummy renderer, so get_rendering_device() is
+          # null and the viewport cannot replay Java draws. lavapipe is the
+          # software Vulkan device Forward+ can actually draw with.
+          LVP_ICD="$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)"
+          test -n "$LVP_ICD"
+          export VK_ICD_FILENAMES="$LVP_ICD"
+          export VK_DRIVER_FILES="$LVP_ICD"
+          vulkaninfo --summary > "$RUNNER_TEMP/vulkaninfo.txt" || true
+          echo "MINECRAFT_GD_CLIENT vulkan_icd $LVP_ICD" | tee "$RUNNER_TEMP/godot-gui.log"
           # A fresh checkout has no editor cache. Godot only loads GDExtensions
           # listed here, so the native bridge is missing unless we write it.
           mkdir -p godot_extension/.godot
@@ -265,7 +276,14 @@ jobs:
           set +e
           # Keep Godot's crash backtrace in the log. A redirected stdout is
           # block-buffered, so a fatal signal otherwise drops handle_crash.
-          stdbuf -o0 -e0 timeout 360 "$GODOT_BIN" --headless --path godot_extension > "$RUNNER_TEMP/godot-gui.log" 2>&1
+          # Do not pass --headless: that selects the dummy rendering driver.
+          xvfb-run -a --server-args="-screen 0 1280x720x24" \
+            stdbuf -o0 -e0 timeout 360 "$GODOT_BIN" \
+              --display-driver x11 \
+              --audio-driver Dummy \
+              --rendering-driver vulkan \
+              --rendering-method forward_plus \
+              --path godot_extension >> "$RUNNER_TEMP/godot-gui.log" 2>&1
           godot_status=$?
           set -e
           tail -n 40 "$RUNNER_TEMP/godot-gui.log"
@@ -288,6 +306,13 @@ jobs:
           if [[ "$godot_status" -ne 0 && "$godot_status" -ne 124 ]]; then
             python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui.log"
             exit "$godot_status"
+          fi
+          proof_line="$(grep -m1 'JAVA_GUI_COMMANDS' "$RUNNER_TEMP/godot-gui.log")"
+          echo "::notice title=Java GUI proof::${proof_line}"
+          presented="$(awk '{print $4}' <<< "$proof_line")"
+          if [[ "${presented:-0}" -le 0 ]]; then
+            echo "Viewport did not present Java GUI draws: $proof_line"
+            exit 1
           fi
 
       - name: Publish verified extracted-client libraries to this branch

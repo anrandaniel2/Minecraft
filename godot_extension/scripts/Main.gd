@@ -53,14 +53,12 @@ func _process(delta: float) -> void:
 		gui_draws = _gui_family_draws(bridge, draws)
 	var elapsed := int(_java_gui_wait)
 	if elapsed > 0 and elapsed % 10 == 0 and int(_java_gui_wait - delta) != elapsed:
-		print("JAVA_GUI_WAIT native %s passes %d draws %d gui %d" % [str(native), passes, draws, gui_draws])
-	if gui_draws > 0:
+		print("JAVA_GUI_WAIT native %s passes %d draws %d gui %d presented %d" % [str(native), passes, draws, gui_draws, _presented_gui_draws()])
+	var presented := _presented_gui_draws()
+	# Mailbox draws are not enough. The Godot viewport has to replay them onto
+	# a RenderingDevice texture before this counts as rendered.
+	if gui_draws > 0 and presented > 0:
 		_java_gui_reported = true
-		var presented := 0
-		if resource_executor != null:
-			var presented_value = resource_executor.get("java_gui_draw_count")
-			if presented_value != null:
-				presented = int(presented_value)
 		print("JAVA_GUI_COMMANDS %d presented %d" % [gui_draws, presented])
 		_exit_proof(bridge, 0)
 		return
@@ -68,8 +66,15 @@ func _process(delta: float) -> void:
 	# before a slow extracted client could submit its first GuiRenderer frame.
 	if _java_gui_wait >= 180.0:
 		_java_gui_reported = true
-		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d" % [str(native), passes, draws, gui_draws])
+		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d presented %d" % [str(native), passes, draws, gui_draws, _presented_gui_draws()])
 		_exit_proof(bridge, 2)
+
+
+func _presented_gui_draws() -> int:
+	if resource_executor == null:
+		return 0
+	var presented_value = resource_executor.get("java_gui_draw_count")
+	return 0 if presented_value == null else int(presented_value)
 
 
 func _gui_family_draws(bridge: Object, draws: int) -> int:

@@ -72,6 +72,7 @@ func _ready() -> void:
 	# headless/Compatibility runs. Methods on the returned device are not safe
 	# there, so every allocation and upload is deferred to the render thread.
 	_rendering_device_available = RenderingServer.get_rendering_device() != null
+	print("MINECRAFT_GD_CLIENT rd %s" % str(_rendering_device_available))
 
 
 func synchronize(native_bridge: Object) -> bool:
@@ -81,6 +82,10 @@ func synchronize(native_bridge: Object) -> bool:
 	if snapshot.is_empty():
 		return true
 	RenderingServer.call_on_render_thread(_apply_snapshot.bind(snapshot))
+	# The headless proof exits in the same frame it sees Java draws. Flush the
+	# render thread so java_gui_draw_count is set before that check.
+	if OS.get_environment("MINECRAFT_REQUIRE_JAVA_GUI") == "1":
+		RenderingServer.force_sync()
 	return true
 
 
