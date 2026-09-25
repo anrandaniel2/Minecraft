@@ -2,6 +2,7 @@
 
 #include <limits.h>
 #include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -144,15 +145,38 @@ static bool accept_packet(const MinecraftRenderPacketHeader *header,
     return true;
 }
 
+static void log_submit(int status, const uint8_t *frame_bytes, size_t frame_size) {
+    static int successes = 0;
+    if (status >= 0) {
+        if (successes < 2) {
+            fprintf(stderr, "MINECRAFT_GD_SUBMIT status %d bytes %zu\n", status, frame_size);
+            successes++;
+        }
+        return;
+    }
+    fprintf(stderr, "MINECRAFT_GD_SUBMIT_FAIL status %d bytes %zu", status, frame_size);
+    if (frame_bytes != NULL && frame_size > 0) {
+        size_t shown = frame_size < 24 ? frame_size : 24;
+        size_t index;
+        fprintf(stderr, " head");
+        for (index = 0; index < shown; index++) {
+            fprintf(stderr, " %02x", frame_bytes[index]);
+        }
+    }
+    fprintf(stderr, "\n");
+}
+
 int minecraft_render_submit_frame(const uint8_t *frame_bytes, size_t frame_size) {
     if (frame_size > MINECRAFT_RENDER_MAX_FRAME_BYTES) {
         pthread_mutex_lock(&latest_frame_mutex);
         latest_submission_status = MINECRAFT_RENDER_INVALID_ARGUMENT;
         pthread_mutex_unlock(&latest_frame_mutex);
+        log_submit(MINECRAFT_RENDER_INVALID_ARGUMENT, frame_bytes, frame_size);
         return MINECRAFT_RENDER_INVALID_ARGUMENT;
     }
 
     int validation = minecraft_render_visit_frame(frame_bytes, frame_size, accept_packet, NULL);
+    log_submit(validation, frame_bytes, frame_size);
     if (validation < 0) {
         pthread_mutex_lock(&latest_frame_mutex);
         latest_submission_status = validation;

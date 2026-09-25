@@ -275,7 +275,9 @@ jobs:
               echo "SYMBOL_MAP"
               python3 tools/map_godot_extension_crash.py "$RUNNER_TEMP/godot-gui.log" godot_extension/bin/libminecraft_godot.so || true
               echo "GODOT_MARKERS"
-              grep -E 'MINECRAFT_GD_(SCENE|CLASS_READY|CREATE|METHODS_READY|MAIN_READY|BRIDGE|START|ISOLATE|SYMBOL|MAILBOX|CLIENT)|JAVA_GUI_|BOOT_|LWJGL_|SCRIPT ERROR|Parse Error|Invalid call|handle_crash|timeout:' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_REG' | head -n 30 || true
+              grep -E 'MINECRAFT_GD_(SCENE|CLASS_READY|CREATE|METHODS_READY|MAIN_READY|BRIDGE|START|ISOLATE|SYMBOL|MAILBOX|CLIENT|USER_DIR|RUN_|CRASH|SUBMIT)|JAVA_GUI_|BOOT_|LWJGL_|SCRIPT ERROR|Parse Error|Invalid call|handle_crash|timeout:|Game crashed' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_REG' | tail -n 30 || true
+              echo "CRASH_FILE"
+              python3 tools/report_minecraft_crash.py . || true
               echo "GODOT_MARKERS_END"
             } > "$RUNNER_TEMP/godot-gui-report.log"
             python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui-report.log"

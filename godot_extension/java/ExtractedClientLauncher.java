@@ -19,6 +19,8 @@ import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -146,6 +148,12 @@ public final class ExtractedClientLauncher {
 
     private static void runClient() {
         try {
+            // Minecraft.run catches render failures and calls System.exit(-1),
+            // which is process status 255 and skips this method's catch. The
+            // hook still runs for exit(); halt() is covered by the CI file scan.
+            Runtime.getRuntime().addShutdownHook(new Thread(
+                    ExtractedClientLauncher::printCrashReports, "minecraft-crash-report"));
+            System.err.println("MINECRAFT_GD_USER_DIR " + System.getProperty("user.dir"));
             configureProcess();
             loadNativeLibraries();
             SharedConstants.tryDetectVersion();
@@ -161,10 +169,75 @@ public final class ExtractedClientLauncher {
             com.mojang.blaze3d.systems.RenderSystem.initRenderThread();
             Minecraft created = new Minecraft(gameConfig());
             client = created;
+            System.err.println("MINECRAFT_GD_RUN_ENTER");
             created.run();
+            System.err.println("MINECRAFT_GD_RUN_RETURN");
         } catch (Throwable error) {
             remember(error);
         }
+    }
+
+    /** Prints the saved crash report. Minecraft exits before our catch can see it. */
+    private static void printCrashReports() {
+        System.err.println("MINECRAFT_GD_CRASH hook");
+        Path[] roots = {
+                Path.of(System.getProperty("user.dir", "."), "minecraft-godot-run", "crash-reports"),
+                Path.of("minecraft-godot-run", "crash-reports"),
+                Path.of("godot_extension", "minecraft-godot-run", "crash-reports"),
+                Path.of("crash-reports")
+        };
+        for (Path root : roots) {
+            if (!Files.isDirectory(root)) {
+                continue;
+            }
+            try (Stream<Path> listing = Files.list(root)) {
+                Optional<Path> newest = listing
+                        .filter(path -> path.getFileName().toString().endsWith(".txt"))
+                        .max(Comparator.comparingLong(ExtractedClientLauncher::lastModified));
+                if (newest.isEmpty()) {
+                    continue;
+                }
+                System.err.println("MINECRAFT_GD_CRASH file " + newest.get());
+                List<String> lines = Files.readAllLines(newest.get());
+                int printed = 0;
+                for (String line : lines) {
+                    String trimmed = line.strip();
+                    if (!crashLine(trimmed)) {
+                        continue;
+                    }
+                    System.err.println("MINECRAFT_GD_CRASH " + trimmed);
+                    printed++;
+                    if (printed >= 24) {
+                        break;
+                    }
+                }
+            } catch (IOException failure) {
+                System.err.println("MINECRAFT_GD_CRASH unreadable " + failure.getMessage());
+            }
+        }
+    }
+
+    private static long lastModified(Path path) {
+        try {
+            return Files.getLastModifiedTime(path).toMillis();
+        } catch (IOException ignored) {
+            return 0L;
+        }
+    }
+
+    private static boolean crashLine(String line) {
+        if (line.isEmpty()) {
+            return false;
+        }
+        return line.startsWith("Description:")
+                || line.startsWith("Caused by")
+                || line.startsWith("java.")
+                || line.startsWith("at net.minecraft.godot")
+                || line.startsWith("at net.minecraft.client.Minecraft")
+                || line.contains("Exception")
+                || line.contains("Game crashed")
+                || line.contains("submission failed")
+                || line.contains("Unsupported");
     }
 
     private static void remember(Throwable error) {
