@@ -195,6 +195,8 @@ fi
 if [[ "$HEAP_MB" -gt 12288 ]]; then
   HEAP_MB=12288
 fi
+# ICU locale tables are .res files. Without them Minecraft.run exits 255
+# while formatting text (MissingResourceException: icudata/langInfo.res).
 echo "native-image heap ${HEAP_MB} MB (MemTotal ${MEM_KB} KB)"
 set +e
 "$NATIVE_IMAGE" \
@@ -207,7 +209,7 @@ set +e
   -H:+ReportExceptionStackTraces \
   -H:Name=minecraft_java \
   -H:Path="$NATIVE_DIR" \
-  -H:IncludeResources='version\.json|pack\.mcmeta|assets/.*|data/.*' \
+  -H:IncludeResources='version\.json|pack\.mcmeta|assets/.*|data/.*|com/ibm/icu/impl/data/.*' \
   --initialize-at-build-time=minecraft.nativeimage.MinecraftNativeEntrypoints \
   --initialize-at-run-time=net.minecraft,com.mojang,org.lwjgl,io.netty,com.google,it.unimi,org.apache,org.slf4j,org.joml,com.ibm,org.jcraft,at.yawk,net.java,joptsimple,com.azure,com.microsoft,org.jspecify,com.github \
   -J-Xmx"${HEAP_MB}m" \
