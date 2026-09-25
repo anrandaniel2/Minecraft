@@ -284,9 +284,18 @@ static bool return_packed_bytes(GDExtensionVariantPtr result, const uint8_t *byt
 
 static GDExtensionObjectPtr minecraft_touch_create(void *class_userdata) {
     (void)class_userdata;
+    /* Construct the parent. classdb_construct_object(CLASS_NAME) calls this
+     * function again and overflows the stack before the scene can start. */
+    static int create_depth = 0;
+    if (create_depth > 0) {
+        fprintf(stderr, "MINECRAFT_GD_CREATE_REENTRY\n");
+        return NULL;
+    }
+    create_depth++;
     fprintf(stderr, "MINECRAFT_GD_CREATE\n");
+    GDExtensionStringNamePtr parent_name = make_string_name(PARENT_CLASS_NAME);
     GDExtensionStringNamePtr class_name = make_string_name(CLASS_NAME);
-    GDExtensionObjectPtr object = classdb_construct_object(class_name);
+    GDExtensionObjectPtr object = classdb_construct_object(parent_name);
     MinecraftTouchInstance *instance = calloc(1, sizeof(*instance));
     if (object != NULL && instance != NULL) {
         object_set_instance(object, class_name, instance);
@@ -294,6 +303,8 @@ static GDExtensionObjectPtr minecraft_touch_create(void *class_userdata) {
         free(instance);
     }
     free_string_name(class_name);
+    free_string_name(parent_name);
+    create_depth--;
     return object;
 }
 
