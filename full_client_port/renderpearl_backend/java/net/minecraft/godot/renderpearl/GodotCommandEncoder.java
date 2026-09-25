@@ -160,12 +160,14 @@ final class GodotCommandEncoder implements CommandEncoder {
         RenderPassDescriptor.Attachment<?> depthAttachment = descriptor.depthAttachment();
         if (depthAttachment != null) {
             GodotGpuTextureView depthView = requireTextureView(depthAttachment.textureView(), "depth");
-            depthTextureId = depthView.nativeHandle();
+            depthTextureId = sourceTextureHandle(depthView);
             clearDepth = clearDepth(depthAttachment.clearValue());
         }
 
+        // The executor looks attachments up as textures. A view handle is a
+        // separate registry id and would reject the pass after the clear.
         writer.beginRenderPass(
-                colorView.nativeHandle(),
+                sourceTextureHandle(colorView),
                 depthTextureId,
                 clearColor[0], clearColor[1], clearColor[2], clearColor[3], clearDepth
         );
@@ -545,6 +547,13 @@ final class GodotCommandEncoder implements CommandEncoder {
             rgba[index * 4 + 3] = (byte) alpha;
         }
         return rgba;
+    }
+
+    private static int sourceTextureHandle(GodotGpuTextureView view) {
+        if (!(view.texture() instanceof GodotGpuTexture texture)) {
+            throw new IllegalArgumentException("Texture view source was not created by GodotRenderPearlBackend");
+        }
+        return texture.nativeHandle();
     }
 
     private static GodotGpuTextureView requireTextureView(GpuTextureView view, String attachmentName) {

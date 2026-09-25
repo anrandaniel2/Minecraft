@@ -89,7 +89,7 @@ public final class GodotGpuDeviceTest {
         }
 
         surface.blitFromTexture(encoder, view);
-        if (surface.presentedTextureId() != ((GodotGpuTextureView) view).nativeHandle()) {
+        if (surface.presentedTextureId() != ((GodotGpuTexture) texture).nativeHandle()) {
             throw new AssertionError("Godot surface did not accept the Java main-target blit");
         }
         surface.present();

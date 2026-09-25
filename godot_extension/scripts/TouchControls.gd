@@ -107,6 +107,8 @@ func _process(_delta: float) -> void:
 		var proof_packets: int = minecraft_touch.call(&"execute_render_mailbox")
 		if proof_packets > 0:
 			render_mailbox_executed.emit(minecraft_touch)
+		elif proof_packets != -7:
+			print("MINECRAFT_GD_SUBMIT_FAIL mailbox %d" % proof_packets)
 		return
 
 	minecraft_touch.call(&"set_virtual_joystick_mask", action_mask)

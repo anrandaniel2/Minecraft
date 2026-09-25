@@ -105,7 +105,10 @@ final class GodotGpuSurface implements GpuSurface {
         // surface after GuiRenderer/GameRenderer have submitted their passes.
         // Those passes already target a Godot color texture, so accepting the
         // blit keeps renderFrame alive without inventing a second window.
-        presentedTextureId = view.nativeHandle();
+        if (!(view.texture() instanceof GodotGpuTexture texture)) {
+            throw new IllegalArgumentException("Blit source texture was not created by the Godot GpuDevice");
+        }
+        presentedTextureId = texture.nativeHandle();
         if (windowHandle == 0L && presentedTextureId <= 0) {
             throw new IllegalStateException("Godot surface has no viewport identity or blit source");
         }

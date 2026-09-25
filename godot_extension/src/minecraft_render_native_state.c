@@ -1,5 +1,6 @@
 #include "minecraft_render_native_state.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -817,6 +818,12 @@ int minecraft_render_native_execute_latest(MinecraftRenderNativeState *state) {
         result = state->callback_status;
     }
     if (result < 0) {
+        static int logged_failures = 0;
+        if (logged_failures < 4) {
+            logged_failures++;
+            fprintf(stderr, "MINECRAFT_GD_SUBMIT_FAIL execute status %d passes %zu draws %zu\n",
+                    result, state->pass_count, state->draw_count);
+        }
         /* A rejected detached frame must not poison the next submitted frame. */
         state->frame_active = false;
         state->pass_active = false;

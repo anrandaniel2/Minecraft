@@ -65,6 +65,9 @@ jobs:
             -cp "$RENDERPEARL_CLASSPATH:build/renderpearl-command-protocol" \
             -d build/renderpearl-resource-adapters \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderResourceRegistry.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuFence.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuQueryPool.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotTransientMemory.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuBuffer.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuTexture.java \
             full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuTextureView.java \
