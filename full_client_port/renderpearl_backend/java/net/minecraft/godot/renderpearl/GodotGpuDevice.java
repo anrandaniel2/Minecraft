@@ -113,7 +113,19 @@ public final class GodotGpuDevice implements GpuDevice {
         // GuiRenderer.upload() and GuiRenderer.draw() each create an encoder and
         // never submit it. Keep one frame open until Minecraft.renderFrame submits.
         recordLiveResources(openFrame);
-        return new GodotCommandEncoder(openFrame, targetWidth, targetHeight, transport, this::submitOpenFrame);
+        return new GodotCommandEncoder(
+                openFrame, targetWidth, targetHeight, transport, this::submitOpenFrame, this);
+    }
+
+    /** Staging buffer that must not be replayed as a live resource every frame. */
+    GodotGpuBuffer createTransientBuffer(int usage, long size) {
+        requireOpen();
+        return new GodotGpuBuffer(registry, usage, size);
+    }
+
+    GodotGpuBuffer createTransientBuffer(int usage, ByteBuffer initialData) {
+        requireOpen();
+        return new GodotGpuBuffer(registry, usage, initialData);
     }
 
     private void submitOpenFrame() {

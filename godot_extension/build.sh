@@ -128,6 +128,7 @@ COMPILE_CP="$ROOT/extracted:$LIBRARY_CP"
   "$ADAPTER_DIR/GodotGpuSampler.java" \
   "$ADAPTER_DIR/GodotCompiledRenderPipeline.java" \
   "$ADAPTER_DIR/GodotRenderPass.java" \
+  "$ADAPTER_DIR/GodotTransientMemory.java" \
   "$ADAPTER_DIR/GodotCommandEncoder.java" \
   "$ADAPTER_DIR/GodotGpuSurface.java" \
   "$ADAPTER_DIR/GodotGpuDevice.java" \

@@ -34,6 +34,8 @@ final class GodotCommandEncoder implements CommandEncoder {
     private final int targetWidth;
     private final int targetHeight;
     private final Runnable sharedFrameSubmit;
+    private final GodotGpuDevice device;
+    private GodotTransientMemory transientMemory;
     private GodotRenderPass activePass;
     private boolean submitted;
 
@@ -65,6 +67,7 @@ final class GodotCommandEncoder implements CommandEncoder {
         this.targetHeight = targetHeight;
         this.transport = Objects.requireNonNull(transport, "transport");
         this.sharedFrameSubmit = null;
+        this.device = null;
         this.writer = new RenderCommandWriter();
         writer.beginFrame(frameId, targetWidth, targetHeight);
         Objects.requireNonNull(framePrelude, "framePrelude").accept(writer);
@@ -83,6 +86,17 @@ final class GodotCommandEncoder implements CommandEncoder {
             RenderCommandTransport transport,
             Runnable sharedFrameSubmit
     ) {
+        this(sharedWriter, targetWidth, targetHeight, transport, sharedFrameSubmit, null);
+    }
+
+    GodotCommandEncoder(
+            RenderCommandWriter sharedWriter,
+            int targetWidth,
+            int targetHeight,
+            RenderCommandTransport transport,
+            Runnable sharedFrameSubmit,
+            GodotGpuDevice device
+    ) {
         if (targetWidth <= 0 || targetHeight <= 0) {
             throw new IllegalArgumentException("Offscreen target dimensions must be positive");
         }
@@ -91,6 +105,7 @@ final class GodotCommandEncoder implements CommandEncoder {
         this.targetHeight = targetHeight;
         this.transport = Objects.requireNonNull(transport, "transport");
         this.sharedFrameSubmit = Objects.requireNonNull(sharedFrameSubmit, "sharedFrameSubmit");
+        this.device = device;
     }
 
     @Override
@@ -113,7 +128,14 @@ final class GodotCommandEncoder implements CommandEncoder {
 
     @Override
     public TransientMemory transientMemory() {
-        throw unsupported("transient memory");
+        requireOpen();
+        if (device == null) {
+            throw unsupported("transient memory");
+        }
+        if (transientMemory == null) {
+            transientMemory = new GodotTransientMemory(device);
+        }
+        return transientMemory;
     }
 
     @Override
@@ -333,7 +355,58 @@ final class GodotCommandEncoder implements CommandEncoder {
             int copyHeight,
             int arrayLayer
     ) {
-        throw unsupported("buffer-to-texture copies");
+        requireOpen();
+        if (!(source.buffer() instanceof GodotGpuBuffer buffer)) {
+            throw new IllegalArgumentException("Buffer-to-texture copy source was not created by GodotRenderPearlBackend");
+        }
+        GodotGpuTexture texture = requireTexture(target);
+        int width = copyWidth > 0 ? copyWidth : sourceWidth;
+        int height = copyHeight > 0 ? copyHeight : sourceHeight;
+        if (width <= 0 || height <= 0) {
+            throw new IllegalArgumentException("Buffer-to-texture copy size must be positive");
+        }
+        byte[] pixels = regionBytes(buffer, source, sourceX, sourceY, sourceWidth, sourceHeight, width, height);
+        // writeTexture addresses a mip, not an array layer. Resource reload
+        // still needs the bytes in the frame; cube faces share mip 0 for now.
+        if (arrayLayer < 0 || destinationZ < 0 || destinationX < 0 || destinationY < 0) {
+            throw new IllegalArgumentException("Buffer-to-texture destination must be non-negative");
+        }
+        // The texture may have been created after this frame's resource prelude.
+        texture.recordCreate(writer);
+        writer.writeTexture(
+                texture.nativeHandle(), width, height, 1, destinationX, destinationY, 0, pixels
+        );
+    }
+
+    private static byte[] regionBytes(
+            GodotGpuBuffer buffer,
+            GpuBufferSlice source,
+            int sourceX,
+            int sourceY,
+            int sourceWidth,
+            int sourceHeight,
+            int copyWidth,
+            int copyHeight
+    ) {
+        int available = (int) Math.min(source.length(), Integer.MAX_VALUE);
+        byte[] full = buffer.copyRange(source.offset(), available);
+        if (sourceWidth <= 0 || sourceHeight <= 0 || sourceWidth * (long) sourceHeight == 0
+                || available % (sourceWidth * (long) sourceHeight) != 0) {
+            return full;
+        }
+        int bytesPerPixel = available / (sourceWidth * sourceHeight);
+        if (sourceX == 0 && sourceY == 0 && copyWidth == sourceWidth && copyHeight == sourceHeight) {
+            return full;
+        }
+        if (sourceX < 0 || sourceY < 0 || copyWidth > sourceWidth - sourceX || copyHeight > sourceHeight - sourceY) {
+            throw new IllegalArgumentException("Buffer-to-texture region lies outside the staging image");
+        }
+        byte[] region = new byte[copyWidth * copyHeight * bytesPerPixel];
+        for (int row = 0; row < copyHeight; row++) {
+            int from = ((sourceY + row) * sourceWidth + sourceX) * bytesPerPixel;
+            System.arraycopy(full, from, region, row * copyWidth * bytesPerPixel, copyWidth * bytesPerPixel);
+        }
+        return region;
     }
 
     @Override
