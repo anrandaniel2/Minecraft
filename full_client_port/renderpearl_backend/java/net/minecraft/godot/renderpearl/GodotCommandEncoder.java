@@ -111,6 +111,7 @@ final class GodotCommandEncoder implements CommandEncoder {
     @Override
     public void submit() {
         requireOpen();
+        logClientScreen();
         if (activePass != null) {
             throw new IllegalStateException("Cannot submit while a RenderPass is still open");
         }
@@ -547,6 +548,51 @@ final class GodotCommandEncoder implements CommandEncoder {
             rgba[index * 4 + 3] = (byte) alpha;
         }
         return rgba;
+    }
+
+    private static long nextScreenLogNanos;
+
+    /** LoadingOverlay stays up until resource reload finishes, so name it in the CI log. */
+    private static void logClientScreen() {
+        long now = System.nanoTime();
+        if (now < nextScreenLogNanos) {
+            return;
+        }
+        nextScreenLogNanos = now + 10_000_000_000L;
+        try {
+            Class<?> minecraftClass = Class.forName("net.minecraft.client.Minecraft");
+            Object minecraft = minecraftClass.getMethod("getInstance").invoke(null);
+            Object gui = declaredField(minecraft, "gui");
+            Object screen = gui.getClass().getMethod("screen").invoke(gui);
+            Object overlay = gui.getClass().getMethod("overlay").invoke(gui);
+            String progress = "";
+            if (overlay != null) {
+                try {
+                    Object value = declaredField(overlay, "currentProgress");
+                    progress = " progress " + value;
+                    Object reload = declaredField(overlay, "reload");
+                    if (reload != null) {
+                        progress += " reloadDone " + reload.getClass().getMethod("isDone").invoke(reload);
+                    }
+                } catch (ReflectiveOperationException ignored) {
+                    progress = "";
+                }
+            }
+            System.err.println("MINECRAFT_GD_CLIENT screen " + simpleName(screen)
+                    + " overlay " + simpleName(overlay) + progress);
+        } catch (Throwable error) {
+            System.err.println("MINECRAFT_GD_CLIENT screen unknown " + error.getClass().getSimpleName());
+        }
+    }
+
+    private static Object declaredField(Object owner, String name) throws ReflectiveOperationException {
+        var field = owner.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(owner);
+    }
+
+    private static String simpleName(Object value) {
+        return value == null ? "none" : value.getClass().getSimpleName();
     }
 
     private static int sourceTextureHandle(GodotGpuTextureView view) {

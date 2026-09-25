@@ -67,7 +67,8 @@ func _process(delta: float) -> void:
 		return
 	# The standalone boot test allows 180s for construction. A 90s gate quit
 	# before a slow extracted client could submit its first GuiRenderer frame.
-	if _java_gui_wait >= 180.0:
+	# Resource reload can keep the loading overlay up for several minutes.
+	if _java_gui_wait >= 300.0:
 		_java_gui_reported = true
 		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d text %d presented %d" % [str(native), passes, draws, gui_draws, text_draws, presented])
 		_exit_proof(bridge, 2)
