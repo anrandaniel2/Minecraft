@@ -44,11 +44,11 @@ func _ready() -> void:
 	if minecraft_touch == null:
 		minecraft_touch = MobileInputFallback.new()
 	if using_native_bridge:
-		# Do not submit a protocol smoke frame here. The extracted client is
-		# already booting on the isolate thread and will submit real GuiRenderer
-		# frames. A startup smoke call re-enters the extension through Graal and
-		# can replace those frames before the viewport reads them.
+		# The extension is registered, but the extracted client stays stopped
+		# until the scene exists. Do not submit a smoke frame: that call
+		# re-enters the extension and can replace real GuiRenderer frames.
 		print("MINECRAFT_GD_BRIDGE_READY")
+		minecraft_touch.call(&"start_client")
 	_layout_touch_targets()
 	get_viewport().size_changed.connect(_layout_touch_targets)
 

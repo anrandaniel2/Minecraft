@@ -357,6 +357,26 @@ static void method_touch_up(void *userdata, GDExtensionClassInstancePtr instance
     return_nil(result);
 }
 
+static void method_start_client(void *userdata, GDExtensionClassInstancePtr instance,
+        const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
+        GDExtensionVariantPtr result, GDExtensionCallError *error) {
+    (void)userdata;
+    (void)instance;
+    (void)args;
+    if (argument_count != 0) {
+        set_argument_error(error, (int)argument_count, 0);
+        return_int(result, 0);
+        return;
+    }
+    /* The scene is already up. Starting the isolate here keeps Godot's
+     * extension callback from racing the extracted client. */
+    fprintf(stderr, "MINECRAFT_GD_START_CLIENT\n");
+    int started = java_start();
+    fprintf(stderr, "MINECRAFT_GD_START_CLIENT_DONE %d\n", started);
+    set_call_ok(error);
+    return_int(result, started);
+}
+
 static void method_reset(void *userdata, GDExtensionClassInstancePtr instance,
         const GDExtensionConstVariantPtr *args, GDExtensionInt argument_count,
         GDExtensionVariantPtr result, GDExtensionCallError *error) {
@@ -1130,6 +1150,7 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
     free_string_name(class_name);
     fprintf(stderr, "MINECRAFT_GD_CLASS_READY\n");
 
+    register_method("start_client", 0, method_start_client, NULL, 1);
     register_method("touch_down", 5, method_touch_down, ptrcall_touch_down, 0);
     register_method("touch_move", 5, method_touch_move, ptrcall_touch_move, 0);
     register_method("touch_up", 1, method_touch_up, ptrcall_touch_up, 0);
@@ -1175,13 +1196,6 @@ static void initialize_minecraft(void *userdata, GDExtensionInitializationLevel 
     register_method("get_active_touch_count", 0, method_get_active_touch_count,
             ptrcall_get_active_touch_count, 1);
     fprintf(stderr, "MINECRAFT_GD_METHODS_READY\n");
-    /* Start the extracted client only after Godot has the class. A concurrent
-     * isolate boot during method registration was crashing this callback. */
-    if (!java_start()) {
-        fprintf(stderr, "MINECRAFT_GD_JAVA_START_FAILED\n");
-        return;
-    }
-    fprintf(stderr, "MINECRAFT_GD_INIT_DONE\n");
 }
 
 static void deinitialize_minecraft(void *userdata, GDExtensionInitializationLevel level) {
