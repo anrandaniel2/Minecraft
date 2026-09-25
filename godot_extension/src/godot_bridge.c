@@ -38,6 +38,7 @@ typedef struct {
 static GDExtensionInterfaceGetProcAddress godot_get_proc_address;
 static GDExtensionClassLibraryPtr godot_library;
 static GDExtensionInterfaceStringNameNewWithUtf8Chars string_name_new;
+static GDExtensionInterfaceStringNewWithUtf8Chars string_new_with_utf8_chars;
 static GDExtensionInterfaceClassdbConstructObject classdb_construct_object;
 static GDExtensionInterfaceObjectSetInstance object_set_instance;
 static GDExtensionInterfaceClassdbRegisterExtensionClass classdb_register_extension_class;
@@ -80,6 +81,19 @@ static GDExtensionStringNamePtr make_string_name(const char *text) {
  * per registration/lifetime and intentionally not freed here. */
 static void free_string_name(GDExtensionStringNamePtr name) {
     (void)name;
+}
+
+/* Godot 4.7's PropertyInfo constructor always copies hint_string. A null
+ * pointer segfaults while the method is being registered. */
+static GDExtensionStringPtr empty_hint_string(void) {
+    static GDExtensionStringPtr storage;
+    if (storage == NULL) {
+        storage = calloc(1, 32);
+        if (storage != NULL && string_new_with_utf8_chars != NULL) {
+            string_new_with_utf8_chars(storage, "");
+        }
+    }
+    return storage;
 }
 
 static graal_isolatethread_t *java_thread(void) {
@@ -1014,9 +1028,11 @@ static void register_method(const char *name, uint32_t argument_count,
     GDExtensionStringNamePtr method_name = make_string_name(name);
     GDExtensionStringNamePtr blank_name = make_string_name("");
     GDExtensionPropertyInfo return_info = {0};
+    GDExtensionStringPtr hint = empty_hint_string();
     return_info.type = GDEXTENSION_VARIANT_TYPE_INT;
     return_info.name = blank_name;
     return_info.class_name = blank_name;
+    return_info.hint_string = hint;
 
     GDExtensionPropertyInfo arguments[5] = {0};
     GDExtensionClassMethodArgumentMetadata metadata[5] = {0};
@@ -1024,6 +1040,7 @@ static void register_method(const char *name, uint32_t argument_count,
         arguments[i].type = GDEXTENSION_VARIANT_TYPE_INT;
         arguments[i].name = blank_name;
         arguments[i].class_name = blank_name;
+        arguments[i].hint_string = hint;
         metadata[i] = GDEXTENSION_METHOD_ARGUMENT_METADATA_INT_IS_INT64;
     }
 
@@ -1053,13 +1070,21 @@ static void register_method(const char *name, uint32_t argument_count,
 static void register_packed_byte_array_method(const char *name, uint32_t argument_count,
         GDExtensionClassMethodCall call) {
     GDExtensionStringNamePtr method_name = make_string_name(name);
+    GDExtensionStringNamePtr blank_name = make_string_name("");
+    GDExtensionStringPtr hint = empty_hint_string();
     GDExtensionPropertyInfo return_info = {0};
     return_info.type = GDEXTENSION_VARIANT_TYPE_PACKED_BYTE_ARRAY;
+    return_info.name = blank_name;
+    return_info.class_name = blank_name;
+    return_info.hint_string = hint;
 
     GDExtensionPropertyInfo arguments[5] = {0};
     GDExtensionClassMethodArgumentMetadata metadata[5] = {0};
     for (uint32_t i = 0; i < argument_count; i++) {
         arguments[i].type = GDEXTENSION_VARIANT_TYPE_INT;
+        arguments[i].name = blank_name;
+        arguments[i].class_name = blank_name;
+        arguments[i].hint_string = hint;
         metadata[i] = GDEXTENSION_METHOD_ARGUMENT_METADATA_INT_IS_INT64;
     }
 
@@ -1188,6 +1213,8 @@ GDExtensionBool GDEXTENSION_EXPORT godot_gdextension_init(
 
     string_name_new = LOAD_GODOT_INTERFACE(GDExtensionInterfaceStringNameNewWithUtf8Chars,
             "string_name_new_with_utf8_chars");
+    string_new_with_utf8_chars = LOAD_GODOT_INTERFACE(GDExtensionInterfaceStringNewWithUtf8Chars,
+            "string_new_with_utf8_chars");
     classdb_construct_object = LOAD_GODOT_INTERFACE(GDExtensionInterfaceClassdbConstructObject,
             "classdb_construct_object");
     object_set_instance = LOAD_GODOT_INTERFACE(GDExtensionInterfaceObjectSetInstance,
@@ -1210,7 +1237,8 @@ GDExtensionBool GDEXTENSION_EXPORT godot_gdextension_init(
     packed_byte_array_index = LOAD_GODOT_INTERFACE(GDExtensionInterfacePackedByteArrayOperatorIndex,
             "packed_byte_array_operator_index");
 
-    if (string_name_new == NULL || classdb_construct_object == NULL || object_set_instance == NULL ||
+    if (string_name_new == NULL || string_new_with_utf8_chars == NULL ||
+            classdb_construct_object == NULL || object_set_instance == NULL ||
             classdb_register_extension_class == NULL ||
             classdb_register_extension_class_method == NULL || variant_to_int == NULL ||
             variant_from_int == NULL || variant_new_nil == NULL || variant_construct == NULL ||
