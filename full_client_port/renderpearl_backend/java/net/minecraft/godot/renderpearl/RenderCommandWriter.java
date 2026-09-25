@@ -324,6 +324,11 @@ public final class RenderCommandWriter {
         renderPassOpen = false;
     }
 
+    /** Bytes already recorded, including the frame header. */
+    public int pendingBytes() {
+        return bytes.position();
+    }
+
     /** Finishes the frame and returns an immutable copy for the native adapter. */
     public byte[] finishFrame() {
         require(frameOpen && !frameComplete && !renderPassOpen, "Frame must end outside a render pass");

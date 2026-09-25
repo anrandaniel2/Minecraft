@@ -155,8 +155,9 @@ static void publish_extension_symbols(void) {
         handle = dlopen(info.dli_fname, RTLD_NOW | RTLD_GLOBAL | RTLD_NOLOAD);
     }
     symbol = dlsym(RTLD_DEFAULT, "minecraft_render_submit_frame");
-    fprintf(stderr, "MINECRAFT_GD_SYMBOL submit %p global %p handle %p\n",
-            (void *)minecraft_render_submit_frame, symbol, handle);
+    fprintf(stderr, "MINECRAFT_GD_SYMBOL submit %p global %p handle %p pending %p\n",
+            (void *)minecraft_render_submit_frame, symbol, handle,
+            dlsym(RTLD_DEFAULT, "minecraft_render_frame_pending"));
 }
 
 static void log_client_status(const char *tag) {
@@ -186,14 +187,17 @@ static void log_client_status(const char *tag) {
  * is running, so the loading overlay never finishes and menu text is never
  * submitted. The null driver opens immediately and stays silent. A caller
  * that already chose a driver is left alone. */
+/* Java polls this after a reload flush. The mailbox is latest-only, so the
+ * next chunk must wait until Godot has taken the previous upload frame. */
+int minecraft_render_frame_pending(void) {
+    return minecraft_render_latest_frame_size() > 0 ? 1 : 0;
+}
+
 static void keep_openal_from_blocking(void) {
     FILE *config;
     const char *drivers;
     setenv("ALSOFT_DRIVERS", "null", 0);
     setenv("JACK_NO_START_SERVER", "1", 0);
-    /* Pulse can still block inside alcOpenDevice if the null driver was not
-     * selected. A closed port fails immediately instead of waiting. */
-    setenv("PULSE_SERVER", "127.0.0.1:9", 0);
     config = fopen("/tmp/minecraft-godot-alsoft.conf", "w");
     if (config != NULL) {
         fputs("[general]\ndrivers = null\n", config);

@@ -29,6 +29,8 @@ import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,6 +81,8 @@ public final class GodotGpuDevice implements GpuDevice {
     private final AtomicLong nextFrameId = new AtomicLong();
     private final Object resourcesLock = new Object();
     private RenderCommandWriter openFrame;
+    /** Resources already declared in {@link #openFrame}. Re-declaring every encoder is quadratic. */
+    private final Set<Object> recordedInFrame = Collections.newSetFromMap(new IdentityHashMap<>());
     private final List<GodotGpuBuffer> buffers = new ArrayList<>();
     private final List<GodotGpuTexture> textures = new ArrayList<>();
     private final List<GodotCompiledRenderPipeline> pipelines = new ArrayList<>();
@@ -106,12 +110,27 @@ public final class GodotGpuDevice implements GpuDevice {
     @Override
     public CommandEncoder createCommandEncoder() {
         requireOpen();
+        // One reload used to keep every texture declaration and upload in a
+        // single frame. Past 64MB the native mailbox rejects it, and growing
+        // the Java buffer copies the whole prefix on every new packet.
+        if (openFrame != null && openFrame.pendingBytes() > 32 * 1024 * 1024) {
+            submitOpenFrame();
+            waitForMailboxDrain();
+        }
         if (openFrame == null) {
             openFrame = new RenderCommandWriter();
             openFrame.beginFrame(nextFrameId.getAndIncrement(), targetWidth, targetHeight);
+            recordedInFrame.clear();
+            synchronized (resourcesLock) {
+                buffers.removeIf(GodotGpuBuffer::isClosed);
+                textures.removeIf(GodotGpuTexture::isClosed);
+                pipelines.removeIf(GodotCompiledRenderPipeline::isClosed);
+            }
         }
         // GuiRenderer.upload() and GuiRenderer.draw() each create an encoder and
         // never submit it. Keep one frame open until Minecraft.renderFrame submits.
+        // Declare each live resource once per frame. Repeating the full list on
+        // every encoder copies a growing command buffer for the whole reload.
         recordLiveResources(openFrame);
         return new GodotCommandEncoder(
                 openFrame, targetWidth, targetHeight, transport, this::submitOpenFrame, this);
@@ -134,6 +153,7 @@ public final class GodotGpuDevice implements GpuDevice {
             return;
         }
         openFrame = null;
+        recordedInFrame.clear();
         byte[] bytes = frame.finishFrame();
         int result = transport.submit(bytes);
         if (result <= 0) {
@@ -141,26 +161,41 @@ public final class GodotGpuDevice implements GpuDevice {
         }
     }
 
+    private void waitForMailboxDrain() {
+        if (!(transport instanceof GodotNativeRenderCommandTransport nativeTransport)) {
+            return;
+        }
+        nativeTransport.waitUntilDrained(5_000L);
+    }
+
     private void recordLiveResources(RenderCommandWriter writer) {
-        List<GodotGpuBuffer> frameBuffers;
-        List<GodotGpuTexture> frameTextures;
-        List<GodotCompiledRenderPipeline> framePipelines;
         synchronized (resourcesLock) {
-            buffers.removeIf(GodotGpuBuffer::isClosed);
-            textures.removeIf(GodotGpuTexture::isClosed);
-            pipelines.removeIf(GodotCompiledRenderPipeline::isClosed);
-            frameBuffers = List.copyOf(buffers);
-            frameTextures = List.copyOf(textures);
-            framePipelines = List.copyOf(pipelines);
+            for (GodotGpuBuffer buffer : buffers) {
+                if (!buffer.isClosed() && recordedInFrame.add(buffer)) {
+                    buffer.recordCreate(writer);
+                }
+            }
+            for (GodotGpuTexture texture : textures) {
+                if (!texture.isClosed() && recordedInFrame.add(texture)) {
+                    texture.recordCreate(writer);
+                }
+            }
+            for (GodotCompiledRenderPipeline pipeline : pipelines) {
+                if (!pipeline.isClosed() && recordedInFrame.add(pipeline)) {
+                    pipeline.recordCreate(writer);
+                }
+            }
         }
-        for (GodotGpuBuffer buffer : frameBuffers) {
-            buffer.recordCreate(writer);
-        }
-        for (GodotGpuTexture texture : frameTextures) {
-            texture.recordCreate(writer);
-        }
-        for (GodotCompiledRenderPipeline pipeline : framePipelines) {
-            pipeline.recordCreate(writer);
+    }
+
+    /** Puts a texture create before the first upload in this frame, and only once. */
+    void ensureTextureRecorded(GodotGpuTexture texture, RenderCommandWriter writer) {
+        Objects.requireNonNull(texture, "texture");
+        Objects.requireNonNull(writer, "writer");
+        synchronized (resourcesLock) {
+            if (recordedInFrame.add(texture)) {
+                texture.recordCreate(writer);
+            }
         }
     }
 

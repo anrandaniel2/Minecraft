@@ -41,6 +41,29 @@ public final class GodotNativeRenderCommandTransport implements RenderCommandTra
         return new GodotNativeRenderCommandTransport().submit(writer.finishFrame());
     }
 
+    /**
+     * The mailbox keeps only the latest frame. A reload flush must not submit
+     * the next chunk until Godot has taken this one, or the upload is dropped.
+     */
+    public void waitUntilDrained(long timeoutMs) {
+        long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
+        try {
+            while (System.nanoTime() < deadline) {
+                if (framePending() == 0) {
+                    return;
+                }
+                Thread.sleep(2L);
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        } catch (UnsatisfiedLinkError unavailable) {
+            System.err.println("MINECRAFT_GD_CLIENT drain unavailable");
+        }
+    }
+
     @CFunction("minecraft_render_submit_frame")
     private static native int submitFrame(CCharPointer frame, UnsignedWord frameSize);
+
+    @CFunction("minecraft_render_frame_pending")
+    private static native int framePending();
 }

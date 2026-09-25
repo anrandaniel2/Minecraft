@@ -323,9 +323,9 @@ final class GodotCommandEncoder implements CommandEncoder {
             throw new IllegalArgumentException("Texture was not created by GodotRenderPearlBackend");
         }
         Objects.requireNonNull(data, "data");
-        System.err.println(
-                "TEX_UPLOAD " + width + "x" + height + " mip " + mipLevel + " at " + destX + "," + destY
-        );
+        if (device != null) {
+            device.ensureTextureRecorded(godotTexture, writer);
+        }
         if (width <= 0 || height <= 0 || depthOrLayers <= 0 || destX < 0 || destY < 0) {
             throw new IllegalArgumentException("Texture upload dimensions and destination must be valid");
         }
@@ -380,7 +380,11 @@ final class GodotCommandEncoder implements CommandEncoder {
             return;
         }
         // The texture may have been created after this frame's resource prelude.
-        texture.recordCreate(writer);
+        if (device != null) {
+            device.ensureTextureRecorded(texture, writer);
+        } else {
+            texture.recordCreate(writer);
+        }
         writer.writeTexture(texture.nativeHandle(), width, height, 1, destX, destY, mip, pixels);
         if (arrayLayer > 0) {
             System.err.println("TEX_UPLOAD_LAYER " + arrayLayer + " stored at mip " + mip);
