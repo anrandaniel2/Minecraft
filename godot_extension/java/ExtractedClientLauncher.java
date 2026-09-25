@@ -233,7 +233,9 @@ public final class ExtractedClientLauncher {
                     continue;
                 }
                 String name = field.getName();
-                if (value instanceof AtomicInteger counter
+                if ("listenerCount".equals(name) && value instanceof Integer count) {
+                    line.append(" listeners=").append(count);
+                } else if (value instanceof AtomicInteger counter
                         && (name.contains("Task") || name.contains("Reload"))) {
                     line.append(' ').append(name).append('=').append(counter.get());
                 } else if (value instanceof Collection<?> pending && name.contains("prepar")) {
@@ -312,13 +314,36 @@ public final class ExtractedClientLauncher {
         int shown = 0;
         if (stack != null) {
             for (StackTraceElement frame : stack) {
-                if (shown++ >= 5) {
+                // getAllStackTraces freezes threads in the Graal safepoint.
+                // Those frames hid the Minecraft method that is not returning.
+                if (infrastructure(frame)) {
+                    continue;
+                }
+                String type = frame.getClassName();
+                int dot = type.lastIndexOf('.');
+                line.append(" <- ")
+                        .append(dot >= 0 ? type.substring(dot + 1) : type)
+                        .append('.')
+                        .append(frame.getMethodName());
+                if (++shown >= 8) {
                     break;
                 }
-                line.append(" <- ").append(frame.getClassName()).append('.').append(frame.getMethodName());
             }
         }
+        if (shown == 0 && stack != null && stack.length > 0) {
+            line.append(" <- ").append(stack[0].getMethodName());
+        }
         return line.toString();
+    }
+
+    private static boolean infrastructure(StackTraceElement frame) {
+        String type = frame.getClassName();
+        return type.startsWith("com.oracle.")
+                || type.startsWith("jdk.internal.")
+                || type.startsWith("sun.")
+                || type.startsWith("java.lang.Thread")
+                || type.startsWith("java.lang.ref.")
+                || type.contains("Safepoint");
     }
 
     private static Object declaredMember(Object owner, String name) {

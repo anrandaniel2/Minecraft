@@ -187,8 +187,22 @@ static void log_client_status(const char *tag) {
  * submitted. The null driver opens immediately and stays silent. A caller
  * that already chose a driver is left alone. */
 static void keep_openal_from_blocking(void) {
+    FILE *config;
+    const char *drivers;
     setenv("ALSOFT_DRIVERS", "null", 0);
     setenv("JACK_NO_START_SERVER", "1", 0);
+    /* Pulse can still block inside alcOpenDevice if the null driver was not
+     * selected. A closed port fails immediately instead of waiting. */
+    setenv("PULSE_SERVER", "127.0.0.1:9", 0);
+    config = fopen("/tmp/minecraft-godot-alsoft.conf", "w");
+    if (config != NULL) {
+        fputs("[general]\ndrivers = null\n", config);
+        fclose(config);
+        setenv("ALSOFT_CONF", "/tmp/minecraft-godot-alsoft.conf", 0);
+    }
+    drivers = getenv("ALSOFT_DRIVERS");
+    fprintf(stderr, "MINECRAFT_GD_CLIENT audio drivers %s\n",
+            drivers != NULL ? drivers : "unset");
 }
 
 __attribute__((constructor))
