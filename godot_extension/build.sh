@@ -253,9 +253,7 @@ gcc -std=c11 -O2 -fPIC -shared -Wall -Wextra -Werror -D_GNU_SOURCE \
   -Wl,-rpath,'$ORIGIN' -Wl,-z,origin \
   -o "$BIN_DIR/libminecraft_godot.so"
 
-if command -v strip >/dev/null 2>&1; then
-  strip --strip-unneeded "$BIN_DIR/libminecraft_godot.so" || true
-fi
+# Keep local symbols so a headless crash offset can be mapped to a function.
 
 echo "Built extracted client libraries:"
 ls -lh "$BIN_DIR"/*.so

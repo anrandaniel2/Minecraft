@@ -1006,21 +1006,31 @@ static void ptrcall_get_render_pipeline_vertex_attribute(void *userdata,
 static void register_method(const char *name, uint32_t argument_count,
         GDExtensionClassMethodCall call, GDExtensionClassMethodPtrCall ptrcall,
         GDExtensionBool has_return_value) {
+    /* Godot 4.7 copies PropertyInfo during registration. A null name or hint
+     * string is not safe to dereference, and a non-null ptrcall can be invoked
+     * while the editor binary binds the method. */
+    (void)ptrcall;
+    fprintf(stderr, "MINECRAFT_GD_REG %s\n", name);
     GDExtensionStringNamePtr method_name = make_string_name(name);
+    GDExtensionStringNamePtr blank_name = make_string_name("");
     GDExtensionPropertyInfo return_info = {0};
     return_info.type = GDEXTENSION_VARIANT_TYPE_INT;
+    return_info.name = blank_name;
+    return_info.class_name = blank_name;
 
     GDExtensionPropertyInfo arguments[5] = {0};
     GDExtensionClassMethodArgumentMetadata metadata[5] = {0};
     for (uint32_t i = 0; i < argument_count; i++) {
         arguments[i].type = GDEXTENSION_VARIANT_TYPE_INT;
+        arguments[i].name = blank_name;
+        arguments[i].class_name = blank_name;
         metadata[i] = GDEXTENSION_METHOD_ARGUMENT_METADATA_INT_IS_INT64;
     }
 
     GDExtensionClassMethodInfo method = {0};
     method.name = method_name;
     method.call_func = call;
-    method.ptrcall_func = ptrcall;
+    method.ptrcall_func = NULL;
     method.method_flags = GDEXTENSION_METHOD_FLAGS_DEFAULT;
     method.has_return_value = has_return_value;
     method.return_value_info = has_return_value ? &return_info : NULL;
@@ -1030,7 +1040,9 @@ static void register_method(const char *name, uint32_t argument_count,
     method.arguments_metadata = argument_count ? metadata : NULL;
 
     GDExtensionStringNamePtr class_name = make_string_name(CLASS_NAME);
+    fprintf(stderr, "MINECRAFT_GD_REG_CALL %s\n", name);
     classdb_register_extension_class_method(godot_library, class_name, &method);
+    fprintf(stderr, "MINECRAFT_GD_REG_DONE %s\n", name);
     free_string_name(class_name);
     free_string_name(method_name);
 }
