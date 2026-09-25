@@ -15,7 +15,7 @@ def interesting(line: str) -> bool:
         return False
     if text.startswith("Description:") or text.startswith("Caused by") or text.startswith("java."):
         return True
-    if text.startswith("at net.minecraft.godot") or text.startswith("at net.minecraft.client.Minecraft"):
+    if text.startswith("at net.minecraft.") or text.startswith("at com.mojang."):
         return True
     return any(token in text for token in ("Exception", "Game crashed", "submission failed", "Unsupported"))
 
@@ -61,7 +61,7 @@ def main() -> int:
             continue
         print("CRASH_LINE " + line.strip()[:220])
         printed += 1
-        if printed >= 20:
+        if printed >= 40:
             break
     if printed == 0:
         for line in lines[:12]:

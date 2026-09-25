@@ -30,8 +30,10 @@ final class GodotGpuTextureView implements GpuTextureView {
     }
 
     int nativeHandle() {
-        requireOpen();
-        return handle.id();
+        if (texture.isClosed()) {
+            throw new IllegalStateException("Texture view source texture is closed");
+        }
+        return handle.rawId();
     }
 
     @Override
@@ -41,19 +43,19 @@ final class GodotGpuTextureView implements GpuTextureView {
 
     @Override
     public GpuTexture texture() {
-        requireOpen();
+        // TextureAtlas.uploadInitialContents closes the temporary sprite view and then
+        // calls texture() to close that view's source. The view handle is bookkeeping;
+        // the source texture stays reachable until it is closed itself.
         return texture;
     }
 
     @Override
     public int baseMipLevel() {
-        requireOpen();
         return baseMipLevel;
     }
 
     @Override
     public int mipLevels() {
-        requireOpen();
         return mipLevels;
     }
 
@@ -73,17 +75,12 @@ final class GodotGpuTextureView implements GpuTextureView {
     }
 
     private int resolveMipLevel(int viewMipLevel) {
-        requireOpen();
+        if (texture.isClosed()) {
+            throw new IllegalStateException("Texture view source texture is closed");
+        }
         if (viewMipLevel < 0 || viewMipLevel >= mipLevels) {
             throw new IllegalArgumentException("Invalid view mip level " + viewMipLevel);
         }
         return baseMipLevel + viewMipLevel;
-    }
-
-    private void requireOpen() {
-        registry.requireOpen(handle, GodotRenderResourceRegistry.Kind.TEXTURE_VIEW);
-        if (texture.isClosed()) {
-            throw new IllegalStateException("Texture view source texture is closed");
-        }
     }
 }

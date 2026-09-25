@@ -34,6 +34,11 @@ final class GodotRenderResourceRegistry {
             return id;
         }
 
+        /** Identifier retained after close so a view can still name its source texture. */
+        int rawId() {
+            return id;
+        }
+
         Kind kind() {
             return kind;
         }
