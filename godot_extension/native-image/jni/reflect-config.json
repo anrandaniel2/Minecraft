@@ -1,0 +1,47 @@
+[
+  {
+    "name": "net.minecraft.client.Minecraft",
+    "allDeclaredFields": true,
+    "methods": [
+      {"name": "getInstance", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "net.minecraft.client.gui.Gui",
+    "allDeclaredFields": true,
+    "methods": [
+      {"name": "screen", "parameterTypes": []},
+      {"name": "overlay", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "net.minecraft.client.gui.screens.LoadingOverlay",
+    "allDeclaredFields": true
+  },
+  {
+    "name": "net.minecraft.server.packs.resources.SimpleReloadInstance",
+    "allDeclaredFields": true,
+    "methods": [
+      {"name": "isDone", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "net.minecraft.server.packs.resources.ProfiledReloadInstance",
+    "allDeclaredFields": true,
+    "methods": [
+      {"name": "isDone", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "net.minecraft.server.packs.resources.ReloadInstance",
+    "methods": [
+      {"name": "isDone", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "net.minecraft.server.packs.resources.PreparableReloadListener",
+    "methods": [
+      {"name": "getName", "parameterTypes": []}
+    ]
+  }
+]

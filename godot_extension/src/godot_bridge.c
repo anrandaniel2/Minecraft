@@ -181,6 +181,21 @@ static void log_client_status(const char *tag) {
     }
 }
 
+/* Resource reload applies on the render thread. OpenAL Soft's Pulse and
+ * PipeWire backends can block forever in alcOpenDevice when no audio server
+ * is running, so the loading overlay never finishes and menu text is never
+ * submitted. The null driver opens immediately and stays silent. A caller
+ * that already chose a driver is left alone. */
+static void keep_openal_from_blocking(void) {
+    setenv("ALSOFT_DRIVERS", "null", 0);
+    setenv("JACK_NO_START_SERVER", "1", 0);
+}
+
+__attribute__((constructor))
+static void minecraft_godot_audio_init(void) {
+    keep_openal_from_blocking();
+}
+
 static int java_start(void) {
     static const unsigned long reservations[] = {
         (unsigned long)16 * 1024 * 1024 * 1024,
@@ -195,6 +210,7 @@ static int java_start(void) {
     if (java_isolate != NULL) {
         return 1;
     }
+    keep_openal_from_blocking();
     publish_extension_symbols();
     export_native_dir();
     /* Godot may already own a large virtual mapping, so the 16 GB reservation

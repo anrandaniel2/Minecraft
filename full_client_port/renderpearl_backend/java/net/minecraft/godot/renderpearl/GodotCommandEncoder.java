@@ -573,6 +573,7 @@ final class GodotCommandEncoder implements CommandEncoder {
                     Object reload = declaredField(overlay, "reload");
                     if (reload != null) {
                         progress += " reloadDone " + reload.getClass().getMethod("isDone").invoke(reload);
+                        progress += reloadCounters(reload);
                     }
                 } catch (ReflectiveOperationException ignored) {
                     progress = "";
@@ -582,6 +583,50 @@ final class GodotCommandEncoder implements CommandEncoder {
                     + " overlay " + simpleName(overlay) + progress);
         } catch (Throwable error) {
             System.err.println("MINECRAFT_GD_CLIENT screen unknown " + error.getClass().getSimpleName());
+        }
+    }
+
+    /** Names the listener still preparing so a stuck reload is visible without a thread dump. */
+    private static String reloadCounters(Object reload) {
+        StringBuilder details = new StringBuilder();
+        appendReloadCounters(reload, details, 0);
+        String text = details.toString();
+        return text.length() <= 160 ? text : text.substring(0, 160);
+    }
+
+    private static void appendReloadCounters(Object owner, StringBuilder details, int depth) {
+        if (owner == null || depth > 2) {
+            return;
+        }
+        Class<?> type = owner.getClass();
+        while (type != null && type != Object.class) {
+            for (var field : type.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                Object value;
+                try {
+                    field.setAccessible(true);
+                    value = field.get(owner);
+                } catch (ReflectiveOperationException ignored) {
+                    continue;
+                }
+                String name = field.getName();
+                if (value instanceof java.util.concurrent.atomic.AtomicInteger counter
+                        && (name.contains("Task") || name.contains("Reload"))) {
+                    details.append(' ').append(name).append('=').append(counter.get());
+                } else if (value instanceof java.util.Collection<?> pending && name.contains("prepar")) {
+                    details.append(' ').append(name).append('=').append(pending.size());
+                    int shown = 0;
+                    for (Object listener : pending) {
+                        if (shown++ >= 3) {
+                            break;
+                        }
+                        details.append(' ').append(listener == null ? "null" : listener.getClass().getSimpleName());
+                    }
+                }
+            }
+            type = type.getSuperclass();
         }
     }
 

@@ -260,6 +260,12 @@ jobs:
           chmod +x "$GODOT_BIN"
           export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
           export MINECRAFT_REQUIRE_JAVA_GUI=1
+          # OpenAL Soft blocks in alcOpenDevice on a runner with no audio
+          # server. Resource reload applies on the render thread, so that
+          # hang keeps the loading overlay up and menu text is never drawn.
+          # The extension also sets this if it is still unset.
+          export ALSOFT_DRIVERS="${ALSOFT_DRIVERS:-null}"
+          export JACK_NO_START_SERVER=1
           # --headless forces the dummy renderer, so get_rendering_device() is
           # null and the viewport cannot replay Java draws. lavapipe is the
           # software Vulkan device Forward+ can actually draw with.
@@ -293,10 +299,16 @@ jobs:
               echo "SYMBOL_MAP"
               python3 tools/map_godot_extension_crash.py "$RUNNER_TEMP/godot-gui.log" godot_extension/bin/libminecraft_godot.so || true
               echo "GODOT_MARKERS"
-              grep -E 'MINECRAFT_GD_(SCENE|CLASS_READY|CREATE|METHODS_READY|MAIN_READY|BRIDGE|START|ISOLATE|SYMBOL|MAILBOX|CLIENT|USER_DIR|RUN_|CRASH|SUBMIT)|JAVA_GUI_|BOOT_|LWJGL_|SCRIPT ERROR|Parse Error|Invalid call|handle_crash|timeout:|Game crashed|TEX_UPLOAD' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_REG' | tail -n 30 || true
+              grep -E 'MINECRAFT_GD_(SCENE|CLASS_READY|CREATE|METHODS_READY|MAIN_READY|BRIDGE|START|ISOLATE|SYMBOL|MAILBOX|CLIENT|USER_DIR|RUN_|CRASH|SUBMIT|RELOAD|STACK)|JAVA_GUI_|BOOT_|LWJGL_|SCRIPT ERROR|Parse Error|Invalid call|handle_crash|timeout:|Game crashed|TEX_UPLOAD' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_REG' | tail -n 30 || true
               echo "CRASH_FILE"
               python3 tools/report_minecraft_crash.py . || true
               echo "GODOT_MARKERS_END"
+              echo "DIAG_CLIENT"
+              grep 'MINECRAFT_GD_CLIENT' "$RUNNER_TEMP/godot-gui.log" | tail -n 8 || true
+              echo "DIAG_RELOAD"
+              grep 'MINECRAFT_GD_RELOAD' "$RUNNER_TEMP/godot-gui.log" | tail -n 8 || true
+              echo "DIAG_STACK"
+              grep 'MINECRAFT_GD_STACK' "$RUNNER_TEMP/godot-gui.log" | tail -n 8 || true
             } > "$RUNNER_TEMP/godot-gui-report.log"
             python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui-report.log"
             exit 1

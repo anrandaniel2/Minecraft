@@ -15,15 +15,20 @@ import net.minecraft.server.Bootstrap;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 /**
@@ -93,6 +98,9 @@ public final class ExtractedClientLauncher {
         thread.setDaemon(false);
         thread.setUncaughtExceptionHandler((ignored, error) -> remember(error));
         thread.start();
+        Thread watchdog = new Thread(ExtractedClientLauncher::watchClient, "minecraft-godot-watchdog");
+        watchdog.setDaemon(true);
+        watchdog.start();
     }
 
     public static void stop() {
@@ -144,6 +152,199 @@ public final class ExtractedClientLauncher {
             System.exit(2);
         }
         System.out.println("Extracted Minecraft client constructed");
+    }
+
+    /**
+     * The viewport proof only sees frames the render thread submits. If that
+     * thread blocks inside resource reload, {@code submit()} never logs the
+     * screen again, so this daemon prints the stuck stack and reload counters.
+     */
+    private static void watchClient() {
+        try {
+            Thread.sleep(8_000L);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                logReloadProgress();
+                logStuckStacks();
+            } catch (Throwable error) {
+                System.err.println("MINECRAFT_GD_STACK watchdog " + error.getClass().getSimpleName());
+            }
+            try {
+                Thread.sleep(10_000L);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
+    private static void logReloadProgress() {
+        try {
+            Minecraft current = client;
+            if (current == null) {
+                System.err.println("MINECRAFT_GD_RELOAD client none");
+                return;
+            }
+            Object gui = declaredMember(current, "gui");
+            Object overlay = gui == null ? null : invokeNoArgs(gui, "overlay");
+            if (overlay == null) {
+                System.err.println("MINECRAFT_GD_RELOAD overlay none");
+                return;
+            }
+            Object reload = declaredMember(overlay, "reload");
+            StringBuilder line = new StringBuilder("MINECRAFT_GD_RELOAD");
+            Object progress = declaredMember(overlay, "currentProgress");
+            if (progress != null) {
+                line.append(" progress ").append(progress);
+            }
+            if (reload == null) {
+                line.append(" reload none");
+            } else {
+                line.append(" type ").append(reload.getClass().getSimpleName());
+                Object done = invokeNoArgs(reload, "isDone");
+                line.append(" done ").append(done);
+                appendReloadCounters(reload, line, 0);
+            }
+            System.err.println(clip(line.toString(), 220));
+        } catch (Throwable error) {
+            System.err.println("MINECRAFT_GD_RELOAD unreadable " + error.getClass().getSimpleName());
+        }
+    }
+
+    private static void appendReloadCounters(Object owner, StringBuilder line, int depth) {
+        if (owner == null || depth > 2) {
+            return;
+        }
+        Class<?> type = owner.getClass();
+        while (type != null && type != Object.class) {
+            for (Field field : type.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                Object value;
+                try {
+                    field.setAccessible(true);
+                    value = field.get(owner);
+                } catch (Throwable ignored) {
+                    continue;
+                }
+                String name = field.getName();
+                if (value instanceof AtomicInteger counter
+                        && (name.contains("Task") || name.contains("Reload"))) {
+                    line.append(' ').append(name).append('=').append(counter.get());
+                } else if (value instanceof Collection<?> pending && name.contains("prepar")) {
+                    line.append(' ').append(name).append('=').append(pending.size());
+                    int shown = 0;
+                    for (Object listener : pending.toArray()) {
+                        if (shown++ >= 3) {
+                            break;
+                        }
+                        line.append(' ').append(listenerName(listener));
+                    }
+                }
+            }
+            type = type.getSuperclass();
+        }
+    }
+
+    private static String listenerName(Object listener) {
+        if (listener == null) {
+            return "null";
+        }
+        try {
+            Object name = listener.getClass().getMethod("getName").invoke(listener);
+            if (name != null) {
+                return name.toString();
+            }
+        } catch (ReflectiveOperationException ignored) {
+            // Class name is enough to identify a stuck listener.
+        }
+        return listener.getClass().getSimpleName();
+    }
+
+    private static void logStuckStacks() {
+        Map<Thread, StackTraceElement[]> traces = Thread.getAllStackTraces();
+        Thread render = null;
+        for (Thread thread : traces.keySet()) {
+            if ("Render thread".equals(thread.getName())) {
+                render = thread;
+                break;
+            }
+        }
+        if (render == null) {
+            System.err.println("MINECRAFT_GD_STACK render-thread missing");
+        } else {
+            System.err.println(clip("MINECRAFT_GD_STACK " + summarize(render, traces.get(render)), 220));
+        }
+        int extra = 0;
+        for (Map.Entry<Thread, StackTraceElement[]> entry : traces.entrySet()) {
+            if (entry.getKey() == render || extra >= 3) {
+                continue;
+            }
+            String summary = summarize(entry.getKey(), entry.getValue());
+            if (!stuckThread(summary)) {
+                continue;
+            }
+            System.err.println(clip("MINECRAFT_GD_STACK " + summary, 220));
+            extra++;
+        }
+    }
+
+    private static boolean stuckThread(String summary) {
+        String lower = summary.toLowerCase();
+        return lower.contains("openal")
+                || lower.contains("alc")
+                || lower.contains("sound")
+                || lower.contains("reload")
+                || lower.contains("future")
+                || lower.contains("park")
+                || lower.contains("socket")
+                || lower.contains("audio");
+    }
+
+    private static String summarize(Thread thread, StackTraceElement[] stack) {
+        StringBuilder line = new StringBuilder();
+        line.append(thread.getName()).append(' ').append(thread.getState());
+        int shown = 0;
+        if (stack != null) {
+            for (StackTraceElement frame : stack) {
+                if (shown++ >= 5) {
+                    break;
+                }
+                line.append(" <- ").append(frame.getClassName()).append('.').append(frame.getMethodName());
+            }
+        }
+        return line.toString();
+    }
+
+    private static Object declaredMember(Object owner, String name) {
+        Class<?> type = owner.getClass();
+        while (type != null && type != Object.class) {
+            try {
+                Field field = type.getDeclaredField(name);
+                field.setAccessible(true);
+                return field.get(owner);
+            } catch (ReflectiveOperationException ignored) {
+                type = type.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    private static Object invokeNoArgs(Object owner, String name) {
+        try {
+            return owner.getClass().getMethod(name).invoke(owner);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
+    }
+
+    private static String clip(String text, int limit) {
+        return text.length() <= limit ? text : text.substring(0, limit);
     }
 
     private static void runClient() {
