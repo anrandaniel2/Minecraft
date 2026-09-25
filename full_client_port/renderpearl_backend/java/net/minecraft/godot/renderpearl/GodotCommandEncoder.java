@@ -347,35 +347,41 @@ final class GodotCommandEncoder implements CommandEncoder {
             int sourceY,
             int sourceWidth,
             int sourceHeight,
-            GpuTexture target,
+            GpuTexture destination,
             int destinationX,
             int destinationY,
-            int destinationZ,
             int copyWidth,
             int copyHeight,
+            int mipLevel,
             int arrayLayer
     ) {
         requireOpen();
         if (!(source.buffer() instanceof GodotGpuBuffer buffer)) {
             throw new IllegalArgumentException("Buffer-to-texture copy source was not created by GodotRenderPearlBackend");
         }
-        GodotGpuTexture texture = requireTexture(target);
-        int width = copyWidth > 0 ? copyWidth : sourceWidth;
-        int height = copyHeight > 0 ? copyHeight : sourceHeight;
-        if (width <= 0 || height <= 0) {
-            throw new IllegalArgumentException("Buffer-to-texture copy size must be positive");
-        }
-        byte[] pixels = regionBytes(buffer, source, sourceX, sourceY, sourceWidth, sourceHeight, width, height);
-        // writeTexture addresses a mip, not an array layer. Resource reload
-        // still needs the bytes in the frame; cube faces share mip 0 for now.
-        if (arrayLayer < 0 || destinationZ < 0 || destinationX < 0 || destinationY < 0) {
-            throw new IllegalArgumentException("Buffer-to-texture destination must be non-negative");
+        GodotGpuTexture texture = requireTexture(destination);
+        int width = copyWidth > 0 ? copyWidth : Math.max(sourceWidth, 1);
+        int height = copyHeight > 0 ? copyHeight : Math.max(sourceHeight, 1);
+        byte[] pixels = regionBytes(
+                buffer, source, sourceX, sourceY, sourceWidth, sourceHeight, width, height);
+        int mip = mipLevel >= 0 && mipLevel < texture.getMipLevels() ? mipLevel : 0;
+        int destX = Math.max(destinationX, 0);
+        int destY = Math.max(destinationY, 0);
+        int mipWidth = texture.getWidth(mip);
+        int mipHeight = texture.getHeight(mip);
+        if (pixels.length == 0 || destX >= mipWidth || destY >= mipHeight
+                || width > mipWidth - destX || height > mipHeight - destY) {
+            System.err.println("TEX_UPLOAD_SKIP " + width + "x" + height + " at " + destX + "," + destY
+                    + " mip " + mip + " texture " + mipWidth + "x" + mipHeight
+                    + " bytes " + pixels.length);
+            return;
         }
         // The texture may have been created after this frame's resource prelude.
         texture.recordCreate(writer);
-        writer.writeTexture(
-                texture.nativeHandle(), width, height, 1, destinationX, destinationY, 0, pixels
-        );
+        writer.writeTexture(texture.nativeHandle(), width, height, 1, destX, destY, mip, pixels);
+        if (arrayLayer > 0) {
+            System.err.println("TEX_UPLOAD_LAYER " + arrayLayer + " stored at mip " + mip);
+        }
     }
 
     private static byte[] regionBytes(
@@ -390,7 +396,7 @@ final class GodotCommandEncoder implements CommandEncoder {
     ) {
         int available = (int) Math.min(source.length(), Integer.MAX_VALUE);
         byte[] full = buffer.copyRange(source.offset(), available);
-        if (sourceWidth <= 0 || sourceHeight <= 0 || sourceWidth * (long) sourceHeight == 0
+        if (sourceWidth <= 0 || sourceHeight <= 0 || copyWidth <= 0 || copyHeight <= 0
                 || available % (sourceWidth * (long) sourceHeight) != 0) {
             return full;
         }
@@ -398,8 +404,11 @@ final class GodotCommandEncoder implements CommandEncoder {
         if (sourceX == 0 && sourceY == 0 && copyWidth == sourceWidth && copyHeight == sourceHeight) {
             return full;
         }
-        if (sourceX < 0 || sourceY < 0 || copyWidth > sourceWidth - sourceX || copyHeight > sourceHeight - sourceY) {
-            throw new IllegalArgumentException("Buffer-to-texture region lies outside the staging image");
+        if (sourceX < 0 || sourceY < 0 || copyWidth > sourceWidth - sourceX || copyHeight > sourceHeight - sourceY
+                || bytesPerPixel <= 0) {
+            // A mismatched region must not abort resource reload. The whole
+            // staging image is still a valid upload for this texture.
+            return full;
         }
         byte[] region = new byte[copyWidth * copyHeight * bytesPerPixel];
         for (int row = 0; row < copyHeight; row++) {
