@@ -187,12 +187,6 @@ static void log_client_status(const char *tag) {
  * is running, so the loading overlay never finishes and menu text is never
  * submitted. The null driver opens immediately and stays silent. A caller
  * that already chose a driver is left alone. */
-/* Java polls this after a reload flush. The mailbox is latest-only, so the
- * next chunk must wait until Godot has taken the previous upload frame. */
-int minecraft_render_frame_pending(void) {
-    return minecraft_render_latest_frame_size() > 0 ? 1 : 0;
-}
-
 static void keep_openal_from_blocking(void) {
     FILE *config;
     const char *drivers;

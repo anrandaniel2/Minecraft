@@ -217,6 +217,10 @@ size_t minecraft_render_latest_frame_size(void) {
     return size;
 }
 
+int minecraft_render_frame_pending(void) {
+    return minecraft_render_latest_frame_size() > 0 ? 1 : 0;
+}
+
 size_t minecraft_render_copy_latest_frame(uint8_t *destination, size_t destination_size) {
     pthread_mutex_lock(&latest_frame_mutex);
     if (destination == NULL || destination_size < latest_frame_size) {

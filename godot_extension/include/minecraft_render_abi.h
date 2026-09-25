@@ -109,6 +109,8 @@ int minecraft_render_visit_frame(
 int minecraft_render_submit_frame(const uint8_t *frame_bytes, size_t frame_size);
 int minecraft_render_last_submission_status(void);
 size_t minecraft_render_latest_frame_size(void);
+/* 1 when a submitted frame is still waiting for the Godot thread to take it. */
+int minecraft_render_frame_pending(void);
 /* Returns zero when destination is NULL or smaller than the current frame. */
 size_t minecraft_render_copy_latest_frame(uint8_t *destination, size_t destination_size);
 
