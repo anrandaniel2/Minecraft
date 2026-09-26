@@ -276,7 +276,11 @@ jobs:
           test -n "$LVP_ICD"
           export VK_ICD_FILENAMES="$LVP_ICD"
           export VK_DRIVER_FILES="$LVP_ICD"
-          vulkaninfo --summary > "$RUNNER_TEMP/vulkaninfo.txt" || true
+          # lavapipe's vulkaninfo can block with no output. A hang here never
+          # reaches Godot, and the step has no later log to show it.
+          echo "MINECRAFT_GD_CLIENT vulkaninfo-start"
+          timeout --kill-after=10s 30s vulkaninfo --summary > "$RUNNER_TEMP/vulkaninfo.txt" || true
+          echo "MINECRAFT_GD_CLIENT vulkaninfo-done"
           echo "MINECRAFT_GD_CLIENT vulkan_icd $LVP_ICD" | tee "$RUNNER_TEMP/godot-gui.log"
           # A fresh checkout has no editor cache. Godot only loads GDExtensions
           # listed here, so the native bridge is missing unless we write it.
@@ -288,8 +292,10 @@ jobs:
           # Tee as well: a cancelled job never reaches the tail below, and the
           # step log is the only copy that survives.
           # Do not pass --headless: that selects the dummy rendering driver.
+          # Without --kill-after, timeout only sends TERM and then waits forever
+          # if the isolate ignores it. The proof must still be able to report.
           xvfb-run -a --server-args="-screen 0 1280x720x24" \
-            stdbuf -o0 -e0 timeout 1500 "$GODOT_BIN" \
+            stdbuf -o0 -e0 timeout --kill-after=20s 1500 "$GODOT_BIN" \
               --display-driver x11 \
               --audio-driver Dummy \
               --rendering-driver vulkan \
