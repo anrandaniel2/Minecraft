@@ -69,6 +69,12 @@
     ]
   },
   {
+    "name": "org.apache.logging.log4j.core.config.Configurator",
+    "methods": [
+      {"name": "reconfigure", "parameterTypes": ["java.net.URI"]}
+    ]
+  },
+  {
     "name": "net.minecraft.server.packs.VanillaPackResourcesBuilder",
     "fields": [
       {"name": "developmentConfig"}

@@ -410,7 +410,12 @@ public final class ExtractedClientLauncher {
             Runtime.getRuntime().addShutdownHook(new Thread(
                     ExtractedClientLauncher::printCrashReports, "minecraft-crash-report"));
             System.err.println("MINECRAFT_GD_USER_DIR " + System.getProperty("user.dir"));
+            Thread.setDefaultUncaughtExceptionHandler((thread, error) ->
+                    System.err.println("MINECRAFT_GD_WORLD uncaught " + thread.getName() + " "
+                            + error.getClass().getSimpleName() + " "
+                            + clip(String.valueOf(error.getMessage()), 160)));
             installErrorTap();
+            configureWorldLogging();
             configureProcess();
             loadNativeLibraries();
             SharedConstants.tryDetectVersion();
@@ -420,6 +425,7 @@ public final class ExtractedClientLauncher {
             }
             System.err.println("Detected Minecraft " + detected.id() + " (" + detected.name() + ")");
             Bootstrap.bootStrap();
+            reconfigureWorldLogging();
             ClientBootstrap.bootstrap();
             // Main.main registers this thread before constructing Minecraft.
             // Window.setMode rejects the call otherwise.
@@ -758,6 +764,76 @@ public final class ExtractedClientLauncher {
         return null;
     }
 
+    private static final Path WORLD_LOG = Path.of("/tmp/minecraft-godot.log");
+    private static final Path WORLD_LOG_CONFIG = Path.of("/tmp/log4j2-godot.xml");
+
+    /**
+     * Native-image log4j has no shipped configuration, so world-load failures are
+     * swallowed and never reach stderr. Force a file appender we can read back.
+     */
+    private static void configureWorldLogging() {
+        try {
+            Files.writeString(WORLD_LOG_CONFIG, """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <Configuration status="ERROR">
+                      <Appenders>
+                        <File name="GodotLog" fileName="/tmp/minecraft-godot.log" immediateFlush="true">
+                          <PatternLayout pattern="%d{HH:mm:ss.SSS} %-5p %c{1} %m%n"/>
+                        </File>
+                      </Appenders>
+                      <Loggers>
+                        <Root level="info">
+                          <AppenderRef ref="GodotLog"/>
+                        </Root>
+                      </Loggers>
+                    </Configuration>
+                    """);
+            System.setProperty("log4j2.configurationFile", WORLD_LOG_CONFIG.toAbsolutePath().toString());
+            System.setProperty("log4j.configurationFile", WORLD_LOG_CONFIG.toAbsolutePath().toString());
+        } catch (IOException failure) {
+            System.err.println("MINECRAFT_GD_WORLD log4j " + failure.getClass().getSimpleName());
+        }
+    }
+
+    private static void reconfigureWorldLogging() {
+        try {
+            Class<?> configurator = Class.forName("org.apache.logging.log4j.core.config.Configurator");
+            configurator.getMethod("reconfigure", java.net.URI.class).invoke(null, WORLD_LOG_CONFIG.toUri());
+            System.err.println("MINECRAFT_GD_WORLD log4j reconfigured");
+        } catch (Throwable failure) {
+            System.err.println("MINECRAFT_GD_WORLD log4j " + failure.getClass().getSimpleName()
+                    + " " + clip(String.valueOf(failure.getMessage()), 120));
+        }
+    }
+
+    private static void printWorldLogFile() {
+        if (!Files.isRegularFile(WORLD_LOG)) {
+            System.err.println("MINECRAFT_GD_WORLD logfile missing");
+            return;
+        }
+        try {
+            List<String> lines = Files.readAllLines(WORLD_LOG);
+            int start = Math.max(0, lines.size() - 30);
+            int printed = 0;
+            for (int index = lines.size() - 1; index >= start && printed < 6; index--) {
+                String line = lines.get(index);
+                String lower = line.toLowerCase();
+                if (!(lower.contains("fail") || lower.contains("exception") || lower.contains("error")
+                        || lower.contains("warn") || lower.contains("disconnect") || lower.contains("crash"))) {
+                    continue;
+                }
+                System.err.println("MINECRAFT_GD_WORLD logfile " + clip(line, 180));
+                printed++;
+            }
+            if (printed == 0) {
+                System.err.println("MINECRAFT_GD_WORLD logfile "
+                        + clip(lines.isEmpty() ? "empty" : lines.get(lines.size() - 1), 180));
+            }
+        } catch (IOException failure) {
+            System.err.println("MINECRAFT_GD_WORLD logfile " + failure.getClass().getSimpleName());
+        }
+    }
+
     /** Runners often check out through a symlink. An empty allow-list rejects the save. */
     private static void writeAllowedSymlinks(File gameDirectory) {
         Path file = gameDirectory.toPath().resolve("allowed_symlinks.txt");
@@ -868,7 +944,8 @@ public final class ExtractedClientLauncher {
             if (!name.contains("server") && !name.contains("integrated")) {
                 continue;
             }
-            System.err.println("MINECRAFT_GD_WORLD thread " + thread.getName() + " " + thread.getState());
+            System.err.println("MINECRAFT_GD_WORLD thread " + thread.getName() + " " + thread.getState()
+                    + " " + clip(summarize(thread, thread.getStackTrace()), 140));
             shown++;
             if (shown >= 4) {
                 break;
@@ -1094,6 +1171,7 @@ public final class ExtractedClientLauncher {
             printServerThreads();
             if (!joined) {
                 printCapturedCauses();
+                printWorldLogFile();
                 printWorldLogTail();
             }
         } catch (Throwable failure) {
