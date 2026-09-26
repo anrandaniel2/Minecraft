@@ -69,6 +69,15 @@
     ]
   },
   {
+    "name": "net.minecraft.server.packs.VanillaPackResourcesBuilder",
+    "fields": [
+      {"name": "developmentConfig"}
+    ],
+    "methods": [
+      {"name": "pushUniversalPath", "parameterTypes": ["java.nio.file.Path"]}
+    ]
+  },
+  {
     "name": "net.minecraft.server.packs.resources.PreparableReloadListener",
     "methods": [
       {"name": "getName", "parameterTypes": []}

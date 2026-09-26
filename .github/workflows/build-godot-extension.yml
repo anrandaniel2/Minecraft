@@ -262,6 +262,7 @@ jobs:
           export MINECRAFT_REQUIRE_JAVA_GUI=1
           export MINECRAFT_REQUIRE_WORLD=1
           export MINECRAFT_ENTER_WORLD=1
+          export MINECRAFT_EXTRACTED_DIR="$PWD/extracted"
           # OpenAL Soft blocks in alcOpenDevice on a runner with no audio
           # server. Resource reload applies on the render thread, so that
           # hang keeps the loading overlay up and menu text is never drawn.

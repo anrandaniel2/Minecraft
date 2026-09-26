@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,6 +70,7 @@ public final class ExtractedClientLauncher {
     private static final AtomicReference<Runnable> renderThreadTask = new AtomicReference<>();
     /** Set by the Godot host from the process environment before the isolate starts. */
     private static volatile boolean enterWorldFromHost;
+    private static volatile Path gameDirectoryPath;
     /** True while {@code runTick} is on the stack, so encoder hooks leave the task queued. */
     private static volatile boolean insideClientTick;
     private static long nextWorldAttemptNanos;
@@ -412,6 +414,9 @@ public final class ExtractedClientLauncher {
             // Main.main registers this thread before constructing Minecraft.
             // Window.setMode rejects the call otherwise.
             com.mojang.blaze3d.systems.RenderSystem.initRenderThread();
+            // Native-image classpath URLs are not file: or jar:, so the built-in
+            // pack lists nothing. Point both pack types at the extracted tree.
+            exposeExtractedVanillaPack();
             Minecraft created = new Minecraft(gameConfig());
             client = created;
             System.err.println("MINECRAFT_GD_WORLD requested " + enterWorldRequested()
@@ -636,6 +641,8 @@ public final class ExtractedClientLauncher {
                 System.getProperty("minecraft.godot.gameDir"),
                 Path.of(System.getProperty("user.dir"), "minecraft-godot-run").toString()
         ));
+        gameDirectoryPath = gameDirectory.toPath();
+        writeAllowedSymlinks(gameDirectory);
         if (enterWorldRequested()) {
             writeWorldOptions(gameDirectory);
         }
@@ -681,6 +688,112 @@ public final class ExtractedClientLauncher {
         return enterWorldFromHost
                 || "1".equals(System.getenv("MINECRAFT_ENTER_WORLD"))
                 || Boolean.parseBoolean(System.getProperty("minecraft.godot.enterWorld", "false"));
+    }
+
+    /**
+     * Native image cannot turn classpath resources into a file or jar path, so
+     * {@code pushJarResources} lists an empty vanilla pack and world creation
+     * bails back to the title screen. Register the extracted tree instead.
+     */
+    private static void exposeExtractedVanillaPack() {
+        Path root = extractedRoot();
+        if (root == null) {
+            System.err.println("MINECRAFT_GD_WORLD pack missing");
+            return;
+        }
+        try {
+            Class<?> builderType = Class.forName("net.minecraft.server.packs.VanillaPackResourcesBuilder");
+            Method push = builderType.getMethod("pushUniversalPath", Path.class);
+            Field field = builderType.getField("developmentConfig");
+            Object previous = field.get(null);
+            field.set(null, (Consumer<Object>) target -> {
+                if (previous instanceof Consumer<?> consumer) {
+                    @SuppressWarnings("unchecked")
+                    Consumer<Object> typed = (Consumer<Object>) consumer;
+                    typed.accept(target);
+                }
+                try {
+                    push.invoke(target, root);
+                } catch (ReflectiveOperationException failure) {
+                    System.err.println("MINECRAFT_GD_WORLD pack " + failure.getClass().getSimpleName());
+                }
+            });
+            System.err.println("MINECRAFT_GD_WORLD pack " + root);
+        } catch (ReflectiveOperationException failure) {
+            System.err.println("MINECRAFT_GD_WORLD pack " + failure.getClass().getSimpleName()
+                    + " " + failure.getMessage());
+        }
+    }
+
+    private static Path extractedRoot() {
+        String configured = firstNonBlank(
+                System.getProperty("minecraft.godot.extractedDir"),
+                System.getenv("MINECRAFT_EXTRACTED_DIR"));
+        Path cwd = Path.of(System.getProperty("user.dir", ".")).toAbsolutePath();
+        Path[] candidates = new Path[] {
+                configured == null || configured.isBlank() ? null : Path.of(configured),
+                cwd.resolve("extracted"),
+                cwd.resolve("../extracted"),
+                cwd.getParent() == null ? null : cwd.getParent().resolve("extracted")
+        };
+        for (Path candidate : candidates) {
+            if (candidate != null
+                    && Files.isDirectory(candidate.resolve("data/minecraft"))
+                    && Files.isDirectory(candidate.resolve("assets/minecraft"))) {
+                return candidate.toAbsolutePath().normalize();
+            }
+        }
+        Path cursor = cwd;
+        for (int i = 0; i < 4 && cursor != null; i++) {
+            Path candidate = cursor.resolve("extracted");
+            if (Files.isDirectory(candidate.resolve("data/minecraft"))
+                    && Files.isDirectory(candidate.resolve("assets/minecraft"))) {
+                return candidate.toAbsolutePath().normalize();
+            }
+            cursor = cursor.getParent();
+        }
+        return null;
+    }
+
+    /** Runners often check out through a symlink. An empty allow-list rejects the save. */
+    private static void writeAllowedSymlinks(File gameDirectory) {
+        Path file = gameDirectory.toPath().resolve("allowed_symlinks.txt");
+        if (Files.isRegularFile(file)) {
+            return;
+        }
+        try {
+            Files.writeString(file, "# headless viewport\n[prefix]/\n[/]\n");
+        } catch (IOException failure) {
+            System.err.println("MINECRAFT_GD_WORLD symlinks " + failure.getClass().getSimpleName());
+        }
+    }
+
+    private static void printWorldLogTail() {
+        Path directory = gameDirectoryPath;
+        Path log = directory == null ? null : directory.resolve("logs").resolve("latest.log");
+        if (log == null || !Files.isRegularFile(log)) {
+            System.err.println("MINECRAFT_GD_WORLD log missing");
+            return;
+        }
+        try {
+            List<String> lines = Files.readAllLines(log);
+            StringBuilder kept = new StringBuilder();
+            for (int i = Math.max(0, lines.size() - 80); i < lines.size(); i++) {
+                String line = lines.get(i);
+                String lower = line.toLowerCase();
+                if (!(lower.contains("fail") || lower.contains("exception") || lower.contains("error")
+                        || lower.contains("datapack") || lower.contains("symlink") || lower.contains("warn"))) {
+                    continue;
+                }
+                if (kept.length() > 0) {
+                    kept.append(" || ");
+                }
+                kept.append(line);
+            }
+            System.err.println("MINECRAFT_GD_WORLD log " + clip(kept.toString(), 700));
+        } catch (IOException failure) {
+            System.err.println("MINECRAFT_GD_WORLD log " + failure.getClass().getSimpleName());
+        }
     }
 
     /**
@@ -829,8 +942,11 @@ public final class ExtractedClientLauncher {
                     WorldPresets::createNormalWorldDimensions,
                     returnScreen
             );
-            System.err.println("MINECRAFT_GD_WORLD create level "
-                    + (readMember(minecraft, "level") != null));
+            boolean joined = readMember(minecraft, "level") != null;
+            System.err.println("MINECRAFT_GD_WORLD create level " + joined);
+            if (!joined) {
+                printWorldLogTail();
+            }
         } catch (Throwable failure) {
             worldEntryRequested.set(false);
             nextWorldAttemptNanos = System.nanoTime() + 5_000_000_000L;
