@@ -41,6 +41,7 @@ graal_isolatethread_t *graal_get_current_thread(graal_isolate_t *isolate);
 int graal_attach_thread(graal_isolate_t *isolate, graal_isolatethread_t **thread);
 int graal_tear_down_isolate(graal_isolatethread_t *thread);
 
+void minecraft_set_enter_world(graal_isolatethread_t *thread, int enabled);
 void minecraft_bootstrap(graal_isolatethread_t *thread);
 void minecraft_touch_down(
     graal_isolatethread_t *thread, int pointer_id, int x, int y, int width, int height

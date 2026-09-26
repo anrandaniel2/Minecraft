@@ -67,8 +67,12 @@ public final class ExtractedClientLauncher {
     private static final AtomicBoolean worldEntryRequested = new AtomicBoolean();
     private static final AtomicBoolean onboardingDismissed = new AtomicBoolean();
     private static final AtomicReference<Runnable> renderThreadTask = new AtomicReference<>();
+    /** Set by the Godot host from the process environment before the isolate starts. */
+    private static volatile boolean enterWorldFromHost;
     /** True while {@code runTick} is on the stack, so encoder hooks leave the task queued. */
     private static volatile boolean insideClientTick;
+    private static long nextWorldAttemptNanos;
+    private static long nextWorldScreenLogNanos;
 
     private ExtractedClientLauncher() {
     }
@@ -410,9 +414,9 @@ public final class ExtractedClientLauncher {
             com.mojang.blaze3d.systems.RenderSystem.initRenderThread();
             Minecraft created = new Minecraft(gameConfig());
             client = created;
-            if (enterWorldRequested()) {
-                startWorldEntry(created);
-            }
+            System.err.println("MINECRAFT_GD_WORLD requested " + enterWorldRequested()
+                    + " env " + System.getenv("MINECRAFT_ENTER_WORLD")
+                    + " host " + enterWorldFromHost);
             System.err.println("MINECRAFT_GD_RUN_ENTER");
             if (enterWorldRequested()) {
                 // createFreshLevel blocks in renderFrame. Minecraft.run() has
@@ -668,8 +672,14 @@ public final class ExtractedClientLauncher {
         );
     }
 
+    /** Called from the Godot host before {@link #start()}. The isolate may not see getenv. */
+    public static void setEnterWorldFromHost(boolean enabled) {
+        enterWorldFromHost = enabled;
+    }
+
     private static boolean enterWorldRequested() {
-        return "1".equals(System.getenv("MINECRAFT_ENTER_WORLD"))
+        return enterWorldFromHost
+                || "1".equals(System.getenv("MINECRAFT_ENTER_WORLD"))
                 || Boolean.parseBoolean(System.getProperty("minecraft.godot.enterWorld", "false"));
     }
 
@@ -696,51 +706,96 @@ public final class ExtractedClientLauncher {
         }
     }
 
-    private static void startWorldEntry(Minecraft minecraft) {
-        Thread thread = new Thread(() -> waitAndEnterWorld(minecraft), "minecraft-world-entry");
-        thread.setDaemon(true);
-        thread.start();
+    private static volatile boolean loggedWorldLoaded;
+
+    private static void maybeEnterWorld(Minecraft minecraft) {
+        if (!enterWorldRequested()) {
+            return;
+        }
+        if (readMember(minecraft, "level") != null) {
+            if (!loggedWorldLoaded) {
+                loggedWorldLoaded = true;
+                System.err.println("MINECRAFT_GD_WORLD loaded");
+            }
+            return;
+        }
+        long now = System.nanoTime();
+        Object gui = declaredMember(minecraft, "gui");
+        if (gui != null && invokeNoArgs(gui, "overlay") != null) {
+            return;
+        }
+        Object screen = gui == null ? null : invokeNoArgs(gui, "screen");
+        String screenName = screen == null ? "none" : screen.getClass().getSimpleName();
+        if (now >= nextWorldScreenLogNanos) {
+            nextWorldScreenLogNanos = now + 10_000_000_000L;
+            System.err.println("MINECRAFT_GD_WORLD screen " + screenName);
+        }
+        if (screen != null && screen.getClass().getName().endsWith("AccessibilityOnboardingScreen")) {
+            if (onboardingDismissed.compareAndSet(false, true)) {
+                dismissOnboarding(minecraft);
+            }
+            return;
+        }
+        if (screen != null && screen.getClass().getSimpleName().contains("Confirm")
+                && acceptBooleanCallback(screen)) {
+            System.err.println("MINECRAFT_GD_WORLD confirmed " + screenName);
+            worldEntryRequested.set(false);
+            return;
+        }
+        if (screen == null || !screen.getClass().getName().endsWith("TitleScreen")
+                || now < nextWorldAttemptNanos
+                || !worldEntryRequested.compareAndSet(false, true)) {
+            return;
+        }
+        System.err.println("MINECRAFT_GD_WORLD title");
+        tuneHeadlessOptions(minecraft);
+        createFreshWorld(minecraft);
     }
 
-    private static void waitAndEnterWorld(Minecraft minecraft) {
-        long deadline = System.nanoTime() + 240_000_000_000L;
-        int ticks = 0;
-        while (System.nanoTime() < deadline && minecraft.isRunning()) {
+    private static boolean acceptBooleanCallback(Object screen) {
+        Class<?> type = screen.getClass();
+        while (type != null && type != Object.class) {
             try {
-                Thread.sleep(500L);
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            ticks++;
-            if (readMember(minecraft, "level") != null) {
-                System.err.println("MINECRAFT_GD_WORLD loaded");
-                return;
-            }
-            Object gui = declaredMember(minecraft, "gui");
-            if (gui != null && invokeNoArgs(gui, "overlay") != null) {
-                continue;
-            }
-            Object screen = gui == null ? null : invokeNoArgs(gui, "screen");
-            if (ticks % 20 == 0) {
-                String screenName = screen == null ? "none" : screen.getClass().getSimpleName();
-                System.err.println("MINECRAFT_GD_WORLD screen " + screenName);
-            }
-            if (screen != null && screen.getClass().getName().endsWith("AccessibilityOnboardingScreen")) {
-                if (onboardingDismissed.compareAndSet(false, true)) {
-                    scheduleOnRenderThread(() -> dismissOnboarding(minecraft));
+                Field field = type.getDeclaredField("callback");
+                field.setAccessible(true);
+                Object callback = field.get(screen);
+                if (callback == null) {
+                    return false;
                 }
-                continue;
+                callback.getClass().getMethod("accept", boolean.class).invoke(callback, Boolean.TRUE);
+                return true;
+            } catch (NoSuchFieldException ignored) {
+                type = type.getSuperclass();
+            } catch (ReflectiveOperationException failure) {
+                System.err.println("MINECRAFT_GD_WORLD confirm " + failure.getClass().getSimpleName());
+                return false;
             }
-            if (screen == null || !screen.getClass().getName().endsWith("TitleScreen")
-                    || worldEntryRequested.get()) {
-                continue;
-            }
-            worldEntryRequested.set(true);
-            System.err.println("MINECRAFT_GD_WORLD title");
-            scheduleOnRenderThread(() -> createFreshWorld(minecraft));
         }
-        System.err.println("MINECRAFT_GD_WORLD entry-timeout");
+        return false;
+    }
+
+    private static void tuneHeadlessOptions(Minecraft minecraft) {
+        Object options = declaredMember(minecraft, "options");
+        if (options == null) {
+            return;
+        }
+        setBooleanField(options, "pauseOnLostFocus", false);
+        setBooleanField(options, "onboardAccessibility", false);
+        setBooleanField(options, "onboardingAccessibilityFinished", true);
+        setOptionValue(options, "renderDistance", 2);
+        setOptionValue(options, "simulationDistance", 2);
+    }
+
+    private static void setOptionValue(Object options, String name, int value) {
+        Object option = declaredMember(options, name);
+        if (option == null) {
+            return;
+        }
+        try {
+            option.getClass().getMethod("set", Object.class).invoke(option, Integer.valueOf(value));
+        } catch (ReflectiveOperationException failure) {
+            System.err.println("MINECRAFT_GD_WORLD option " + name + " " + failure.getClass().getSimpleName());
+        }
     }
 
     private static void createFreshWorld(Minecraft minecraft) {
@@ -767,8 +822,13 @@ public final class ExtractedClientLauncher {
                     returnScreen
             );
             System.err.println("MINECRAFT_GD_WORLD create");
+            if (readMember(minecraft, "level") == null) {
+                worldEntryRequested.set(false);
+                nextWorldAttemptNanos = System.nanoTime() + 5_000_000_000L;
+            }
         } catch (Throwable failure) {
             worldEntryRequested.set(false);
+            nextWorldAttemptNanos = System.nanoTime() + 5_000_000_000L;
             System.err.println("MINECRAFT_GD_WORLD create-failed " + failure.getClass().getSimpleName()
                     + " " + failure.getMessage());
             failure.printStackTrace(System.err);
@@ -799,6 +859,9 @@ public final class ExtractedClientLauncher {
         }
         while (minecraft.isRunning()) {
             insideClientTick = false;
+            // Loading can outlast a background deadline. Enter only between ticks,
+            // and keep checking until the client stops.
+            maybeEnterWorld(minecraft);
             runPendingRenderTask();
             insideClientTick = true;
             try {

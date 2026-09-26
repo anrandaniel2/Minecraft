@@ -244,6 +244,12 @@ static int java_start(void) {
         return 0;
     }
     fprintf(stderr, "MINECRAFT_GD_BOOTSTRAP\n");
+    {
+        const char *enter_world = getenv("MINECRAFT_ENTER_WORLD");
+        int enabled = enter_world != NULL && strcmp(enter_world, "1") == 0;
+        fprintf(stderr, "MINECRAFT_GD_WORLD host %d\n", enabled);
+        minecraft_set_enter_world(java_main_thread, enabled);
+    }
     minecraft_bootstrap(java_main_thread);
     return 1;
 }

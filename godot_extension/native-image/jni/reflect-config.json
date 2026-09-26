@@ -16,6 +16,20 @@
     "allDeclaredFields": true
   },
   {
+    "name": "net.minecraft.client.OptionInstance",
+    "methods": [
+      {"name": "set", "parameterTypes": ["java.lang.Object"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.client.gui.screens.ConfirmScreen",
+    "allDeclaredFields": true
+  },
+  {
+    "name": "net.minecraft.client.gui.screens.worldselection.ConfirmExperimentalFeaturesScreen",
+    "allDeclaredFields": true
+  },
+  {
     "name": "net.minecraft.client.gui.Gui",
     "allDeclaredFields": true,
     "methods": [

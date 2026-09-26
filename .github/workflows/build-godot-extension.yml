@@ -305,6 +305,8 @@ jobs:
               echo "CRASH_FILE"
               python3 tools/report_minecraft_crash.py . || true
               echo "GODOT_MARKERS_END"
+              echo "DIAG_WORLD"
+              grep 'MINECRAFT_GD_WORLD' "$RUNNER_TEMP/godot-gui.log" | tail -n 30 || true
               echo "DIAG_CLIENT"
               grep 'MINECRAFT_GD_CLIENT' "$RUNNER_TEMP/godot-gui.log" | tail -n 8 || true
               echo "DIAG_RELOAD"
@@ -327,6 +329,7 @@ jobs:
           world_draws="$(awk '{print $8}' <<< "$proof_line")"
           if [[ "${presented:-0}" -le 0 || "${world_draws:-0}" -le 0 ]]; then
             echo "Viewport did not present a Java world draw: $proof_line"
+            grep 'MINECRAFT_GD_WORLD' "$RUNNER_TEMP/godot-gui.log" | tail -n 30 || true
             exit 1
           fi
 

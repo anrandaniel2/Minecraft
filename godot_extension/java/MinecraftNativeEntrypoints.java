@@ -19,6 +19,11 @@ public final class MinecraftNativeEntrypoints {
     private MinecraftNativeEntrypoints() {
     }
 
+    @CEntryPoint(name = "minecraft_set_enter_world")
+    public static void setEnterWorld(IsolateThread thread, int enabled) {
+        ExtractedClientLauncher.setEnterWorldFromHost(enabled != 0);
+    }
+
     @CEntryPoint(name = "minecraft_bootstrap")
     public static void bootstrap(IsolateThread thread) {
         // Read the marker so native-image cannot delete the ASCII bytes.
