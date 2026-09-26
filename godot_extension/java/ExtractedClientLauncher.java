@@ -648,6 +648,12 @@ public final class ExtractedClientLauncher {
                 System.getProperty("minecraft.godot.gameDir"),
                 Path.of(System.getProperty("user.dir"), "minecraft-godot-run").toString()
         ));
+        try {
+            // A symlinked checkout makes 26.3 reject the save before the server starts.
+            gameDirectory = gameDirectory.toPath().toRealPath().toFile();
+        } catch (IOException ignored) {
+            // Keep the created path if the real path cannot be resolved.
+        }
         gameDirectoryPath = gameDirectory.toPath();
         writeAllowedSymlinks(gameDirectory);
         if (enterWorldRequested()) {
@@ -754,7 +760,8 @@ public final class ExtractedClientLauncher {
             return;
         }
         try {
-            Files.writeString(file, "# headless viewport\n[prefix]/\n[/]\n");
+            // [/] is an unsupported type and makes Minecraft reject the whole file.
+            Files.writeString(file, "# headless viewport\n[regex].*\n");
         } catch (IOException failure) {
             System.err.println("MINECRAFT_GD_WORLD symlinks " + failure.getClass().getSimpleName());
         }
@@ -816,12 +823,20 @@ public final class ExtractedClientLauncher {
         }
     }
 
-    private static void printCapturedErrors() {
+    private static void printCapturedCauses() {
         String text;
         synchronized (capturedErrors) {
             text = capturedErrors.toString();
         }
-        System.err.println("MINECRAFT_GD_WORLD fail " + (text.isBlank() ? "no-captured-error" : clip(text, 700)));
+        if (text.isBlank()) {
+            System.err.println("MINECRAFT_GD_WORLD cause none");
+            return;
+        }
+        String[] parts = text.split(" \\|\\| ");
+        int start = Math.max(0, parts.length - 4);
+        for (int index = start; index < parts.length; index++) {
+            System.err.println("MINECRAFT_GD_WORLD cause " + clip(parts[index], 180));
+        }
     }
 
     /** A failed create can leave the level folder behind and make the retry fail differently. */
@@ -1015,6 +1030,9 @@ public final class ExtractedClientLauncher {
                     WorldDataConfiguration.DEFAULT
             );
             deletePartialWorld();
+            synchronized (capturedErrors) {
+                capturedErrors.setLength(0);
+            }
             flows.createFreshLevel(
                     "godot",
                     settings,
@@ -1027,8 +1045,8 @@ public final class ExtractedClientLauncher {
                     + " applied " + vanillaPackApplications.get()
                     + " dir " + gameDirectoryPath);
             if (!joined) {
+                printCapturedCauses();
                 printWorldLogTail();
-                printCapturedErrors();
             }
         } catch (Throwable failure) {
             worldEntryRequested.set(false);

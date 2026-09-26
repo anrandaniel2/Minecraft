@@ -57,7 +57,7 @@ def main() -> int:
         # Diagnostics go last. The annotation keeps the end of the message,
         # and a mixed JAVA_GUI_WAIT tail must not push them out.
         chosen = lines[-8:] + diagnostics
-    tail = [sanitize(line)[:240] for line in chosen]
+    tail = [sanitize(line)[:500 if "MINECRAFT_GD_WORLD cause" in line else 240] for line in chosen]
     message = "TAIL " + " || ".join(tail)
     if len(message) > MAX_CHARS:
         message = message[-MAX_CHARS:]
