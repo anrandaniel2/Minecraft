@@ -88,5 +88,45 @@
     "methods": [
       {"name": "getName", "parameterTypes": []}
     ]
+  },
+  {
+    "name": "io.netty.channel.local.LocalServerChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.local.LocalChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.socket.nio.NioServerSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.socket.nio.NioSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.epoll.EpollServerSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.epoll.EpollSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.kqueue.KQueueServerSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.kqueue.KQueueSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
   }
 ]
