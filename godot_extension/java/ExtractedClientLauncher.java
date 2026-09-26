@@ -25,6 +25,8 @@ import net.minecraft.server.packs.VanillaPackResourcesBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -413,7 +415,7 @@ public final class ExtractedClientLauncher {
                     ExtractedClientLauncher::printCrashReports, "minecraft-crash-report"));
             System.err.println("MINECRAFT_GD_USER_DIR " + System.getProperty("user.dir"));
             Thread.setDefaultUncaughtExceptionHandler((thread, error) ->
-                    System.err.println("MINECRAFT_GD_WORLD uncaught " + thread.getName() + " "
+                    emit("MINECRAFT_GD_WORLD uncaught " + thread.getName() + " "
                             + error.getClass().getSimpleName() + " "
                             + clip(String.valueOf(error.getMessage()), 160)));
             installErrorTap();
@@ -437,7 +439,7 @@ public final class ExtractedClientLauncher {
             exposeExtractedVanillaPack();
             Minecraft created = new Minecraft(gameConfig());
             client = created;
-            System.err.println("MINECRAFT_GD_WORLD requested " + enterWorldRequested()
+            emit("MINECRAFT_GD_WORLD requested " + enterWorldRequested()
                     + " env " + System.getenv("MINECRAFT_ENTER_WORLD")
                     + " host " + enterWorldFromHost);
             System.err.println("MINECRAFT_GD_RUN_ENTER");
@@ -723,17 +725,17 @@ public final class ExtractedClientLauncher {
     private static void exposeExtractedVanillaPack() {
         Path root = extractedRoot();
         if (root == null) {
-            System.err.println("MINECRAFT_GD_WORLD pack missing dir " + System.getProperty("user.dir"));
+            emit("MINECRAFT_GD_WORLD pack missing dir " + System.getProperty("user.dir"));
             return;
         }
         VanillaPackResourcesBuilder.developmentConfig = builder -> {
             builder.pushUniversalPath(root);
             int applied = vanillaPackApplications.incrementAndGet();
             if (applied <= 3) {
-                System.err.println("MINECRAFT_GD_WORLD pack-applied " + applied + " " + root);
+                emit("MINECRAFT_GD_WORLD pack-applied " + applied + " " + root);
             }
         };
-        System.err.println("MINECRAFT_GD_WORLD pack " + root);
+        emit("MINECRAFT_GD_WORLD pack " + root);
     }
 
     private static Path extractedRoot() {
@@ -768,6 +770,23 @@ public final class ExtractedClientLauncher {
 
     private static final Path WORLD_LOG = Path.of("/tmp/minecraft-godot.log");
     private static final Path WORLD_LOG_CONFIG = Path.of("/tmp/log4j2-godot.xml");
+    /** Bootstrap redirects System.err into log4j. This stays on the process fd. */
+    private static OutputStream processErr;
+
+    /** World diagnostics must survive log4j capturing System.err. Do not close this stream. */
+    private static void emit(String line) {
+        try {
+            OutputStream err = processErr;
+            if (err == null) {
+                err = new FileOutputStream(FileDescriptor.err);
+                processErr = err;
+            }
+            err.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+            err.flush();
+        } catch (Throwable ignored) {
+            // The process log is best-effort. The file appender is the other copy.
+        }
+    }
 
     /**
      * Native-image log4j has no shipped configuration, so world-load failures are
@@ -779,12 +798,16 @@ public final class ExtractedClientLauncher {
                     <?xml version="1.0" encoding="UTF-8"?>
                     <Configuration status="ERROR">
                       <Appenders>
+                        <Console name="GodotErr" target="SYSTEM_ERR">
+                          <PatternLayout pattern="%d{HH:mm:ss.SSS} %-5p %c{1} %m%n"/>
+                        </Console>
                         <File name="GodotLog" fileName="/tmp/minecraft-godot.log" immediateFlush="true">
                           <PatternLayout pattern="%d{HH:mm:ss.SSS} %-5p %c{1} %m%n"/>
                         </File>
                       </Appenders>
                       <Loggers>
                         <Root level="info">
+                          <AppenderRef ref="GodotErr"/>
                           <AppenderRef ref="GodotLog"/>
                         </Root>
                       </Loggers>
@@ -793,7 +816,7 @@ public final class ExtractedClientLauncher {
             System.setProperty("log4j2.configurationFile", WORLD_LOG_CONFIG.toAbsolutePath().toString());
             System.setProperty("log4j.configurationFile", WORLD_LOG_CONFIG.toAbsolutePath().toString());
         } catch (IOException failure) {
-            System.err.println("MINECRAFT_GD_WORLD log4j " + failure.getClass().getSimpleName());
+            emit("MINECRAFT_GD_WORLD log4j " + failure.getClass().getSimpleName());
         }
     }
 
@@ -801,16 +824,16 @@ public final class ExtractedClientLauncher {
         try {
             Class<?> configurator = Class.forName("org.apache.logging.log4j.core.config.Configurator");
             configurator.getMethod("reconfigure", java.net.URI.class).invoke(null, WORLD_LOG_CONFIG.toUri());
-            System.err.println("MINECRAFT_GD_WORLD log4j reconfigured");
+            emit("MINECRAFT_GD_WORLD log4j reconfigured");
         } catch (Throwable failure) {
-            System.err.println("MINECRAFT_GD_WORLD log4j " + failure.getClass().getSimpleName()
+            emit("MINECRAFT_GD_WORLD log4j " + failure.getClass().getSimpleName()
                     + " " + clip(String.valueOf(failure.getMessage()), 120));
         }
     }
 
     private static void printWorldLogFile() {
         if (!Files.isRegularFile(WORLD_LOG)) {
-            System.err.println("MINECRAFT_GD_WORLD logfile missing");
+            emit("MINECRAFT_GD_WORLD logfile missing");
             return;
         }
         try {
@@ -824,15 +847,15 @@ public final class ExtractedClientLauncher {
                         || lower.contains("warn") || lower.contains("disconnect") || lower.contains("crash"))) {
                     continue;
                 }
-                System.err.println("MINECRAFT_GD_WORLD logfile " + clip(line, 180));
+                emit("MINECRAFT_GD_WORLD logfile " + clip(line, 180));
                 printed++;
             }
             if (printed == 0) {
-                System.err.println("MINECRAFT_GD_WORLD logfile "
+                emit("MINECRAFT_GD_WORLD logfile "
                         + clip(lines.isEmpty() ? "empty" : lines.get(lines.size() - 1), 180));
             }
         } catch (IOException failure) {
-            System.err.println("MINECRAFT_GD_WORLD logfile " + failure.getClass().getSimpleName());
+            emit("MINECRAFT_GD_WORLD logfile " + failure.getClass().getSimpleName());
         }
     }
 
@@ -846,7 +869,7 @@ public final class ExtractedClientLauncher {
             // [/] is an unsupported type and makes Minecraft reject the whole file.
             Files.writeString(file, "# headless viewport\n[regex].*\n");
         } catch (IOException failure) {
-            System.err.println("MINECRAFT_GD_WORLD symlinks " + failure.getClass().getSimpleName());
+            emit("MINECRAFT_GD_WORLD symlinks " + failure.getClass().getSimpleName());
         }
     }
 
@@ -897,7 +920,7 @@ public final class ExtractedClientLauncher {
                 }
             }
             if (worldCause(line)) {
-                originalErr.println("MINECRAFT_GD_WORLD cause " + clip(line, 180));
+                emit("MINECRAFT_GD_WORLD cause " + clip(line, 180));
             }
             return;
         }
@@ -930,12 +953,12 @@ public final class ExtractedClientLauncher {
             lines = worldErrRing.toArray(String[]::new);
         }
         if (lines.length == 0) {
-            System.err.println("MINECRAFT_GD_WORLD raw none");
+            emit("MINECRAFT_GD_WORLD raw none");
             return;
         }
         int start = Math.max(0, lines.length - 6);
         for (int index = start; index < lines.length; index++) {
-            System.err.println("MINECRAFT_GD_WORLD raw " + clip(lines[index], 180));
+            emit("MINECRAFT_GD_WORLD raw " + clip(lines[index], 180));
         }
     }
 
@@ -946,7 +969,7 @@ public final class ExtractedClientLauncher {
             if (!name.contains("server") && !name.contains("integrated")) {
                 continue;
             }
-            System.err.println("MINECRAFT_GD_WORLD thread " + thread.getName() + " " + thread.getState()
+            emit("MINECRAFT_GD_WORLD thread " + thread.getName() + " " + thread.getState()
                     + " " + clip(summarize(thread, thread.getStackTrace()), 140));
             shown++;
             if (shown >= 4) {
@@ -954,7 +977,7 @@ public final class ExtractedClientLauncher {
             }
         }
         if (shown == 0) {
-            System.err.println("MINECRAFT_GD_WORLD thread server-missing");
+            emit("MINECRAFT_GD_WORLD thread server-missing");
         }
     }
 
@@ -977,7 +1000,7 @@ public final class ExtractedClientLauncher {
                 }
             });
         } catch (IOException failure) {
-            System.err.println("MINECRAFT_GD_WORLD cleanup " + failure.getClass().getSimpleName());
+            emit("MINECRAFT_GD_WORLD cleanup " + failure.getClass().getSimpleName());
         }
     }
 
@@ -985,7 +1008,7 @@ public final class ExtractedClientLauncher {
         Path directory = gameDirectoryPath;
         Path log = directory == null ? null : directory.resolve("logs").resolve("latest.log");
         if (log == null || !Files.isRegularFile(log)) {
-            System.err.println("MINECRAFT_GD_WORLD log missing");
+            emit("MINECRAFT_GD_WORLD log missing");
             return;
         }
         try {
@@ -1003,9 +1026,9 @@ public final class ExtractedClientLauncher {
                 }
                 kept.append(line);
             }
-            System.err.println("MINECRAFT_GD_WORLD log " + clip(kept.toString(), 700));
+            emit("MINECRAFT_GD_WORLD log " + clip(kept.toString(), 700));
         } catch (IOException failure) {
-            System.err.println("MINECRAFT_GD_WORLD log " + failure.getClass().getSimpleName());
+            emit("MINECRAFT_GD_WORLD log " + failure.getClass().getSimpleName());
         }
     }
 
@@ -1028,7 +1051,7 @@ public final class ExtractedClientLauncher {
                     "onboardingAccessibilityFinished:true"
             ) + "\n", StandardCharsets.UTF_8);
         } catch (IOException failure) {
-            System.err.println("MINECRAFT_GD_WORLD options " + failure.getClass().getSimpleName());
+            emit("MINECRAFT_GD_WORLD options " + failure.getClass().getSimpleName());
         }
     }
 
@@ -1041,7 +1064,7 @@ public final class ExtractedClientLauncher {
         if (readMember(minecraft, "level") != null) {
             if (!loggedWorldLoaded) {
                 loggedWorldLoaded = true;
-                System.err.println("MINECRAFT_GD_WORLD loaded");
+                emit("MINECRAFT_GD_WORLD loaded");
             }
             return;
         }
@@ -1054,7 +1077,7 @@ public final class ExtractedClientLauncher {
         String screenName = screen == null ? "none" : screen.getClass().getSimpleName();
         if (now >= nextWorldScreenLogNanos) {
             nextWorldScreenLogNanos = now + 10_000_000_000L;
-            System.err.println("MINECRAFT_GD_WORLD screen " + screenName);
+            emit("MINECRAFT_GD_WORLD screen " + screenName);
         }
         if (screen != null && screen.getClass().getName().endsWith("AccessibilityOnboardingScreen")) {
             if (onboardingDismissed.compareAndSet(false, true)) {
@@ -1064,7 +1087,7 @@ public final class ExtractedClientLauncher {
         }
         if (screen != null && screen.getClass().getSimpleName().contains("Confirm")
                 && acceptBooleanCallback(screen)) {
-            System.err.println("MINECRAFT_GD_WORLD confirmed " + screenName);
+            emit("MINECRAFT_GD_WORLD confirmed " + screenName);
             return;
         }
         // createFreshLevel returns before the client joins. A null level is the
@@ -1074,14 +1097,14 @@ public final class ExtractedClientLauncher {
                 return;
             }
             worldEntryRequested.set(false);
-            System.err.println("MINECRAFT_GD_WORLD retry");
+            emit("MINECRAFT_GD_WORLD retry");
         }
         if (screen == null || !screen.getClass().getName().endsWith("TitleScreen")
                 || !worldEntryRequested.compareAndSet(false, true)) {
             return;
         }
         nextWorldAttemptNanos = now + 20_000_000_000L;
-        System.err.println("MINECRAFT_GD_WORLD title");
+        emit("MINECRAFT_GD_WORLD title");
         tuneHeadlessOptions(minecraft);
         createFreshWorld(minecraft);
     }
@@ -1101,7 +1124,7 @@ public final class ExtractedClientLauncher {
             } catch (NoSuchFieldException ignored) {
                 type = type.getSuperclass();
             } catch (ReflectiveOperationException failure) {
-                System.err.println("MINECRAFT_GD_WORLD confirm " + failure.getClass().getSimpleName());
+                emit("MINECRAFT_GD_WORLD confirm " + failure.getClass().getSimpleName());
                 return false;
             }
         }
@@ -1128,14 +1151,14 @@ public final class ExtractedClientLauncher {
         try {
             option.getClass().getMethod("set", Object.class).invoke(option, Integer.valueOf(value));
         } catch (ReflectiveOperationException failure) {
-            System.err.println("MINECRAFT_GD_WORLD option " + name + " " + failure.getClass().getSimpleName());
+            emit("MINECRAFT_GD_WORLD option " + name + " " + failure.getClass().getSimpleName());
         }
     }
 
     private static void createFreshWorld(Minecraft minecraft) {
         try {
             if (readMember(minecraft, "level") != null) {
-                System.err.println("MINECRAFT_GD_WORLD already");
+                emit("MINECRAFT_GD_WORLD already");
                 return;
             }
             WorldOpenFlows flows = minecraft.createWorldOpenFlows();
@@ -1166,7 +1189,7 @@ public final class ExtractedClientLauncher {
             boolean joined = readMember(minecraft, "level") != null;
             Object screenNow = gui == null ? null : invokeNoArgs(gui, "screen");
             String screenNowName = screenNow == null ? "none" : screenNow.getClass().getSimpleName();
-            System.err.println("MINECRAFT_GD_WORLD create level " + joined
+            emit("MINECRAFT_GD_WORLD create level " + joined
                     + " screen " + screenNowName
                     + " applied " + vanillaPackApplications.get()
                     + " dir " + gameDirectoryPath);
@@ -1179,7 +1202,7 @@ public final class ExtractedClientLauncher {
         } catch (Throwable failure) {
             worldEntryRequested.set(false);
             nextWorldAttemptNanos = System.nanoTime() + 5_000_000_000L;
-            System.err.println("MINECRAFT_GD_WORLD create-failed " + failure.getClass().getSimpleName()
+            emit("MINECRAFT_GD_WORLD create-failed " + failure.getClass().getSimpleName()
                     + " " + failure.getMessage());
             failure.printStackTrace(System.err);
         }
@@ -1196,7 +1219,7 @@ public final class ExtractedClientLauncher {
             gameThread.setAccessible(true);
             gameThread.set(minecraft, Thread.currentThread());
         } catch (ReflectiveOperationException failure) {
-            System.err.println("MINECRAFT_GD_WORLD thread " + failure.getClass().getSimpleName());
+            emit("MINECRAFT_GD_WORLD thread " + failure.getClass().getSimpleName());
         }
         Method runTick = Minecraft.class.getDeclaredMethod("runTick", boolean.class);
         runTick.setAccessible(true);
@@ -1225,7 +1248,7 @@ public final class ExtractedClientLauncher {
                 runTick.invoke(minecraft, Boolean.TRUE);
             } catch (InvocationTargetException wrapped) {
                 Throwable cause = wrapped.getCause() == null ? wrapped : wrapped.getCause();
-                System.err.println("MINECRAFT_GD_WORLD tick " + cause.getClass().getSimpleName()
+                emit("MINECRAFT_GD_WORLD tick " + cause.getClass().getSimpleName()
                         + " " + cause.getMessage());
                 cause.printStackTrace(System.err);
                 if (cause instanceof OutOfMemoryError) {
@@ -1266,9 +1289,9 @@ public final class ExtractedClientLauncher {
         }
         try {
             gui.getClass().getMethod("setScreen", Screen.class).invoke(gui, new TitleScreen());
-            System.err.println("MINECRAFT_GD_WORLD skipped-onboarding");
+            emit("MINECRAFT_GD_WORLD skipped-onboarding");
         } catch (ReflectiveOperationException failure) {
-            System.err.println("MINECRAFT_GD_WORLD onboarding " + failure.getClass().getSimpleName());
+            emit("MINECRAFT_GD_WORLD onboarding " + failure.getClass().getSimpleName());
         }
     }
 

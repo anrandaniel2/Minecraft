@@ -308,6 +308,13 @@ jobs:
               echo "GODOT_MARKERS_END"
               echo "DIAG_WORLD"
               grep -E 'MINECRAFT_GD_WORLD (pack|pack-applied|title|create|retry|log|logfile|log4j|uncaught|fail|cause|raw|thread|symlinks|confirmed|requested|cleanup)|MINECRAFT_GD_USER_DIR' "$RUNNER_TEMP/godot-gui.log" | tail -n 40 || true
+              echo "DIAG_LOGFILE"
+              if [[ -f /tmp/minecraft-godot.log ]]; then
+                tail -n 6 /tmp/minecraft-godot.log | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
+                grep -E 'ERROR|WARN|Exception|Failed|disconnect|Crash|datapack|symlink|Starting integrated' /tmp/minecraft-godot.log | tail -n 8 | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
+              else
+                echo "MINECRAFT_GD_WORLD logfile runner-missing"
+              fi
               echo "DIAG_FAIL"
               grep -E 'Failed to |ERROR|Couldn.t resolve|unexpected schema|does not exist in classpath|datapack|symlink|Exception' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_STACK' | tail -n 20 || true
               echo "DIAG_CLIENT"
@@ -331,8 +338,17 @@ jobs:
           presented="$(awk '{print $4}' <<< "$proof_line")"
           world_draws="$(awk '{print $8}' <<< "$proof_line")"
           if [[ "${presented:-0}" -le 0 || "${world_draws:-0}" -le 0 ]]; then
-            echo "Viewport did not present a Java world draw: $proof_line"
-            grep 'MINECRAFT_GD_WORLD' "$RUNNER_TEMP/godot-gui.log" | tail -n 30 || true
+            {
+              echo "Viewport did not present a Java world draw: $proof_line"
+              grep 'MINECRAFT_GD_WORLD' "$RUNNER_TEMP/godot-gui.log" | tail -n 30 || true
+              if [[ -f /tmp/minecraft-godot.log ]]; then
+                tail -n 6 /tmp/minecraft-godot.log | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
+                grep -E 'ERROR|WARN|Exception|Failed|disconnect|Crash|datapack|symlink|Starting integrated' /tmp/minecraft-godot.log | tail -n 8 | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
+              else
+                echo "MINECRAFT_GD_WORLD logfile runner-missing"
+              fi
+            } > "$RUNNER_TEMP/godot-gui-report.log"
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui-report.log"
             exit 1
           fi
 

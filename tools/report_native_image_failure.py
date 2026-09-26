@@ -26,6 +26,16 @@ DIAGNOSTIC_MARKERS = (
     "MINECRAFT_GD_USER_DIR",
     "MINECRAFT_GD_WORLD",
 )
+# Kept after the general tail. The annotation keeps the end of the message.
+PRIORITY_MARKERS = (
+    "MINECRAFT_GD_WORLD log4j",
+    "MINECRAFT_GD_WORLD create",
+    "MINECRAFT_GD_WORLD uncaught",
+    "MINECRAFT_GD_WORLD cause",
+    "MINECRAFT_GD_WORLD raw",
+    "MINECRAFT_GD_WORLD thread",
+    "MINECRAFT_GD_WORLD logfile",
+)
 
 
 def sanitize(text: str) -> str:
@@ -41,7 +51,13 @@ def diagnostic_lines(lines: list[str]) -> list[str]:
     selected: list[str] = []
     for marker in DIAGNOSTIC_MARKERS:
         matched = [line for line in lines if marker in line]
-        selected.extend(matched[-8:])
+        # Client execute rows are frequent and used to push the world log out.
+        limit = 2 if marker == "MINECRAFT_GD_CLIENT" else 4 if marker == "MINECRAFT_GD_WORLD" else 4
+        selected.extend(matched[-limit:])
+    for marker in PRIORITY_MARKERS:
+        matched = [line for line in lines if marker in line]
+        limit = 8 if marker == "MINECRAFT_GD_WORLD logfile" else 3
+        selected.extend(matched[-limit:])
     return selected
 
 
@@ -57,7 +73,7 @@ def main() -> int:
         # Diagnostics go last. The annotation keeps the end of the message,
         # and a mixed JAVA_GUI_WAIT tail must not push them out.
         chosen = lines[-8:] + diagnostics
-    tail = [sanitize(line)[:500 if "MINECRAFT_GD_WORLD cause" in line or "MINECRAFT_GD_WORLD raw" in line else 240] for line in chosen]
+    tail = [sanitize(line)[:220 if "MINECRAFT_GD_WORLD" in line else 160] for line in chosen]
     message = "TAIL " + " || ".join(tail)
     if len(message) > MAX_CHARS:
         message = message[-MAX_CHARS:]
