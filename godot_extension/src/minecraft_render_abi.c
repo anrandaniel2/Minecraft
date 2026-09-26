@@ -145,6 +145,26 @@ static bool accept_packet(const MinecraftRenderPacketHeader *header,
     return true;
 }
 
+static bool frame_contains_draw(const uint8_t *frame_bytes, size_t frame_size) {
+    size_t offset = 0;
+    if (frame_bytes == NULL) {
+        return false;
+    }
+    while (offset + sizeof(MinecraftRenderPacketHeader) <= frame_size) {
+        uint16_t opcode = read_u16_le(frame_bytes + offset);
+        uint32_t packet_size = read_u32_le(frame_bytes + offset + 4);
+        if (packet_size < sizeof(MinecraftRenderPacketHeader) ||
+                (size_t)packet_size > frame_size - offset) {
+            return false;
+        }
+        if (is_draw_opcode(opcode)) {
+            return true;
+        }
+        offset += packet_size;
+    }
+    return false;
+}
+
 static void log_submit(int status, const uint8_t *frame_bytes, size_t frame_size) {
     static int successes = 0;
     if (status >= 0) {
@@ -194,6 +214,21 @@ int minecraft_render_submit_frame(const uint8_t *frame_bytes, size_t frame_size)
     memcpy(copy, frame_bytes, frame_size);
 
     pthread_mutex_lock(&latest_frame_mutex);
+    /* Minecraft.renderFrame submits once after GuiRenderer has already drawn
+     * into this frame. A later resource-only flush must not replace that frame
+     * before Godot drains it, or the viewport only ever executes 0 draws. */
+    if (latest_frame_bytes != NULL && frame_contains_draw(latest_frame_bytes, latest_frame_size) &&
+            !frame_contains_draw(frame_bytes, frame_size)) {
+        static int kept = 0;
+        latest_submission_status = validation;
+        pthread_mutex_unlock(&latest_frame_mutex);
+        free(copy);
+        if (kept < 4) {
+            kept++;
+            fprintf(stderr, "MINECRAFT_GD_CLIENT keep draw frame over %zu bytes\n", frame_size);
+        }
+        return validation;
+    }
     free(latest_frame_bytes);
     latest_frame_bytes = copy;
     latest_frame_size = frame_size;

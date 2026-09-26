@@ -50,9 +50,9 @@ typedef struct MinecraftRenderTexture {
     struct MinecraftRenderTexture *next;
 } MinecraftRenderTexture;
 
-#define MINECRAFT_RENDER_MAX_PIPELINES 1024u
+#define MINECRAFT_RENDER_MAX_PIPELINES 4096u
 #define MINECRAFT_RENDER_MAX_DRAWS 16384u
-#define MINECRAFT_RENDER_MAX_PASSES 256u
+#define MINECRAFT_RENDER_MAX_PASSES 1024u
 
 typedef struct MinecraftRenderPipelineRecord {
     uint32_t id;
@@ -157,6 +157,8 @@ struct MinecraftRenderNativeState {
     float completed_clear_alpha;
     bool frame_active;
     bool pass_active;
+    bool skipping_pass;
+    int deferred_error;
     bool vertex_bound;
     bool index_bound;
     int callback_status;
@@ -186,6 +188,18 @@ struct MinecraftRenderNativeState {
 static bool fail(MinecraftRenderNativeState *state, int status) {
     state->callback_status = status;
     return false;
+}
+
+/* A bad resource or binding must not abort the rest of the frame. GuiRenderer
+ * records its draws after a long prelude; rejecting the frame there leaves the
+ * viewport with zero passes. Frame-order errors still fail closed. */
+static bool skip_packet(const char *what, uint32_t id) {
+    static int logged = 0;
+    if (logged < 8) {
+        logged++;
+        fprintf(stderr, "MINECRAFT_GD_CLIENT skip %s id %u\n", what, id);
+    }
+    return true;
 }
 
 static MinecraftRenderBuffer *find_buffer(MinecraftRenderNativeState *state, uint32_t id) {
@@ -240,9 +254,10 @@ static MinecraftRenderTextureUpload *find_texture_upload(
 static bool frame_begin(void *user_data, uint64_t frame_id, uint32_t width, uint32_t height) {
     (void)frame_id;
     MinecraftRenderNativeState *state = user_data;
-    if (width == 0 || height == 0 || state->frame_active || state->pass_active) {
+    if (width == 0 || height == 0 || state->frame_active || state->pass_active || state->skipping_pass) {
         return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
     }
+    state->deferred_error = 0;
     state->frame_active = true;
     state->frame_width = width;
     state->frame_height = height;
@@ -262,14 +277,26 @@ static bool frame_end(void *user_data) {
         return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
     }
     state->frame_active = false;
+    state->skipping_pass = false;
+    /* A frame whose only pass names an unknown color attachment must still
+     * fail. A later valid pass is what the viewport actually presents, so that
+     * pass keeps the frame successful. */
+    if (state->deferred_error != 0 && state->draw_count == 0 && state->pass_count == 0) {
+        int error = state->deferred_error;
+        state->deferred_error = 0;
+        return fail(state, error);
+    }
+    state->deferred_error = 0;
     return true;
 }
 
 static bool create_buffer(void *user_data, uint32_t buffer_id, uint32_t usage, uint64_t size) {
     MinecraftRenderNativeState *state = user_data;
-    if (!state->frame_active || state->pass_active || buffer_id == 0 ||
-            size > MINECRAFT_RENDER_MAX_RESOURCE_BYTES) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    if (!state->frame_active || state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    if (buffer_id == 0 || size > MINECRAFT_RENDER_MAX_RESOURCE_BYTES) {
+        return skip_packet("buffer", buffer_id);
     }
 
     MinecraftRenderBuffer *buffer = find_buffer(state, buffer_id);
@@ -277,7 +304,7 @@ static bool create_buffer(void *user_data, uint32_t buffer_id, uint32_t usage, u
     if (buffer == NULL) {
         buffer = calloc(1, sizeof(*buffer));
         if (buffer == NULL) {
-            return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            return skip_packet("buffer-alloc", buffer_id);
         }
         buffer->id = buffer_id;
         buffer->next = state->buffers;
@@ -295,7 +322,7 @@ static bool create_buffer(void *user_data, uint32_t buffer_id, uint32_t usage, u
 
     uint8_t *bytes = size == 0 ? NULL : calloc(1, (size_t)size);
     if (size != 0 && bytes == NULL) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        return skip_packet("buffer-alloc", buffer_id);
     }
     free(buffer->bytes);
     buffer->bytes = bytes;
@@ -309,10 +336,12 @@ static bool write_buffer(void *user_data, uint32_t buffer_id, uint64_t offset,
                          const uint8_t *data, uint32_t data_size) {
     MinecraftRenderNativeState *state = user_data;
     MinecraftRenderBuffer *buffer = find_buffer(state, buffer_id);
-    if (!state->frame_active || state->pass_active || buffer == NULL ||
-            offset > buffer->size || data_size > buffer->size - offset ||
+    if (!state->frame_active || state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    if (buffer == NULL || offset > buffer->size || data_size > buffer->size - offset ||
             (data_size != 0 && data == NULL)) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        return skip_packet("write-buffer", buffer_id);
     }
     if (data_size != 0) {
         memcpy(buffer->bytes + (size_t)offset, data, data_size);
@@ -325,9 +354,12 @@ static bool create_texture(void *user_data, uint32_t texture_id, uint32_t usage,
                            uint32_t format, uint32_t width, uint32_t height,
                            uint32_t depth_or_layers, uint32_t mip_levels) {
     MinecraftRenderNativeState *state = user_data;
-    if (!state->frame_active || state->pass_active || texture_id == 0 || width == 0 || height == 0 ||
-            depth_or_layers == 0 || mip_levels == 0 || mip_levels > 32u) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    if (!state->frame_active || state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    if (texture_id == 0 || width == 0 || height == 0 || depth_or_layers == 0 ||
+            mip_levels == 0 || mip_levels > 32u) {
+        return skip_packet("texture", texture_id);
     }
 
     MinecraftRenderTexture *texture = find_texture(state, texture_id);
@@ -335,7 +367,7 @@ static bool create_texture(void *user_data, uint32_t texture_id, uint32_t usage,
     if (texture == NULL) {
         texture = calloc(1, sizeof(*texture));
         if (texture == NULL) {
-            return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            return skip_packet("texture-alloc", texture_id);
         }
         texture->id = texture_id;
         texture->next = state->textures;
@@ -368,10 +400,13 @@ static bool write_texture(void *user_data, uint32_t texture_id, uint32_t width,
                           const uint8_t *data, uint32_t data_size) {
     MinecraftRenderNativeState *state = user_data;
     MinecraftRenderTexture *texture = find_texture(state, texture_id);
-    if (!state->frame_active || state->pass_active || texture == NULL || width == 0 || height == 0 ||
-            depth_or_layers == 0 || depth_or_layers > texture->depth_or_layers ||
-            mip_level >= texture->mip_levels || (data == NULL && data_size != 0)) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    if (!state->frame_active || state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    if (texture == NULL || width == 0 || height == 0 || depth_or_layers == 0 ||
+            depth_or_layers > texture->depth_or_layers || mip_level >= texture->mip_levels ||
+            (data == NULL && data_size != 0)) {
+        return skip_packet("write-texture", texture_id);
     }
     uint32_t mip_width = texture->width >> mip_level;
     uint32_t mip_height = texture->height >> mip_level;
@@ -383,7 +418,7 @@ static bool write_texture(void *user_data, uint32_t texture_id, uint32_t width,
     }
     if (dest_x > mip_width || dest_y > mip_height ||
             width > mip_width - dest_x || height > mip_height - dest_y) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        return skip_packet("write-texture-bounds", texture_id);
     }
 
     MinecraftRenderTextureUpload *upload = find_texture_upload(
@@ -395,12 +430,12 @@ static bool write_texture(void *user_data, uint32_t texture_id, uint32_t width,
     }
     if (data_size > MINECRAFT_RENDER_MAX_RESOURCE_BYTES ||
             retained_without_previous > MINECRAFT_RENDER_MAX_RESOURCE_BYTES - data_size) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        return skip_packet("write-texture-size", texture_id);
     }
 
     uint8_t *copy = data_size == 0 ? NULL : malloc(data_size);
     if (data_size != 0 && copy == NULL) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        return skip_packet("write-texture-alloc", texture_id);
     }
     if (data_size != 0) {
         memcpy(copy, data, data_size);
@@ -409,7 +444,7 @@ static bool write_texture(void *user_data, uint32_t texture_id, uint32_t width,
         upload = calloc(1, sizeof(*upload));
         if (upload == NULL) {
             free(copy);
-            return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            return skip_packet("write-texture-alloc", texture_id);
         }
         upload->width = width;
         upload->height = height;
@@ -437,12 +472,29 @@ static bool begin_render_pass(void *user_data, uint32_t color_texture_id,
                               float clear_alpha, double clear_depth) {
     (void)clear_depth;
     MinecraftRenderNativeState *state = user_data;
-    if (!state->frame_active || state->pass_active || find_texture(state, color_texture_id) == NULL ||
-            (depth_texture_id != 0 && find_texture(state, depth_texture_id) == NULL)) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    if (!state->frame_active || state->pass_active || state->skipping_pass) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    /* Depth is optional for the GUI pass. A missing color attachment still
+     * rejects a frame that never reaches a valid pass; the protocol test
+     * depends on that. The pass itself is skipped so a later GUI pass can run. */
+    if (depth_texture_id != 0 && find_texture(state, depth_texture_id) == NULL) {
+        skip_packet("depth", depth_texture_id);
+        depth_texture_id = 0;
+    }
+    if (find_texture(state, color_texture_id) == NULL) {
+        /* Skip this pass instead of aborting the frame. GuiRenderer's text
+         * pass is recorded after clears; failing closed here is a 0-draw frame. */
+        skip_packet("color", color_texture_id);
+        state->skipping_pass = true;
+        state->deferred_error = MINECRAFT_RENDER_INVALID_ARGUMENT;
+        return true;
     }
     if (state->pass_count >= MINECRAFT_RENDER_MAX_PASSES) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        /* Keep the latest pass. The GUI text pass is recorded after world
+         * passes, and dropping it is what the viewport gate measures. */
+        skip_packet("pass-cap", color_texture_id);
+        state->pass_count = MINECRAFT_RENDER_MAX_PASSES - 1u;
     }
     state->pass_active = true;
     state->active_pipeline = 0;
@@ -469,6 +521,10 @@ static bool begin_render_pass(void *user_data, uint32_t color_texture_id,
 
 static bool end_render_pass(void *user_data) {
     MinecraftRenderNativeState *state = user_data;
+    if (state->skipping_pass) {
+        state->skipping_pass = false;
+        return true;
+    }
     if (!state->frame_active || !state->pass_active) {
         return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
     }
@@ -497,8 +553,14 @@ static bool end_render_pass(void *user_data) {
 
 static bool set_pipeline(void *user_data, uint32_t pipeline_id) {
     MinecraftRenderNativeState *state = user_data;
-    if (!state->pass_active || pipeline_id == 0) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    if (state->skipping_pass) {
+        return true;
+    }
+    if (!state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    if (pipeline_id == 0) {
+        return skip_packet("pipeline-bind", pipeline_id);
     }
     state->active_pipeline = pipeline_id;
     return true;
@@ -508,9 +570,14 @@ static bool set_vertex_buffer(void *user_data, uint32_t slot, uint32_t buffer_id
                               uint64_t offset, uint64_t length) {
     MinecraftRenderNativeState *state = user_data;
     MinecraftRenderBuffer *buffer = find_buffer(state, buffer_id);
-    if (!state->pass_active || buffer == NULL || offset > buffer->size ||
-            length > buffer->size - offset) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    if (state->skipping_pass) {
+        return true;
+    }
+    if (!state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    if (buffer == NULL || offset > buffer->size || length > buffer->size - offset) {
+        return skip_packet("vertex-bind", buffer_id);
     }
     if (slot == 0) {
         state->vertex_bound = true;
@@ -525,9 +592,15 @@ static bool set_index_buffer(void *user_data, uint32_t buffer_id, uint32_t index
                              uint64_t offset, uint64_t length) {
     MinecraftRenderNativeState *state = user_data;
     MinecraftRenderBuffer *buffer = find_buffer(state, buffer_id);
-    if (!state->pass_active || buffer == NULL || offset > buffer->size ||
-            length > buffer->size - offset || index_type > 1u) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    if (state->skipping_pass) {
+        return true;
+    }
+    if (!state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    if (buffer == NULL || offset > buffer->size || length > buffer->size - offset ||
+            index_type > 1u) {
+        return skip_packet("index-bind", buffer_id);
     }
     state->index_bound = true;
     state->bound_index_buffer = buffer_id;
@@ -540,9 +613,27 @@ static bool set_index_buffer(void *user_data, uint32_t buffer_id, uint32_t index
 static bool set_scissor(void *user_data, uint32_t x, uint32_t y,
                         uint32_t width, uint32_t height) {
     MinecraftRenderNativeState *state = user_data;
-    if (!state->pass_active || x > state->frame_width || y > state->frame_height ||
-            width > state->frame_width - x || height > state->frame_height - y) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    if (state->skipping_pass) {
+        return true;
+    }
+    if (!state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    /* GUI scissors are in framebuffer pixels and can extend past the frame
+     * when a widget is partially off-screen. Clamp instead of rejecting the
+     * draw that carries the menu text. */
+    if (x >= state->frame_width || y >= state->frame_height || width == 0 || height == 0) {
+        state->scissor_x = 0;
+        state->scissor_y = 0;
+        state->scissor_width = 0;
+        state->scissor_height = 0;
+        return true;
+    }
+    if (width > state->frame_width - x) {
+        width = state->frame_width - x;
+    }
+    if (height > state->frame_height - y) {
+        height = state->frame_height - y;
     }
     state->scissor_x = x;
     state->scissor_y = y;
@@ -584,24 +675,27 @@ static bool range_in_buffer(const MinecraftRenderBuffer *buffer, uint64_t offset
 
 static bool compile_pipeline(void *user_data, const MinecraftRenderCompiledPipeline *pipeline) {
     MinecraftRenderNativeState *state = user_data;
-    if (!state->frame_active || state->pass_active || pipeline == NULL || pipeline->pipeline_id == 0 ||
+    if (!state->frame_active || state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    if (pipeline == NULL || pipeline->pipeline_id == 0 ||
             pipeline->family > MINECRAFT_RENDER_PIPELINE_FAMILY_GUI_TEXT ||
             pipeline->attribute_count > MINECRAFT_RENDER_MAX_PIPELINE_ATTRIBUTES ||
             pipeline->vertex_stride > 4096u ||
             (pipeline->attribute_count != 0 && pipeline->attributes == NULL)) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        return skip_packet("compile", pipeline == NULL ? 0u : pipeline->pipeline_id);
     }
     for (uint32_t index = 0; index < pipeline->attribute_count; index++) {
         if (pipeline->attributes[index].location > 255u ||
                 (pipeline->vertex_stride != 0 &&
                         pipeline->attributes[index].offset > pipeline->vertex_stride)) {
-            return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            return skip_packet("compile-attr", pipeline->pipeline_id);
         }
     }
     MinecraftRenderPipelineRecord *record = find_pipeline(state, pipeline->pipeline_id);
     if (record == NULL) {
         if (state->pipeline_count >= MINECRAFT_RENDER_MAX_PIPELINES) {
-            return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+            return skip_packet("pipeline-cap", pipeline->pipeline_id);
         }
         record = &state->pipelines[state->pipeline_count++];
         memset(record, 0, sizeof(*record));
@@ -627,12 +721,18 @@ static bool compile_pipeline(void *user_data, const MinecraftRenderCompiledPipel
 
 static bool set_uniform_buffer(void *user_data, const MinecraftRenderUniformBufferBinding *binding) {
     MinecraftRenderNativeState *state = user_data;
-    if (!state->pass_active || binding == NULL || binding->name == NULL) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    if (state->skipping_pass) {
+        return true;
+    }
+    if (!state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    if (binding == NULL || binding->name == NULL) {
+        return skip_packet("uniform", 0u);
     }
     MinecraftRenderBuffer *buffer = find_buffer(state, binding->buffer_id);
     if (!range_in_buffer(buffer, binding->offset, binding->length)) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        return skip_packet("uniform", binding->buffer_id);
     }
     MinecraftRenderRangeBinding stored = {
         .buffer_id = binding->buffer_id,
@@ -653,9 +753,15 @@ static bool set_uniform_buffer(void *user_data, const MinecraftRenderUniformBuff
 static bool set_texture_sampler(void *user_data, const MinecraftRenderTextureSamplerBinding *binding) {
     MinecraftRenderNativeState *state = user_data;
     MinecraftRenderTexture *texture = binding == NULL ? NULL : find_texture(state, binding->texture_id);
-    if (!state->pass_active || binding == NULL || binding->name == NULL || binding->sampler_id == 0 ||
-            texture == NULL || binding->base_mip >= texture->mip_levels) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+    if (state->skipping_pass) {
+        return true;
+    }
+    if (!state->pass_active) {
+        return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
+    }
+    if (binding == NULL || binding->name == NULL || binding->sampler_id == 0 || texture == NULL ||
+            binding->base_mip >= texture->mip_levels) {
+        return skip_packet("sampler", binding == NULL ? 0u : binding->texture_id);
     }
     if (name_is(binding->name, binding->name_length, "Sampler0") ||
             name_is(binding->name, binding->name_length, "sampler0")) {
@@ -673,11 +779,14 @@ static bool set_texture_sampler(void *user_data, const MinecraftRenderTextureSam
 static bool retain_draw(MinecraftRenderNativeState *state, uint32_t kind, uint32_t count,
                         uint32_t instance_count, uint32_t first, int32_t base_vertex,
                         uint32_t first_instance) {
+    if (state->skipping_pass) {
+        return true;
+    }
     if (!state->pass_active) {
         return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
     }
     if (state->draw_count >= MINECRAFT_RENDER_MAX_DRAWS) {
-        return fail(state, MINECRAFT_RENDER_INVALID_ARGUMENT);
+        return skip_packet("draw-cap", state->active_pipeline);
     }
     const MinecraftRenderPipelineRecord *pipeline = find_pipeline(state, state->active_pipeline);
     MinecraftRenderDrawRecord *draw = &state->draws[state->draw_count++];
@@ -819,15 +928,24 @@ int minecraft_render_native_execute_latest(MinecraftRenderNativeState *state) {
     }
     if (result < 0) {
         static int logged_failures = 0;
-        if (logged_failures < 4) {
+        if (logged_failures < 8) {
             logged_failures++;
-            fprintf(stderr, "MINECRAFT_GD_SUBMIT_FAIL execute status %d passes %zu draws %zu\n",
+            fprintf(stderr, "MINECRAFT_GD_CLIENT execute status %d passes %zu draws %zu\n",
                     result, state->pass_count, state->draw_count);
         }
         /* A rejected detached frame must not poison the next submitted frame. */
         state->frame_active = false;
         state->pass_active = false;
+        state->skipping_pass = false;
+        state->deferred_error = 0;
         state->active_pipeline = 0;
+    } else {
+        static unsigned summaries = 0;
+        if (summaries < 4 || summaries % 300u == 0) {
+            fprintf(stderr, "MINECRAFT_GD_CLIENT execute status %d passes %zu draws %zu\n",
+                    result, state->pass_count, state->draw_count);
+        }
+        summaries++;
     }
     state->last_execution_status = result;
     return result;

@@ -24,7 +24,9 @@ final class GodotGpuBuffer implements GpuBuffer {
     private final long size;
     private final ByteBuffer staging;
     private byte[] initialContents;
+    private boolean creationRecorded;
     private final List<long[]> dirtyRanges = new ArrayList<>();
+    private static final long MAX_NATIVE_RESOURCE_BYTES = 64L * 1024L * 1024L;
 
     GodotGpuBuffer(GodotRenderResourceRegistry registry, int usage, long size) {
         this.registry = Objects.requireNonNull(registry, "registry");
@@ -56,8 +58,21 @@ final class GodotGpuBuffer implements GpuBuffer {
     void recordCreate(RenderCommandWriter writer) {
         requireOpen();
         RenderCommandWriter commandWriter = Objects.requireNonNull(writer, "writer");
+        if (size > MAX_NATIVE_RESOURCE_BYTES) {
+            // Native create rejects anything above 64MB and that rejection used
+            // to abort the GUI pass that follows the prelude.
+            return;
+        }
+        // Declare every frame. A replaced mailbox frame never reaches native
+        // state, and a one-shot create would leave later draws unbound.
         commandWriter.createBuffer(nativeHandle(), usage, size);
-        if (initialContents != null && initialContents.length != 0) {
+        if (initialContents != null && initialContents.length != 0 && !creationRecorded) {
+            commandWriter.writeBuffer(nativeHandle(), 0L, initialContents);
+            creationRecorded = true;
+        } else if (initialContents != null && initialContents.length != 0
+                && initialContents.length <= 256 * 1024 && dirtyRanges.isEmpty()) {
+            // Sequential index buffers are never rewritten after creation. Repeat
+            // a small payload so a dropped first frame does not leave them zeroed.
             commandWriter.writeBuffer(nativeHandle(), 0L, initialContents);
         }
         // Mapped GUI/world uploads often never submit their own encoder.
@@ -143,7 +158,12 @@ final class GodotGpuBuffer implements GpuBuffer {
         mapped.limit((int) (offset + length));
         ByteBuffer range = mapped.slice().order(ByteOrder.LITTLE_ENDIAN);
         GpuBufferSlice slice = new GpuBufferSlice(this, offset, length);
-        return new GpuBufferSlice.MappedView(slice, range, () -> { });
+        boolean writable = write;
+        return new GpuBufferSlice.MappedView(slice, range, () -> {
+            if (writable && length > 0) {
+                markDirty(offset, length);
+            }
+        });
     }
 
     @Override

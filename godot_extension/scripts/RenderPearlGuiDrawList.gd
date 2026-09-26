@@ -167,6 +167,14 @@ func _prepare_draw(
 	if indexed:
 		var remaining := int(draw.get("vertex_length", 0)) - vertex_shift * stride
 		vertex_count = int(remaining / stride) if remaining > 0 else vertex_count
+		# The slice length is the whole staging buffer. Indexed GUI draws only
+		# need the vertices their index count addresses; a huge array create
+		# fails and the text quad is never presented.
+		var index_count := int(draw.get("count", 0))
+		if topology == TOPOLOGY_QUADS and index_count >= 6:
+			vertex_count = mini(vertex_count, int(index_count / 6) * 4)
+		elif index_count > 0 and index_count < vertex_count:
+			vertex_count = index_count
 	if vertex_count <= 0:
 		return {}
 	var buffers: Array[RID] = [vertex_buffer]
@@ -191,8 +199,17 @@ func _prepare_draw(
 	elif indexed:
 		index_array = _index_array(rendering_device, draw, buffer_rids)
 		if not index_array.is_valid():
-			return {}
-		temporary.append(index_array)
+			# GuiRenderer's non-sorted draws use the shared sequential quad
+			# buffer. If that buffer was not in the executed frame, rebuild the
+			# same 0,1,2,2,3,0 expansion so the text quad can still be presented.
+			var fallback_expanded := _expanded_index_array(rendering_device, vertex_count, expand_fan)
+			index_array = fallback_expanded.get("array", RID())
+			if not index_array.is_valid():
+				return {}
+			temporary.append(fallback_expanded["buffer"])
+			temporary.append(index_array)
+		else:
+			temporary.append(index_array)
 	var shader: RID = _shaders.get(_shader_key(family, draw), RID())
 	var uniform_sets := _uniform_sets(rendering_device, shader, family, draw, texture_rids, temporary)
 	if uniform_sets.is_empty():

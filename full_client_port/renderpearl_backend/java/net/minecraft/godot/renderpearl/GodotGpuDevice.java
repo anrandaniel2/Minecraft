@@ -89,6 +89,9 @@ public final class GodotGpuDevice implements GpuDevice {
     private volatile int targetWidth;
     private volatile int targetHeight;
     private volatile boolean closed;
+    static volatile int lastSubmittedBytes;
+    static volatile int lastSubmittedDraws;
+    static volatile int lastSubmittedPasses;
 
     /**
      * Creates a device which delivers each completed frame to the supplied
@@ -155,10 +158,36 @@ public final class GodotGpuDevice implements GpuDevice {
         openFrame = null;
         recordedInFrame.clear();
         byte[] bytes = frame.finishFrame();
+        noteSubmittedFrame(bytes);
         int result = transport.submit(bytes);
         if (result <= 0) {
             throw new IllegalStateException("Native RenderPearl frame submission failed: " + result);
         }
+    }
+
+    private static void noteSubmittedFrame(byte[] frame) {
+        int draws = 0;
+        int passes = 0;
+        int offset = 0;
+        while (frame != null && offset + 8 <= frame.length) {
+            int opcode = (frame[offset] & 0xFF) | ((frame[offset + 1] & 0xFF) << 8);
+            int packetSize = (frame[offset + 4] & 0xFF)
+                    | ((frame[offset + 5] & 0xFF) << 8)
+                    | ((frame[offset + 6] & 0xFF) << 16)
+                    | ((frame[offset + 7] & 0xFF) << 24);
+            if (packetSize < 8 || offset > frame.length - packetSize) {
+                break;
+            }
+            if (opcode == RenderCommandProtocol.BEGIN_RENDER_PASS) {
+                passes++;
+            } else if (opcode == RenderCommandProtocol.DRAW || opcode == RenderCommandProtocol.DRAW_INDEXED) {
+                draws++;
+            }
+            offset += packetSize;
+        }
+        lastSubmittedBytes = frame == null ? 0 : frame.length;
+        lastSubmittedDraws = draws;
+        lastSubmittedPasses = passes;
     }
 
     private void waitForMailboxDrain() {
@@ -184,6 +213,17 @@ public final class GodotGpuDevice implements GpuDevice {
                 if (!pipeline.isClosed() && recordedInFrame.add(pipeline)) {
                     pipeline.recordCreate(writer);
                 }
+            }
+        }
+    }
+
+    /** Puts a buffer create before the first upload in this frame, and only once. */
+    void ensureBufferRecorded(GodotGpuBuffer buffer, RenderCommandWriter writer) {
+        Objects.requireNonNull(buffer, "buffer");
+        Objects.requireNonNull(writer, "writer");
+        synchronized (resourcesLock) {
+            if (recordedInFrame.add(buffer)) {
+                buffer.recordCreate(writer);
             }
         }
     }

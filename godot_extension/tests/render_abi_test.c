@@ -129,6 +129,32 @@ int main(void) {
         return 1;
     }
 
+    /* A resource-only tail must not hide the GUI frame Godot has not drained. */
+    uint8_t draw_frame[5 * sizeof(MinecraftRenderPacketHeader)] = {0};
+    size_t draw_frame_size = 0;
+    append_packet(draw_frame, &draw_frame_size, MINECRAFT_RENDER_FRAME_BEGIN);
+    append_packet(draw_frame, &draw_frame_size, MINECRAFT_RENDER_BEGIN_RENDER_PASS);
+    append_packet(draw_frame, &draw_frame_size, MINECRAFT_RENDER_DRAW_INDEXED);
+    append_packet(draw_frame, &draw_frame_size, MINECRAFT_RENDER_END_RENDER_PASS);
+    append_packet(draw_frame, &draw_frame_size, MINECRAFT_RENDER_FRAME_END);
+    uint8_t empty_frame[2 * sizeof(MinecraftRenderPacketHeader)] = {0};
+    size_t empty_frame_size = 0;
+    append_packet(empty_frame, &empty_frame_size, MINECRAFT_RENDER_FRAME_BEGIN);
+    append_packet(empty_frame, &empty_frame_size, MINECRAFT_RENDER_FRAME_END);
+    result = minecraft_render_submit_frame(draw_frame, draw_frame_size);
+    int kept = minecraft_render_submit_frame(empty_frame, empty_frame_size);
+    if (result != 5 || kept != 2 || minecraft_render_latest_frame_size() != draw_frame_size) {
+        fprintf(stderr, "empty submit replaced a pending draw frame\n");
+        return 1;
+    }
+    result = minecraft_render_take_latest_frame(&owned_frame);
+    if (result != 5 || owned_frame.size != draw_frame_size) {
+        fprintf(stderr, "mailbox did not retain the draw frame\n");
+        minecraft_render_release_frame(&owned_frame);
+        return 1;
+    }
+    minecraft_render_release_frame(&owned_frame);
+
     minecraft_render_clear_latest_frame();
     if (minecraft_render_latest_frame_size() != 0) {
         fprintf(stderr, "mailbox clear left frame data behind\n");

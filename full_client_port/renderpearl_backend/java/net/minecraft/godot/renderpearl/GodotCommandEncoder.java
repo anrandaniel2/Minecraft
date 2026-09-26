@@ -162,11 +162,15 @@ final class GodotCommandEncoder implements CommandEncoder {
         if (depthAttachment != null) {
             GodotGpuTextureView depthView = requireTextureView(depthAttachment.textureView(), "depth");
             depthTextureId = sourceTextureHandle(depthView);
+            recordAttachment(depthView);
             clearDepth = clearDepth(depthAttachment.clearValue());
         }
 
         // The executor looks attachments up as textures. A view handle is a
         // separate registry id and would reject the pass after the clear.
+        // Declare the attachment in this frame even if the prelude already ran,
+        // so a skipped earlier create cannot make the GUI pass fail lookup.
+        recordAttachment(colorView);
         writer.beginRenderPass(
                 sourceTextureHandle(colorView),
                 depthTextureId,
@@ -191,6 +195,7 @@ final class GodotCommandEncoder implements CommandEncoder {
         requireOpenOutsidePass();
         Objects.requireNonNull(color, "color");
         GodotGpuTexture colorTexture = requireTexture(texture);
+        recordAttachment(colorTexture);
         writer.beginRenderPass(
                 colorTexture.nativeHandle(), 0, color.x(), color.y(), color.z(), color.w(), 0.0
         );
@@ -220,7 +225,12 @@ final class GodotCommandEncoder implements CommandEncoder {
             throw unsupported("clears of a non-zero mip");
         }
         GodotGpuTexture colorTarget = requireTexture(colorTexture);
-        int depthId = depthTexture == null ? 0 : requireTexture(depthTexture).nativeHandle();
+        GodotGpuTexture depthTarget = depthTexture == null ? null : requireTexture(depthTexture);
+        recordAttachment(colorTarget);
+        if (depthTarget != null) {
+            recordAttachment(depthTarget);
+        }
+        int depthId = depthTarget == null ? 0 : depthTarget.nativeHandle();
         writer.beginRenderPass(
                 colorTarget.nativeHandle(), depthId, color.x(), color.y(), color.z(), color.w(), depth
         );
@@ -253,6 +263,7 @@ final class GodotCommandEncoder implements CommandEncoder {
         }
         byte[] bytes = new byte[source.remaining()];
         source.get(bytes);
+        recordBuffer(buffer);
         buffer.writeFrom(destination.offset(), ByteBuffer.wrap(bytes));
         writer.writeBuffer(buffer.nativeHandle(), destination.offset(), bytes);
         buffer.clearDirty(destination.offset(), bytes.length);
@@ -271,6 +282,8 @@ final class GodotCommandEncoder implements CommandEncoder {
             throw new IllegalArgumentException("Buffer copy range is larger than the destination slice");
         }
         int length = (int) source.length();
+        recordBuffer(sourceBuffer);
+        recordBuffer(targetBuffer);
         byte[] bytes = sourceBuffer.copyRange(source.offset(), length);
         targetBuffer.writeFrom(target.offset(), ByteBuffer.wrap(bytes));
         writer.writeBuffer(targetBuffer.nativeHandle(), target.offset(), bytes);
@@ -584,7 +597,10 @@ final class GodotCommandEncoder implements CommandEncoder {
                 }
             }
             System.err.println("MINECRAFT_GD_CLIENT screen " + simpleName(screen)
-                    + " overlay " + simpleName(overlay) + progress);
+                    + " overlay " + simpleName(overlay) + progress
+                    + " frame " + GodotGpuDevice.lastSubmittedBytes
+                    + "b draws " + GodotGpuDevice.lastSubmittedDraws
+                    + " passes " + GodotGpuDevice.lastSubmittedPasses);
         } catch (Throwable error) {
             System.err.println("MINECRAFT_GD_CLIENT screen unknown " + error.getClass().getSimpleName());
         }
@@ -642,6 +658,24 @@ final class GodotCommandEncoder implements CommandEncoder {
 
     private static String simpleName(Object value) {
         return value == null ? "none" : value.getClass().getSimpleName();
+    }
+
+    private void recordBuffer(GodotGpuBuffer buffer) {
+        if (device != null && buffer != null) {
+            device.ensureBufferRecorded(buffer, writer);
+        }
+    }
+
+    private void recordAttachment(GodotGpuTexture texture) {
+        if (device != null && texture != null) {
+            device.ensureTextureRecorded(texture, writer);
+        }
+    }
+
+    private void recordAttachment(GodotGpuTextureView view) {
+        if (view != null && view.texture() instanceof GodotGpuTexture texture) {
+            recordAttachment(texture);
+        }
     }
 
     private static int sourceTextureHandle(GodotGpuTextureView view) {

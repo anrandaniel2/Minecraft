@@ -439,6 +439,75 @@ int main(void) {
         return 1;
     }
 
+    /* An unknown color pass must not swallow the GUI draw recorded after it. */
+    uint8_t recovered_pass[256] = {0};
+    size_t recovered_pass_size = 0;
+    begin_frame(recovered_pass, &recovered_pass_size, 10u);
+    begin_pass(recovered_pass, &recovered_pass_size, 99u);
+    p = packet(recovered_pass, &recovered_pass_size, MINECRAFT_RENDER_DRAW, 24u);
+    u32(p, 3u);
+    u32(p + 4, 1u);
+    packet(recovered_pass, &recovered_pass_size, MINECRAFT_RENDER_END_RENDER_PASS, 8u);
+    begin_pass(recovered_pass, &recovered_pass_size, 3u);
+    p = packet(recovered_pass, &recovered_pass_size, MINECRAFT_RENDER_DRAW, 24u);
+    u32(p, 3u);
+    u32(p + 4, 1u);
+    end_frame(recovered_pass, &recovered_pass_size);
+    if (minecraft_render_submit_frame(recovered_pass, recovered_pass_size) < 0 ||
+            minecraft_render_native_execute_latest(state) < 0 ||
+            minecraft_render_native_draw_count(state) != 1 ||
+            minecraft_render_native_frame_pass_count(state) != 1) {
+        fprintf(stderr, "native state dropped the GUI pass after an unknown color pass\n");
+        minecraft_render_native_state_destroy(state);
+        return 1;
+    }
+
+    /* A missing buffer write in the prelude must not reject the GUI draw that
+     * follows it. The viewport gate reads that draw count. */
+    uint8_t skipped[192] = {0};
+    size_t skipped_size = 0;
+    begin_frame(skipped, &skipped_size, 8u);
+    p = packet(skipped, &skipped_size, MINECRAFT_RENDER_WRITE_BUFFER, 32u);
+    u32(p, 99u);
+    u32(p + 12, 4u);
+    begin_pass(skipped, &skipped_size, 3u);
+    p = packet(skipped, &skipped_size, MINECRAFT_RENDER_DRAW, 24u);
+    u32(p, 3u);
+    u32(p + 4, 1u);
+    end_frame(skipped, &skipped_size);
+    if (minecraft_render_submit_frame(skipped, skipped_size) < 0 ||
+            minecraft_render_native_execute_latest(state) < 0 ||
+            minecraft_render_native_draw_count(state) != 1 ||
+            minecraft_render_native_frame_pass_count(state) != 1) {
+        fprintf(stderr, "native state aborted a GUI draw after a skipped buffer write\n");
+        minecraft_render_native_state_destroy(state);
+        return 1;
+    }
+
+    uint8_t wide_scissor[160] = {0};
+    size_t wide_scissor_size = 0;
+    begin_frame(wide_scissor, &wide_scissor_size, 9u);
+    begin_pass(wide_scissor, &wide_scissor_size, 3u);
+    p = packet(wide_scissor, &wide_scissor_size, MINECRAFT_RENDER_SET_SCISSOR, 24u);
+    u32(p, 60u);
+    u32(p + 4, 0u);
+    u32(p + 8, 40u);
+    u32(p + 12, 10u);
+    p = packet(wide_scissor, &wide_scissor_size, MINECRAFT_RENDER_DRAW, 24u);
+    u32(p, 3u);
+    u32(p + 4, 1u);
+    end_frame(wide_scissor, &wide_scissor_size);
+    if (minecraft_render_submit_frame(wide_scissor, wide_scissor_size) < 0 ||
+            minecraft_render_native_execute_latest(state) < 0 ||
+            minecraft_render_native_draw_count(state) != 1 ||
+            minecraft_render_native_draw_attribute(
+                    state, 0u, MINECRAFT_RENDER_DRAW_ATTRIBUTE_SCISSOR_WIDTH
+            ) != 4) {
+        fprintf(stderr, "native state rejected an off-screen GUI scissor\n");
+        minecraft_render_native_state_destroy(state);
+        return 1;
+    }
+
     minecraft_render_native_state_destroy(state);
     return 0;
 }

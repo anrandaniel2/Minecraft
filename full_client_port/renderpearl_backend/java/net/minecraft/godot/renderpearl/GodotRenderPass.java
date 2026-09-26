@@ -1,11 +1,13 @@
 package net.minecraft.godot.renderpearl;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.GpuQueryPool;
 import com.mojang.renderpearl.api.commands.RenderPass;
 import com.mojang.renderpearl.api.pipeline.CompiledRenderPipeline;
 import com.mojang.renderpearl.api.pipeline.IndexType;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import com.mojang.renderpearl.api.textures.GpuSampler;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
 import org.lwjgl.PointerBuffer;
@@ -116,6 +118,32 @@ final class GodotRenderPass implements RenderPass {
     @Override
     public void enableScissor(int x, int y, int width, int height) {
         requireOpen();
+        if (x < 0) {
+            width += x;
+            x = 0;
+        }
+        if (y < 0) {
+            height += y;
+            y = 0;
+        }
+        if (width < 0) {
+            width = 0;
+        }
+        if (height < 0) {
+            height = 0;
+        }
+        if (x > targetWidth) {
+            x = targetWidth;
+        }
+        if (y > targetHeight) {
+            y = targetHeight;
+        }
+        if (width > targetWidth - x) {
+            width = targetWidth - x;
+        }
+        if (height > targetHeight - y) {
+            height = targetHeight - y;
+        }
         writer.setScissor(x, y, width, height);
     }
 
@@ -135,10 +163,32 @@ final class GodotRenderPass implements RenderPass {
     @Override
     public void setIndexBuffer(GpuBuffer indexBuffer, IndexType indexType) {
         requireOpen();
-        if (!(indexBuffer instanceof GodotGpuBuffer buffer)) {
-            throw new IllegalArgumentException("Index buffer was not created by GodotRenderPearlBackend");
+        if (indexBuffer == null) {
+            // GuiRenderer's non-sorted draws pass a null index buffer and expect
+            // the shared sequential quad buffer that upload() already warmed.
+            indexBuffer = sequentialIndexBuffer();
         }
-        writer.setIndexBuffer(buffer.nativeHandle(), indexType.ordinal(), 0L, buffer.size());
+        if (!(indexBuffer instanceof GodotGpuBuffer buffer)) {
+            return;
+        }
+        int type = indexType == null ? 0 : indexType.ordinal();
+        writer.setIndexBuffer(buffer.nativeHandle(), type, 0L, buffer.size());
+    }
+
+    private static GpuBuffer sequentialIndexBuffer() {
+        try {
+            GpuBuffer quads = RenderSystem.getSequentialBuffer(PrimitiveTopology.QUADS).getBuffer(6);
+            if (quads != null) {
+                return quads;
+            }
+        } catch (RuntimeException ignored) {
+            // A missing sequential buffer must not abort the GUI pass.
+        }
+        try {
+            return RenderSystem.getSequentialBuffer(PrimitiveTopology.TRIANGLES).getBuffer(6);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     @Override
