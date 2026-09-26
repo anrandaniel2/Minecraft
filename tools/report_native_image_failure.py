@@ -40,6 +40,9 @@ PRIORITY_MARKERS = (
     "MINECRAFT_GD_WORLD families",
     "MINECRAFT_GD_WORLD category",
     "MINECRAFT_GD_WORLD pipeline",
+    "MINECRAFT_GD_WORLD readback",
+    "JAVA_GUI_MISSING",
+    "JAVA_GUI_FAMILIES",
 )
 
 

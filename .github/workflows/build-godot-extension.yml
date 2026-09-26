@@ -307,7 +307,8 @@ jobs:
               python3 tools/report_minecraft_crash.py . || true
               echo "GODOT_MARKERS_END"
               echo "DIAG_WORLD"
-              grep -E 'MINECRAFT_GD_WORLD (pack|pack-applied|title|create|retry|log|logfile|log4j|uncaught|fail|cause|raw|thread|tick|symlinks|confirmed|requested|cleanup|seed|families|category|pipeline)|MINECRAFT_GD_USER_DIR' "$RUNNER_TEMP/godot-gui.log" | tail -n 40 || true
+              grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|pipeline|readback|seeded|seed-)' "$RUNNER_TEMP/godot-gui.log" | tail -n 20 || true
+              grep -E 'MINECRAFT_GD_WORLD (pack|pack-applied|title|create|retry|log|logfile|log4j|uncaught|fail|cause|raw|thread|tick|symlinks|confirmed|requested|cleanup|seed|families|category|pipeline|readback)|MINECRAFT_GD_USER_DIR' "$RUNNER_TEMP/godot-gui.log" | tail -n 40 || true
               echo "DIAG_LOGFILE"
               if [[ -f /tmp/minecraft-godot.log ]]; then
                 tail -n 6 /tmp/minecraft-godot.log | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
@@ -346,6 +347,7 @@ jobs:
           if [[ "${presented:-0}" -le 0 || "${world_draws:-0}" -le 0 || "${terrain_draws:-0}" -le 0 || "${entity_draws:-0}" -le 0 || "${particle_draws:-0}" -le 0 || "${fluid_draws:-0}" -le 0 || "${post_draws:-0}" -le 0 ]]; then
             {
               echo "Viewport did not present terrain, entity, fluid, particle, and post draws: $proof_line $family_line"
+              grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|pipeline|readback|seeded|seed-)' "$RUNNER_TEMP/godot-gui.log" | tail -n 20 || true
               grep 'MINECRAFT_GD_WORLD' "$RUNNER_TEMP/godot-gui.log" | tail -n 30 || true
               if [[ -f /tmp/minecraft-godot.log ]]; then
                 tail -n 6 /tmp/minecraft-godot.log | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true

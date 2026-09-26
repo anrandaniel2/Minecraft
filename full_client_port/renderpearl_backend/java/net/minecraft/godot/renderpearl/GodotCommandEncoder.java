@@ -38,6 +38,7 @@ final class GodotCommandEncoder implements CommandEncoder {
     private GodotTransientMemory transientMemory;
     private GodotRenderPass activePass;
     private boolean submitted;
+    private boolean loggedSyntheticReadback;
 
     GodotCommandEncoder(
             long frameId,
@@ -440,7 +441,7 @@ final class GodotCommandEncoder implements CommandEncoder {
 
     @Override
     public void copyTextureToBuffer(GpuTexture source, GpuBuffer target, long offset, Runnable callback, int mipLevel) {
-        throw unsupported("texture-to-buffer copies");
+        completeTextureReadback(source, target, offset, callback);
     }
 
     @Override
@@ -455,7 +456,41 @@ final class GodotCommandEncoder implements CommandEncoder {
             int sourceHeight,
             int mipLevel
     ) {
-        throw unsupported("regional texture-to-buffer copies");
+        completeTextureReadback(source, target, offset, callback);
+    }
+
+    /**
+     * The extracted client reads the main target back for the world icon.
+     * Godot owns those pixels, so the staging buffer stays as allocated.
+     * Completing the callback is required: throwing aborts the render frame
+     * on every later screenshot attempt.
+     */
+    private void completeTextureReadback(GpuTexture source, GpuBuffer target, long offset, Runnable callback) {
+        requireOpen();
+        requireTexture(source);
+        if (!(target instanceof GodotGpuBuffer buffer)) {
+            throw new IllegalArgumentException("Buffer was not created by GodotRenderPearlBackend");
+        }
+        if (offset < 0 || offset > buffer.size()) {
+            throw new IllegalArgumentException("Texture readback offset lies outside the buffer");
+        }
+        if (!loggedSyntheticReadback) {
+            loggedSyntheticReadback = true;
+            System.err.println("MINECRAFT_GD_WORLD readback synthetic");
+        }
+        if (callback == null) {
+            return;
+        }
+        try {
+            callback.run();
+        } catch (Throwable failure) {
+            String message = failure.getMessage() == null ? "" : failure.getMessage();
+            if (message.length() > 140) {
+                message = message.substring(0, 140);
+            }
+            System.err.println("MINECRAFT_GD_WORLD readback-callback " + failure.getClass().getSimpleName()
+                    + " " + message);
+        }
     }
 
     @Override
