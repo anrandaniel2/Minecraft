@@ -1044,7 +1044,7 @@ public final class ExtractedClientLauncher {
         try {
             Files.writeString(options, String.join("\n",
                     "renderDistance:2",
-                    "simulationDistance:5",
+                    "simulationDistance:2",
                     "pauseOnLostFocus:false",
                     "guiScale:2",
                     "onboardAccessibility:false",
@@ -1319,7 +1319,7 @@ public final class ExtractedClientLauncher {
         setBooleanField(options, "onboardAccessibility", false);
         setBooleanField(options, "onboardingAccessibilityFinished", true);
         setOptionValue(options, "renderDistance", 2);
-        setOptionValue(options, "simulationDistance", 5);
+        setOptionValue(options, "simulationDistance", 2);
     }
 
     private static void setOptionValue(Object options, String name, int value) {

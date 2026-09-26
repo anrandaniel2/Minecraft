@@ -275,6 +275,11 @@ jobs:
           export MINECRAFT_REQUIRE_WORLD=1
           export MINECRAFT_ENTER_WORLD=1
           export MINECRAFT_EXTRACTED_DIR="$PWD/extracted"
+          # A 1280x720 lavapipe world, plus the integrated server, exhausts the
+          # hosted runner before the category proof can print. The draws are
+          # the same at a smaller target.
+          export GODOT_VIEWPORT_WIDTH=480
+          export GODOT_VIEWPORT_HEIGHT=270
           # OpenAL Soft blocks in alcOpenDevice on a runner with no audio
           # server. Resource reload applies on the render thread, so that
           # hang keeps the loading overlay up and menu text is never drawn.
@@ -304,7 +309,7 @@ jobs:
           # xvfb-run does not return if the display server ignores the signal,
           # and the proof then never prints.
           echo "MINECRAFT_GD_CLIENT godot-start"
-          xvfb-run -a --server-args="-screen 0 1280x720x24" \
+          xvfb-run -a --server-args="-screen 0 640x480x24" \
             stdbuf -o0 -e0 "$GODOT_BIN" \
               --display-driver x11 \
               --audio-driver Dummy \
@@ -313,9 +318,13 @@ jobs:
               --path godot_extension >> "$RUNNER_TEMP/godot-gui.log" 2>&1 &
           godot_pid=$!
           waited=0
-          while kill -0 "$godot_pid" 2>/dev/null && [[ "$waited" -lt 1500 ]]; do
-            sleep 5
-            waited=$((waited + 5))
+          while kill -0 "$godot_pid" 2>/dev/null && [[ "$waited" -lt 900 ]]; do
+            sleep 10
+            waited=$((waited + 10))
+            if [[ $((waited % 30)) -eq 0 ]]; then
+              progress="$(grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|readback|seeded|loaded|presented)' "$RUNNER_TEMP/godot-gui.log" | tail -n 4 | tr '\n' ' ' | cut -c1-700 || true)"
+              echo "::notice::VIEWPORT_PROGRESS ${waited}s ${progress}"
+            fi
           done
           if kill -0 "$godot_pid" 2>/dev/null; then
             echo "MINECRAFT_GD_CLIENT godot-term" | tee -a "$RUNNER_TEMP/godot-gui.log"
@@ -327,6 +336,8 @@ jobs:
           godot_status=$?
           set -e
           echo "MINECRAFT_GD_CLIENT godot-exit $godot_status"
+          progress="$(grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|readback|seeded|loaded|presented)' "$RUNNER_TEMP/godot-gui.log" | tail -n 6 | tr '\n' ' ' | cut -c1-900 || true)"
+          echo "::notice::VIEWPORT_DONE ${godot_status} ${progress}"
           tail -n 40 "$RUNNER_TEMP/godot-gui.log"
           if ! grep -q "JAVA_GUI_COMMANDS" "$RUNNER_TEMP/godot-gui.log"; then
             {

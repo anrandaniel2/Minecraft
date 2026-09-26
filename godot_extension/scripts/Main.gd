@@ -81,7 +81,7 @@ func _process(delta: float) -> void:
 	# Resource reload can keep the loading overlay up for several minutes.
 	# Title and resource reload can consume most of the viewport window. World
 	# creation and the first chunk meshes need time after that.
-	var limit := 1200.0 if require_world else 300.0
+	var limit := 800.0 if require_world else 300.0
 	if _java_gui_wait >= limit:
 		_java_gui_reported = true
 		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d text %d world %d presented %d world_presented %d" % [str(native), passes, draws, gui_draws, text_draws, world_draws, presented, presented_world])
