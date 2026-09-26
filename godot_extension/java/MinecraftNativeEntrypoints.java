@@ -26,8 +26,16 @@ public final class MinecraftNativeEntrypoints {
 
     @CEntryPoint(name = "minecraft_bootstrap")
     public static void bootstrap(IsolateThread thread) {
-        // Read the marker so native-image cannot delete the ASCII bytes.
-        if (ExtractedClientLauncher.imageMarkerByte(0) == 0) {
+        // Read every marker byte. A constant index lets native-image delete the rest.
+        int marker = 0;
+        for (int index = 0; index < 64; index++) {
+            int value = ExtractedClientLauncher.imageMarkerByte(index);
+            if (value < 0) {
+                break;
+            }
+            marker += value;
+        }
+        if (marker == 0) {
             return;
         }
         ExtractedClientLauncher.start();

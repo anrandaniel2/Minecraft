@@ -64,6 +64,8 @@ public final class ExtractedClientLauncher {
             '2', '6', '.', '3', '-',
             'c', 'l', 'i', 'e', 'n', 't'
     };
+    /** Kept as a string so the verifier still finds it if the byte array is folded. */
+    static final String IMAGE_MARKER_TEXT = "extracted-minecraft-26.3-client";
 
     private static volatile Minecraft client;
     private static volatile Throwable failure;
@@ -90,10 +92,10 @@ public final class ExtractedClientLauncher {
 
     /** Keeps the ASCII image marker reachable from the C entry point. */
     public static int imageMarkerByte(int index) {
-        if (index < 0 || index >= IMAGE_MARKER.length) {
+        if (index < 0 || index >= IMAGE_MARKER.length || index >= IMAGE_MARKER_TEXT.length()) {
             return -1;
         }
-        return IMAGE_MARKER[index] & 0xff;
+        return (IMAGE_MARKER[index] & 0xff) ^ (IMAGE_MARKER_TEXT.charAt(index) & 0xff) ^ (IMAGE_MARKER[index] & 0xff);
     }
 
     /** Keeps the Godot RenderPearl backend in the native-image reachability set. */
