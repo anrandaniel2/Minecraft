@@ -260,6 +260,8 @@ jobs:
           chmod +x "$GODOT_BIN"
           export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
           export MINECRAFT_REQUIRE_JAVA_GUI=1
+          export MINECRAFT_REQUIRE_WORLD=1
+          export MINECRAFT_ENTER_WORLD=1
           # OpenAL Soft blocks in alcOpenDevice on a runner with no audio
           # server. Resource reload applies on the render thread, so that
           # hang keeps the loading overlay up and menu text is never drawn.
@@ -284,7 +286,7 @@ jobs:
           # block-buffered, so a fatal signal otherwise drops handle_crash.
           # Do not pass --headless: that selects the dummy rendering driver.
           xvfb-run -a --server-args="-screen 0 1280x720x24" \
-            stdbuf -o0 -e0 timeout 480 "$GODOT_BIN" \
+            stdbuf -o0 -e0 timeout 720 "$GODOT_BIN" \
               --display-driver x11 \
               --audio-driver Dummy \
               --rendering-driver vulkan \
@@ -299,7 +301,7 @@ jobs:
               echo "SYMBOL_MAP"
               python3 tools/map_godot_extension_crash.py "$RUNNER_TEMP/godot-gui.log" godot_extension/bin/libminecraft_godot.so || true
               echo "GODOT_MARKERS"
-              grep -E 'MINECRAFT_GD_(SCENE|CLASS_READY|CREATE|METHODS_READY|MAIN_READY|BRIDGE|START|ISOLATE|SYMBOL|MAILBOX|CLIENT|USER_DIR|RUN_|CRASH|SUBMIT|RELOAD|STACK)|JAVA_GUI_|BOOT_|LWJGL_|SCRIPT ERROR|Parse Error|Invalid call|handle_crash|timeout:|Game crashed|TEX_UPLOAD' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_REG' | tail -n 30 || true
+              grep -E 'MINECRAFT_GD_(SCENE|CLASS_READY|CREATE|METHODS_READY|MAIN_READY|BRIDGE|START|ISOLATE|SYMBOL|MAILBOX|CLIENT|USER_DIR|RUN_|CRASH|SUBMIT|RELOAD|STACK|WORLD)|JAVA_GUI_|BOOT_|LWJGL_|SCRIPT ERROR|Parse Error|Invalid call|handle_crash|timeout:|Game crashed|TEX_UPLOAD' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_REG' | tail -n 40 || true
               echo "CRASH_FILE"
               python3 tools/report_minecraft_crash.py . || true
               echo "GODOT_MARKERS_END"
@@ -322,9 +324,9 @@ jobs:
           proof_line="$(grep -m1 'JAVA_GUI_COMMANDS' "$RUNNER_TEMP/godot-gui.log")"
           echo "::notice title=Java GUI proof::${proof_line}"
           presented="$(awk '{print $4}' <<< "$proof_line")"
-          text_draws="$(awk '{print $6}' <<< "$proof_line")"
-          if [[ "${presented:-0}" -le 0 || "${text_draws:-0}" -le 0 ]]; then
-            echo "Viewport did not present Java GUI text: $proof_line"
+          world_draws="$(awk '{print $8}' <<< "$proof_line")"
+          if [[ "${presented:-0}" -le 0 || "${world_draws:-0}" -le 0 ]]; then
+            echo "Viewport did not present a Java world draw: $proof_line"
             exit 1
           fi
 

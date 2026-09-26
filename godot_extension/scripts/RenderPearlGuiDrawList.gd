@@ -9,6 +9,10 @@ extends RefCounted
 const FAMILY_GUI_COLOR := 1
 const FAMILY_GUI_TEXTURED := 2
 const FAMILY_GUI_TEXT := 3
+const FAMILY_WORLD_TERRAIN := 4
+const FAMILY_WORLD_ENTITY := 5
+const FAMILY_WORLD_SKY := 6
+const FAMILY_WORLD_PARTICLE := 7
 
 const KIND_DRAW := 1
 const KIND_DRAW_INDEXED := 2
@@ -26,6 +30,9 @@ const TOPOLOGY_QUADS := 7
 
 # RenderPearl GpuFormat ordinals used by GUI vertex elements.
 const GPU_RGBA8_UNORM := 6
+const GPU_RGBA8_SNORM := 7
+const GPU_RG16_SINT := 27
+const GPU_RGB32_SINT := 36
 const GPU_R32_FLOAT := 44
 const GPU_RG32_FLOAT := 45
 const GPU_RGB32_FLOAT := 46
@@ -38,6 +45,10 @@ var _shaders: Dictionary = {}
 var _pipelines: Dictionary = {}
 var _samplers: Dictionary = {}
 var _white_texture := RID()
+var _depth_textures: Dictionary = {}
+var _framebuffer_has_depth: Dictionary = {}
+var _logged_pipeline_failure: Dictionary = {}
+var _logged_shader_failure: Dictionary = {}
 
 
 func free_resources(rendering_device: RenderingDevice) -> void:
@@ -51,9 +62,13 @@ func free_resources(rendering_device: RenderingDevice) -> void:
 		rendering_device.free_rid(rid_variant)
 	if _white_texture.is_valid():
 		rendering_device.free_rid(_white_texture)
+	for rid_variant in _depth_textures.values():
+		rendering_device.free_rid(rid_variant)
 	_pipelines.clear()
 	_shaders.clear()
 	_samplers.clear()
+	_depth_textures.clear()
+	_framebuffer_has_depth.clear()
 	_white_texture = RID()
 
 
@@ -67,22 +82,28 @@ func execute(
 ) -> Dictionary:
 	var presented: Array = []
 	var completed := 0
+	var world_completed := 0
 	for pass_variant in passes:
 		var render_pass: Dictionary = pass_variant
 		var color_id: int = render_pass.get("color_id", 0)
 		var color_texture: RID = texture_rids.get(color_id, RID())
 		if not color_texture.is_valid():
 			continue
-		var framebuffer := _framebuffer(rendering_device, framebuffers, color_id, color_texture)
-		if not framebuffer.is_valid():
-			continue
 		var start: int = render_pass.get("draw_start", 0)
 		var count: int = render_pass.get("draw_count", 0)
+		var size: Vector2i = render_pass.get("size", Vector2i.ZERO)
+		var wants_depth := int(render_pass.get("depth_id", 0)) != 0 or _pass_has_world(draws, start, count)
+		var framebuffer := _framebuffer(
+				rendering_device, framebuffers, color_id, color_texture, wants_depth, size
+		)
+		if not framebuffer.is_valid():
+			continue
+		var depth_attached: bool = bool(_framebuffer_has_depth.get(color_id, false))
 		var prepared: Array = []
 		var temporary: Array[RID] = []
 		for index in range(start, mini(start + count, draws.size())):
 			var ready := _prepare_draw(
-					rendering_device, draws[index], buffer_rids, texture_rids, framebuffer, temporary
+					rendering_device, draws[index], buffer_rids, texture_rids, framebuffer, temporary, depth_attached
 			)
 			if not ready.is_empty():
 				prepared.append(ready)
@@ -94,11 +115,16 @@ func execute(
 		if clear_enabled:
 			clear_flags = RenderingDevice.DRAW_CLEAR_COLOR_0
 			clear_colors = PackedColorArray([render_pass.get("clear", Color(0, 0, 0, 0))])
+		# 26.3 world projection is reversed-Z. Clear depth to 0 and compare greater.
+		var clear_depth := 1.0
+		if depth_attached:
+			clear_flags |= RenderingDevice.DRAW_CLEAR_DEPTH
+			clear_depth = 0.0
 		var draw_list := rendering_device.draw_list_begin(
 			framebuffer,
 			clear_flags,
 			clear_colors,
-			1.0,
+			clear_depth,
 			0,
 			Rect2(),
 			0
@@ -110,12 +136,13 @@ func execute(
 		for ready_variant in prepared:
 			if _record_draw(rendering_device, draw_list, ready_variant):
 				completed += 1
+				if int(ready_variant.get("family", 0)) >= FAMILY_WORLD_TERRAIN:
+					world_completed += 1
 		rendering_device.draw_list_end()
 		_free_rids(rendering_device, temporary)
-		var size: Vector2i = render_pass.get("size", Vector2i.ZERO)
 		if size.x > 1 and size.y > 1:
 			presented.append({"rid": color_texture, "size": size})
-	return {"draws": completed, "presented": presented}
+	return {"draws": completed, "world_draws": world_completed, "presented": presented}
 
 
 func _free_rids(rendering_device: RenderingDevice, rids: Array[RID]) -> void:
@@ -124,22 +151,30 @@ func _free_rids(rendering_device: RenderingDevice, rids: Array[RID]) -> void:
 			rendering_device.free_rid(rid)
 
 
+func _pass_has_world(draws: Array, start: int, count: int) -> bool:
+	for index in range(start, mini(start + count, draws.size())):
+		if int(draws[index].get("family", 0)) >= FAMILY_WORLD_TERRAIN:
+			return true
+	return false
+
+
 func _prepare_draw(
 		rendering_device: RenderingDevice,
 		draw: Dictionary,
 		buffer_rids: Dictionary,
 		texture_rids: Dictionary,
 		framebuffer: RID,
-		temporary: Array[RID]
+		temporary: Array[RID],
+		depth_attached: bool = false
 ) -> Dictionary:
 	var family: int = draw.get("family", 0)
-	if family < FAMILY_GUI_COLOR or family > FAMILY_GUI_TEXT:
+	if family < FAMILY_GUI_COLOR or family > FAMILY_WORLD_PARTICLE:
 		return {}
 	var stride: int = draw.get("vertex_stride", 0)
 	var vertex_buffer: RID = buffer_rids.get(draw.get("vertex_buffer_id", 0), RID())
 	if stride <= 0 or not vertex_buffer.is_valid():
 		return {}
-	var pipeline := _pipeline(rendering_device, framebuffer, family, draw)
+	var pipeline := _pipeline(rendering_device, framebuffer, family, draw, depth_attached)
 	if not pipeline.is_valid():
 		return {}
 	var scissor := Rect2(
@@ -216,6 +251,7 @@ func _prepare_draw(
 		return {}
 	return {
 		"pipeline": pipeline,
+		"family": family,
 		"scissor": scissor,
 		"indexed": indexed,
 		"vertex_array": array,
@@ -249,7 +285,11 @@ func _uniform_sets(
 	if not shader.is_valid():
 		return []
 	var dynamic_bytes := _align16(draw.get("dynamic_bytes", PackedByteArray()))
-	if dynamic_bytes.is_empty():
+	if family == FAMILY_WORLD_TERRAIN:
+		dynamic_bytes = _align16(draw.get("terrain_bytes", PackedByteArray()))
+		if dynamic_bytes.size() < 80:
+			dynamic_bytes = _terrain_uniform_default()
+	elif dynamic_bytes.is_empty():
 		dynamic_bytes = _identity_dynamic()
 	var projection_bytes := _align16(draw.get("projection_bytes", PackedByteArray()))
 	if projection_bytes.size() < 64:
@@ -268,7 +308,7 @@ func _uniform_sets(
 	temporary.append(dynamic_set)
 	temporary.append(projection_set)
 	var sets: Array = [dynamic_set, projection_set]
-	if family == FAMILY_GUI_COLOR:
+	if family == FAMILY_GUI_COLOR or family == FAMILY_WORLD_SKY:
 		return sets
 	var texture: RID = texture_rids.get(draw.get("sampler0_texture_id", 0), RID())
 	if not texture.is_valid():
@@ -296,7 +336,99 @@ func _uniform_sets(
 		return []
 	temporary.append(sampler_set)
 	sets.append(sampler_set)
+	if family < FAMILY_WORLD_TERRAIN:
+		return sets
+	if _has_location(draw, 4):
+		var light_set := _sampler_uniform_set(rendering_device, shader, 3, draw, texture_rids, "sampler2_texture_id", temporary)
+		if not light_set.is_valid():
+			return []
+		sets.append(light_set)
+	if family != FAMILY_WORLD_TERRAIN:
+		return sets
+	var chunk_set := _bytes_uniform_set(rendering_device, shader, 4, _chunk_uniform(draw), 16, temporary)
+	var globals_set := _bytes_uniform_set(rendering_device, shader, 5, _globals_uniform(draw), 48, temporary)
+	if not chunk_set.is_valid() or not globals_set.is_valid():
+		return []
+	sets.append(chunk_set)
+	sets.append(globals_set)
 	return sets
+
+
+func _sampler_uniform_set(
+		rendering_device: RenderingDevice,
+		shader: RID,
+		set_index: int,
+		draw: Dictionary,
+		texture_rids: Dictionary,
+		texture_key: String,
+		temporary: Array[RID]
+) -> RID:
+	var texture: RID = texture_rids.get(draw.get(texture_key, 0), RID())
+	if not texture.is_valid():
+		texture = _white(rendering_device)
+	var sampler := _sampler(rendering_device, draw)
+	if not sampler.is_valid() or not texture.is_valid():
+		return RID()
+	var uniform := RDUniform.new()
+	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+	uniform.binding = 0
+	uniform.add_id(sampler)
+	uniform.add_id(texture)
+	var uniforms: Array[RDUniform] = [uniform]
+	var created := rendering_device.uniform_set_create(uniforms, shader, set_index)
+	if created.is_valid():
+		temporary.append(created)
+	return created
+
+
+func _bytes_uniform_set(
+		rendering_device: RenderingDevice,
+		shader: RID,
+		set_index: int,
+		bytes: PackedByteArray,
+		minimum: int,
+		temporary: Array[RID]
+) -> RID:
+	var padded := _align16(bytes)
+	if padded.size() < minimum:
+		padded.resize(minimum)
+	var buffer := rendering_device.uniform_buffer_create(padded.size(), padded)
+	if not buffer.is_valid():
+		return RID()
+	temporary.append(buffer)
+	var created := _uniform_buffer_set(rendering_device, shader, set_index, buffer)
+	if created.is_valid():
+		temporary.append(created)
+	return created
+
+
+func _chunk_uniform(draw: Dictionary) -> PackedByteArray:
+	var bytes: PackedByteArray = draw.get("chunk_bytes", PackedByteArray())
+	if bytes.size() >= 16:
+		return bytes
+	var fallback := PackedByteArray()
+	fallback.resize(16)
+	# ChunkVisibility of 0 fades the section into fog. A missing block means fully visible.
+	fallback.encode_float(12, 1.0)
+	return fallback
+
+
+func _globals_uniform(draw: Dictionary) -> PackedByteArray:
+	var bytes: PackedByteArray = draw.get("globals_bytes", PackedByteArray())
+	if bytes.size() >= 48:
+		return bytes
+	var fallback := PackedByteArray()
+	fallback.resize(48)
+	return fallback
+
+
+func _terrain_uniform_default() -> PackedByteArray:
+	var bytes := PackedByteArray()
+	bytes.resize(80)
+	_write_identity(bytes, 0)
+	bytes.encode_s32(64, 16)
+	bytes.encode_s32(68, 16)
+	return bytes
 
 
 func _uniform_buffer_set(rendering_device: RenderingDevice, shader: RID, set_index: int, buffer: RID) -> RID:
@@ -335,21 +467,23 @@ func _pipeline(
 		rendering_device: RenderingDevice,
 		framebuffer: RID,
 		family: int,
-		draw: Dictionary
+		draw: Dictionary,
+		depth_attached: bool = false
 ) -> RID:
 	var framebuffer_format := rendering_device.framebuffer_get_format(framebuffer)
-	var key := "%d:%d:%d:%d:%d:%s" % [
+	var key := "%d:%d:%d:%d:%d:%d:%s" % [
 		family,
 		int(draw.get("blend", BLEND_ALPHA)),
 		int(draw.get("topology", 4)),
 		framebuffer_format,
 		1 if bool(draw.get("grayscale", false)) else 0,
+		1 if bool(draw.get("cutout", false)) else 0,
 		_attribute_key(draw.get("attributes", [])),
 	]
 	var cached: RID = _pipelines.get(key, RID())
 	if cached.is_valid() and rendering_device.render_pipeline_is_valid(cached):
 		return cached
-	var shader := _shader(rendering_device, family, bool(draw.get("grayscale", false)))
+	var shader := _shader(rendering_device, family, draw)
 	var vertex_format := _vertex_format(
 			rendering_device, family, int(draw.get("vertex_stride", 0)), draw.get("attributes", [])
 	)
@@ -363,9 +497,9 @@ func _pipeline(
 			framebuffer_format,
 			vertex_format,
 			primitive,
-			_raster_state(),
-			RDPipelineMultisampleState.new(),
-			RDPipelineDepthStencilState.new(),
+		_raster_state(),
+		RDPipelineMultisampleState.new(),
+		_depth_state(family, depth_attached),
 			_blend_state(int(draw.get("blend", BLEND_ALPHA))),
 			0,
 			0,
@@ -373,32 +507,54 @@ func _pipeline(
 	)
 	if created.is_valid():
 		_pipelines[key] = created
+	elif family >= FAMILY_WORLD_TERRAIN and not _logged_pipeline_failure.has(family):
+		_logged_pipeline_failure[family] = true
+		print("MINECRAFT_GD_WORLD pipeline family %d failed" % family)
 	return created
 
 
-func _shader(rendering_device: RenderingDevice, family: int, grayscale: bool) -> RID:
-	var key := _shader_key(family, {"grayscale": grayscale})
+func _shader(rendering_device: RenderingDevice, family: int, draw: Dictionary) -> RID:
+	var key := _shader_key(family, draw)
 	var cached: RID = _shaders.get(key, RID())
 	if cached.is_valid():
 		return cached
 	var source := RDShaderSource.new()
 	source.language = RenderingDevice.SHADER_LANGUAGE_GLSL
-	source.source_vertex = _vertex_shader(family)
-	source.source_fragment = _fragment_shader(family, grayscale)
+	source.source_vertex = _vertex_shader(family, draw)
+	source.source_fragment = _fragment_shader(family, draw)
 	var spirv := rendering_device.shader_compile_spirv_from_source(source, true)
 	if spirv == null or spirv.bytecode_vertex.is_empty() or spirv.bytecode_fragment.is_empty():
 		var vertex_error := "" if spirv == null else spirv.get_stage_compile_error(RenderingDevice.SHADER_STAGE_VERTEX)
 		var fragment_error := "" if spirv == null else spirv.get_stage_compile_error(RenderingDevice.SHADER_STAGE_FRAGMENT)
-		push_warning("RenderPearl GUI shader family %d failed to compile: %s %s" % [family, vertex_error, fragment_error])
+		var message := "RenderPearl GUI shader family %d failed to compile: %s %s" % [family, vertex_error, fragment_error]
+		push_warning(message)
+		if not _logged_shader_failure.has(key):
+			_logged_shader_failure[key] = true
+			print("MINECRAFT_GD_WORLD shader %s" % message)
 		return RID()
-	var shader := rendering_device.shader_create_from_spirv(spirv, "renderpearl_gui_%d" % key)
+	var shader := rendering_device.shader_create_from_spirv(spirv, "renderpearl_gui_%s" % key)
 	if shader.is_valid():
 		_shaders[key] = shader
 	return shader
 
 
-func _shader_key(family: int, draw: Dictionary) -> int:
-	return family + (8 if bool(draw.get("grayscale", false)) else 0)
+func _shader_key(family: int, draw: Dictionary) -> String:
+	return "%d:%d:%d:%d" % [
+		family,
+		1 if bool(draw.get("grayscale", false)) else 0,
+		1 if bool(draw.get("cutout", false)) else 0,
+		1 if _has_location(draw, 4) else 0,
+	]
+
+
+func _has_location(draw: Dictionary, location: int) -> bool:
+	for attribute_variant in draw.get("attributes", []):
+		var attribute: Dictionary = attribute_variant
+		if int(attribute.get("location", 255)) != location:
+			continue
+		if _data_format(int(attribute.get("format", -1))) >= 0:
+			return true
+	return false
 
 
 func _vertex_format(rendering_device: RenderingDevice, family: int, stride: int, attributes: Array) -> int:
@@ -407,6 +563,8 @@ func _vertex_format(rendering_device: RenderingDevice, family: int, stride: int,
 		var attribute: Dictionary = attribute_variant
 		var location: int = attribute.get("location", 255)
 		if location == 255 or location < 0:
+			continue
+		if family >= FAMILY_WORLD_TERRAIN and not _world_location_used(family, location):
 			continue
 		var data_format := _data_format(int(attribute.get("format", -1)))
 		if data_format < 0:
@@ -423,6 +581,131 @@ func _vertex_format(rendering_device: RenderingDevice, family: int, stride: int,
 	if descriptions.is_empty():
 		return 0
 	return rendering_device.vertex_format_create(descriptions)
+
+
+func _world_location_used(family: int, location: int) -> bool:
+	if family == FAMILY_WORLD_SKY:
+		return location == 0
+	return location == 0 or location == 1 or location == 2 or location == 4
+
+
+func _world_vertex_shader(family: int, draw: Dictionary) -> String:
+	if family == FAMILY_WORLD_SKY:
+		return """#version 450
+layout(location = 0) in vec3 a_position;
+layout(location = 0) out vec4 v_color;
+layout(std140, set = 0, binding = 0) uniform DynamicTransforms {
+	mat4 ModelViewMat;
+	mat4 TextureMat;
+	vec4 ColorModulator;
+	vec4 ModelOffset;
+};
+layout(std140, set = 1, binding = 0) uniform Projection {
+	mat4 ProjMat;
+};
+void main() {
+	gl_Position = ProjMat * ModelViewMat * vec4(a_position, 1.0);
+	v_color = ColorModulator;
+}
+"""
+	var light := "vec4 light = vec4(1.0);"
+	var light_input := ""
+	var sampler2 := ""
+	if _has_location(draw, 4):
+		light_input = "layout(location = 4) in ivec2 a_uv2;\n"
+		sampler2 = "layout(set = 3, binding = 0) uniform sampler2D Sampler2;\n"
+		light = "vec2 light_uv = clamp((vec2(a_uv2) / 256.0) + 0.5 / 16.0, vec2(0.5 / 16.0), vec2(15.5 / 16.0));\n\tvec4 light = texture(Sampler2, light_uv);"
+	if family == FAMILY_WORLD_TERRAIN:
+		return """#version 450
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_uv;
+%s
+layout(location = 0) out vec4 v_color;
+layout(location = 1) out vec2 v_uv;
+layout(std140, set = 0, binding = 0) uniform TerrainUniform {
+	mat4 ModelViewMat;
+	ivec2 TextureSize;
+};
+layout(std140, set = 1, binding = 0) uniform Projection {
+	mat4 ProjMat;
+};
+%s
+layout(std140, set = 4, binding = 0) uniform ChunkSection {
+	ivec3 ChunkPosition;
+	float ChunkVisibility;
+};
+layout(std140, set = 5, binding = 0) uniform Globals {
+	ivec3 CameraBlockPos;
+	float GlintAlpha;
+	vec3 CameraOffset;
+	float GameTime;
+	vec2 ScreenSize;
+	int MenuBlurRadius;
+	int UseRgss;
+};
+void main() {
+	vec3 pos = a_position + vec3(ChunkPosition - CameraBlockPos) + CameraOffset;
+	gl_Position = ProjMat * ModelViewMat * vec4(pos, 1.0);
+	%s
+	v_color = a_color * light;
+	v_color.a *= ChunkVisibility;
+	v_uv = a_uv;
+}
+""" % [light_input, sampler2, light]
+	# 26.3 entity.vsh and particle.vsh transform Position directly. ModelOffset
+	# stays in the uniform block so the std140 layout still matches.
+	return """#version 450
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_uv;
+%s
+layout(location = 0) out vec4 v_color;
+layout(location = 1) out vec2 v_uv;
+layout(std140, set = 0, binding = 0) uniform DynamicTransforms {
+	mat4 ModelViewMat;
+	mat4 TextureMat;
+	vec4 ColorModulator;
+	vec4 ModelOffset;
+};
+layout(std140, set = 1, binding = 0) uniform Projection {
+	mat4 ProjMat;
+};
+%s
+void main() {
+	gl_Position = ProjMat * ModelViewMat * vec4(a_position, 1.0);
+	%s
+	v_color = a_color * ColorModulator * light;
+	v_uv = a_uv;
+}
+""" % [light_input, sampler2, light]
+
+
+func _world_fragment_shader(family: int, draw: Dictionary) -> String:
+	var discard_test := "if (color.a == 0.0) { discard; }"
+	if bool(draw.get("cutout", false)):
+		discard_test = "if (color.a < 0.1) { discard; }"
+	if family == FAMILY_WORLD_SKY:
+		return """#version 450
+layout(location = 0) in vec4 v_color;
+layout(location = 0) out vec4 frag_color;
+void main() {
+	vec4 color = v_color;
+	%s
+	frag_color = color;
+}
+""" % discard_test
+	return """#version 450
+layout(location = 0) in vec4 v_color;
+layout(location = 1) in vec2 v_uv;
+layout(set = 2, binding = 0) uniform sampler2D Sampler0;
+layout(location = 0) out vec4 frag_color;
+void main() {
+	vec4 color = texture(Sampler0, v_uv) * v_color;
+	%s
+	frag_color = color;
+}
+""" % discard_test
 
 
 func _fallback_attributes(family: int, stride: int) -> Array[RDVertexAttribute]:
@@ -474,16 +757,58 @@ func _framebuffer(
 		rendering_device: RenderingDevice,
 		framebuffers: Dictionary,
 		color_id: int,
-		color_texture: RID
+		color_texture: RID,
+		with_depth: bool = false,
+		size: Vector2i = Vector2i.ZERO
 ) -> RID:
 	var existing: RID = framebuffers.get(color_id, RID())
-	if existing.is_valid():
+	var has_depth: bool = bool(_framebuffer_has_depth.get(color_id, false))
+	if existing.is_valid() and (not with_depth or has_depth):
 		return existing
+	if existing.is_valid():
+		rendering_device.free_rid(existing)
+		framebuffers.erase(color_id)
 	var attachments: Array[RID] = [color_texture]
+	var attached_depth := false
+	if with_depth and size.x > 0 and size.y > 0:
+		var depth_texture := _depth_texture(rendering_device, color_id, size)
+		if depth_texture.is_valid():
+			attachments.append(depth_texture)
+			attached_depth = true
 	var created := rendering_device.framebuffer_create(attachments)
 	if created.is_valid():
 		framebuffers[color_id] = created
+		_framebuffer_has_depth[color_id] = attached_depth
 	return created
+
+
+func _depth_texture(rendering_device: RenderingDevice, color_id: int, size: Vector2i) -> RID:
+	var existing: RID = _depth_textures.get(color_id, RID())
+	if existing.is_valid():
+		return existing
+	var format := RDTextureFormat.new()
+	format.format = RenderingDevice.DATA_FORMAT_D32_SFLOAT
+	format.width = size.x
+	format.height = size.y
+	format.depth = 1
+	format.array_layers = 1
+	format.mipmaps = 1
+	format.texture_type = RenderingDevice.TEXTURE_TYPE_2D
+	format.usage_bits = RenderingDevice.TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+	var created := rendering_device.texture_create(format, RDTextureView.new(), [])
+	if created.is_valid():
+		_depth_textures[color_id] = created
+	return created
+
+
+func _depth_state(family: int, depth_attached: bool) -> RDPipelineDepthStencilState:
+	var state := RDPipelineDepthStencilState.new()
+	if family >= FAMILY_WORLD_TERRAIN and depth_attached:
+		state.enable_depth_test = true
+		state.enable_depth_write = true
+		# Reversed-Z: near fragments have the greater depth value.
+		state.depth_compare_operator = RenderingDevice.COMPARE_OP_GREATER
+	return state
 
 
 func _sampler(rendering_device: RenderingDevice, draw: Dictionary) -> RID:
@@ -632,6 +957,12 @@ func _data_format(gpu_format: int) -> int:
 	match gpu_format:
 		GPU_RGBA8_UNORM:
 			return RenderingDevice.DATA_FORMAT_R8G8B8A8_UNORM
+		GPU_RGBA8_SNORM:
+			return RenderingDevice.DATA_FORMAT_R8G8B8A8_SNORM
+		GPU_RG16_SINT:
+			return RenderingDevice.DATA_FORMAT_R16G16_SINT
+		GPU_RGB32_SINT:
+			return RenderingDevice.DATA_FORMAT_R32G32B32_SINT
 		GPU_R32_FLOAT:
 			return RenderingDevice.DATA_FORMAT_R32_SFLOAT
 		GPU_RG32_FLOAT:
@@ -685,7 +1016,9 @@ func _write_identity(bytes: PackedByteArray, offset: int) -> void:
 	bytes.encode_float(offset + 60, 1.0)
 
 
-func _vertex_shader(family: int) -> String:
+func _vertex_shader(family: int, draw: Dictionary = {}) -> String:
+	if family >= FAMILY_WORLD_TERRAIN:
+		return _world_vertex_shader(family, draw)
 	var inputs := "layout(location = 0) in vec3 a_position;\nlayout(location = 1) in vec4 a_color;\n"
 	var varyings := "layout(location = 0) out vec4 v_color;\n"
 	var assignments := "v_color = a_color;\n"
@@ -718,7 +1051,10 @@ void main() {
 """ % [inputs, varyings, assignments]
 
 
-func _fragment_shader(family: int, grayscale: bool) -> String:
+func _fragment_shader(family: int, draw: Dictionary = {}) -> String:
+	if family >= FAMILY_WORLD_TERRAIN:
+		return _world_fragment_shader(family, draw)
+	var grayscale := bool(draw.get("grayscale", false))
 	var inputs := "layout(location = 0) in vec4 v_color;\n"
 	var sample := ""
 	var color := "vec4 color = v_color * ColorModulator;"

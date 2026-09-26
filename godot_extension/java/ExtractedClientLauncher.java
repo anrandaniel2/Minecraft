@@ -6,6 +6,15 @@ import net.minecraft.client.ClientBootstrap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.PreferredGraphicsApi;
 import net.minecraft.client.User;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.gui.screens.worldselection.WorldOpenFlows;
+import net.minecraft.world.Difficulty;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.LevelSettings;
+import net.minecraft.world.level.WorldDataConfiguration;
+import net.minecraft.world.level.levelgen.WorldOptions;
+import net.minecraft.world.level.levelgen.presets.WorldPresets;
 import net.minecraft.SharedConstants;
 import net.minecraft.WorldVersion;
 import net.minecraft.client.main.GameConfig;
@@ -16,6 +25,8 @@ import net.minecraft.server.Bootstrap;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +39,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
@@ -51,6 +64,11 @@ public final class ExtractedClientLauncher {
     private static volatile Throwable failure;
     private static volatile String nativeLibraryFailure;
     private static volatile boolean started;
+    private static final AtomicBoolean worldEntryRequested = new AtomicBoolean();
+    private static final AtomicBoolean onboardingDismissed = new AtomicBoolean();
+    private static final AtomicReference<Runnable> renderThreadTask = new AtomicReference<>();
+    /** True while {@code runTick} is on the stack, so encoder hooks leave the task queued. */
+    private static volatile boolean insideClientTick;
 
     private ExtractedClientLauncher() {
     }
@@ -108,11 +126,8 @@ public final class ExtractedClientLauncher {
         if (current == null) {
             return;
         }
-        try {
-            current.execute(current::stop);
-        } catch (RuntimeException failure) {
-            current.stop();
-        }
+        // 26.3 has no Minecraft.execute. stop() is safe to call from the caller.
+        current.stop();
     }
 
     /**
@@ -395,8 +410,17 @@ public final class ExtractedClientLauncher {
             com.mojang.blaze3d.systems.RenderSystem.initRenderThread();
             Minecraft created = new Minecraft(gameConfig());
             client = created;
+            if (enterWorldRequested()) {
+                startWorldEntry(created);
+            }
             System.err.println("MINECRAFT_GD_RUN_ENTER");
-            created.run();
+            if (enterWorldRequested()) {
+                // createFreshLevel blocks in renderFrame. Minecraft.run() has
+                // no hook between ticks, and 26.3 has no Minecraft.execute.
+                runBetweenTicks(created);
+            } else {
+                created.run();
+            }
             System.err.println("MINECRAFT_GD_RUN_RETURN");
         } catch (Throwable error) {
             remember(error);
@@ -608,6 +632,9 @@ public final class ExtractedClientLauncher {
                 System.getProperty("minecraft.godot.gameDir"),
                 Path.of(System.getProperty("user.dir"), "minecraft-godot-run").toString()
         ));
+        if (enterWorldRequested()) {
+            writeWorldOptions(gameDirectory);
+        }
         File resourcePackDirectory = directory(new File(gameDirectory, "resourcepacks").getPath());
         File assetDirectory = directory(firstNonBlank(
                 System.getProperty("minecraft.godot.assetsDir"),
@@ -639,6 +666,231 @@ public final class ExtractedClientLauncher {
                 ),
                 new GameConfig.QuickPlayData("", GameConfig.QuickPlayVariant.DISABLED)
         );
+    }
+
+    private static boolean enterWorldRequested() {
+        return "1".equals(System.getenv("MINECRAFT_ENTER_WORLD"))
+                || Boolean.parseBoolean(System.getProperty("minecraft.godot.enterWorld", "false"));
+    }
+
+    /**
+     * A two-chunk view finishes meshing inside the viewport gate. Pause-on-focus
+     * would freeze a headless run before the first terrain pass.
+     */
+    private static void writeWorldOptions(File gameDirectory) {
+        Path options = gameDirectory.toPath().resolve("options.txt");
+        if (Files.isRegularFile(options)) {
+            return;
+        }
+        try {
+            Files.writeString(options, String.join("\n",
+                    "renderDistance:2",
+                    "simulationDistance:2",
+                    "pauseOnLostFocus:false",
+                    "guiScale:2",
+                    "onboardAccessibility:false",
+                    "onboardingAccessibilityFinished:true"
+            ) + "\n", StandardCharsets.UTF_8);
+        } catch (IOException failure) {
+            System.err.println("MINECRAFT_GD_WORLD options " + failure.getClass().getSimpleName());
+        }
+    }
+
+    private static void startWorldEntry(Minecraft minecraft) {
+        Thread thread = new Thread(() -> waitAndEnterWorld(minecraft), "minecraft-world-entry");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private static void waitAndEnterWorld(Minecraft minecraft) {
+        long deadline = System.nanoTime() + 240_000_000_000L;
+        int ticks = 0;
+        while (System.nanoTime() < deadline && minecraft.isRunning()) {
+            try {
+                Thread.sleep(500L);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            ticks++;
+            if (readMember(minecraft, "level") != null) {
+                System.err.println("MINECRAFT_GD_WORLD loaded");
+                return;
+            }
+            Object gui = declaredMember(minecraft, "gui");
+            if (gui != null && invokeNoArgs(gui, "overlay") != null) {
+                continue;
+            }
+            Object screen = gui == null ? null : invokeNoArgs(gui, "screen");
+            if (ticks % 20 == 0) {
+                String screenName = screen == null ? "none" : screen.getClass().getSimpleName();
+                System.err.println("MINECRAFT_GD_WORLD screen " + screenName);
+            }
+            if (screen != null && screen.getClass().getName().endsWith("AccessibilityOnboardingScreen")) {
+                if (onboardingDismissed.compareAndSet(false, true)) {
+                    scheduleOnRenderThread(() -> dismissOnboarding(minecraft));
+                }
+                continue;
+            }
+            if (screen == null || !screen.getClass().getName().endsWith("TitleScreen")
+                    || worldEntryRequested.get()) {
+                continue;
+            }
+            worldEntryRequested.set(true);
+            System.err.println("MINECRAFT_GD_WORLD title");
+            scheduleOnRenderThread(() -> createFreshWorld(minecraft));
+        }
+        System.err.println("MINECRAFT_GD_WORLD entry-timeout");
+    }
+
+    private static void createFreshWorld(Minecraft minecraft) {
+        try {
+            if (readMember(minecraft, "level") != null) {
+                System.err.println("MINECRAFT_GD_WORLD already");
+                return;
+            }
+            WorldOpenFlows flows = minecraft.createWorldOpenFlows();
+            Object gui = declaredMember(minecraft, "gui");
+            Screen returnScreen = gui == null ? null : invokeNoArgs(gui, "screen") instanceof Screen screen ? screen : null;
+            LevelSettings settings = new LevelSettings(
+                    "Godot",
+                    GameType.SURVIVAL,
+                    new LevelSettings.DifficultySettings(Difficulty.EASY, false, false),
+                    false,
+                    WorldDataConfiguration.DEFAULT
+            );
+            flows.createFreshLevel(
+                    "godot",
+                    settings,
+                    WorldOptions.defaultWithRandomSeed(),
+                    WorldPresets::createNormalWorldDimensions,
+                    returnScreen
+            );
+            System.err.println("MINECRAFT_GD_WORLD create");
+        } catch (Throwable failure) {
+            worldEntryRequested.set(false);
+            System.err.println("MINECRAFT_GD_WORLD create-failed " + failure.getClass().getSimpleName()
+                    + " " + failure.getMessage());
+            failure.printStackTrace(System.err);
+        }
+    }
+
+    /**
+     * Runs queued world entry, then one client tick. {@code createFreshLevel}
+     * calls {@code renderFrame} while the integrated server starts, so the task
+     * has to run here rather than inside an open command encoder.
+     */
+    private static void runBetweenTicks(Minecraft minecraft) throws ReflectiveOperationException {
+        try {
+            Field gameThread = Minecraft.class.getDeclaredField("gameThread");
+            gameThread.setAccessible(true);
+            gameThread.set(minecraft, Thread.currentThread());
+        } catch (ReflectiveOperationException failure) {
+            System.err.println("MINECRAFT_GD_WORLD thread " + failure.getClass().getSimpleName());
+        }
+        Method runTick = Minecraft.class.getDeclaredMethod("runTick", boolean.class);
+        runTick.setAccessible(true);
+        Field events = null;
+        try {
+            events = Minecraft.class.getDeclaredField("sdlEventHandler");
+            events.setAccessible(true);
+        } catch (ReflectiveOperationException ignored) {
+            events = null;
+        }
+        while (minecraft.isRunning()) {
+            insideClientTick = false;
+            runPendingRenderTask();
+            insideClientTick = true;
+            try {
+                if (events != null) {
+                    Object handler = events.get(minecraft);
+                    if (handler != null) {
+                        com.mojang.blaze3d.systems.RenderSystem.pollEvents(
+                                (com.mojang.blaze3d.platform.SDLEventHandler) handler);
+                    }
+                }
+                runTick.invoke(minecraft, Boolean.TRUE);
+            } catch (InvocationTargetException wrapped) {
+                Throwable cause = wrapped.getCause() == null ? wrapped : wrapped.getCause();
+                System.err.println("MINECRAFT_GD_WORLD tick " + cause.getClass().getSimpleName()
+                        + " " + cause.getMessage());
+                cause.printStackTrace(System.err);
+                if (cause instanceof OutOfMemoryError) {
+                    System.gc();
+                    continue;
+                }
+                break;
+            } finally {
+                insideClientTick = false;
+            }
+        }
+    }
+
+    /**
+     * Runs a queued world-entry task on the render thread. Encoder hooks call
+     * this only when {@code Minecraft.run} is the loop; the between-tick loop
+     * leaves the task queued until {@code runTick} returns.
+     */
+    public static void runPendingRenderTask() {
+        if (insideClientTick) {
+            return;
+        }
+        Runnable task = renderThreadTask.getAndSet(null);
+        if (task != null) {
+            task.run();
+        }
+    }
+
+    private static void scheduleOnRenderThread(Runnable task) {
+        renderThreadTask.set(task);
+    }
+
+    private static void dismissOnboarding(Minecraft minecraft) {
+        markOnboardingFinished(minecraft);
+        Object gui = declaredMember(minecraft, "gui");
+        if (gui == null) {
+            return;
+        }
+        try {
+            gui.getClass().getMethod("setScreen", Screen.class).invoke(gui, new TitleScreen());
+            System.err.println("MINECRAFT_GD_WORLD skipped-onboarding");
+        } catch (ReflectiveOperationException failure) {
+            System.err.println("MINECRAFT_GD_WORLD onboarding " + failure.getClass().getSimpleName());
+        }
+    }
+
+    private static void markOnboardingFinished(Minecraft minecraft) {
+        Object options = readMember(minecraft, "options");
+        if (options == null) {
+            return;
+        }
+        setBooleanField(options, "onboardAccessibility", false);
+        setBooleanField(options, "onboardingAccessibilityFinished", true);
+    }
+
+    private static void setBooleanField(Object owner, String name, boolean value) {
+        Class<?> type = owner.getClass();
+        while (type != null && type != Object.class) {
+            try {
+                Field field = type.getDeclaredField(name);
+                field.setAccessible(true);
+                field.setBoolean(owner, value);
+                return;
+            } catch (ReflectiveOperationException ignored) {
+                type = type.getSuperclass();
+            }
+        }
+    }
+
+    private static Object readMember(Object owner, String name) {
+        if (owner == null) {
+            return null;
+        }
+        try {
+            return owner.getClass().getMethod(name).invoke(owner);
+        } catch (ReflectiveOperationException ignored) {
+            return declaredMember(owner, name);
+        }
     }
 
     private static File directory(String path) {

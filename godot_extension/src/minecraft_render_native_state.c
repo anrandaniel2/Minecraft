@@ -118,6 +118,21 @@ typedef struct MinecraftRenderDrawRecord {
     uint32_t sampler0_mag_filter;
     uint32_t sampler0_address_u;
     uint32_t sampler0_address_v;
+    uint32_t terrain_buffer_id;
+    uint64_t terrain_offset;
+    uint64_t terrain_length;
+    uint32_t chunk_buffer_id;
+    uint64_t chunk_offset;
+    uint64_t chunk_length;
+    uint32_t globals_buffer_id;
+    uint64_t globals_offset;
+    uint64_t globals_length;
+    uint32_t sampler2_texture_id;
+    uint32_t sampler2_base_mip;
+    uint32_t sampler2_min_filter;
+    uint32_t sampler2_mag_filter;
+    uint32_t sampler2_address_u;
+    uint32_t sampler2_address_v;
 } MinecraftRenderDrawRecord;
 
 typedef struct MinecraftRenderPassRecord {
@@ -182,7 +197,11 @@ struct MinecraftRenderNativeState {
     uint32_t scissor_height;
     MinecraftRenderRangeBinding dynamic_uniform;
     MinecraftRenderRangeBinding projection_uniform;
+    MinecraftRenderRangeBinding terrain_uniform;
+    MinecraftRenderRangeBinding chunk_uniform;
+    MinecraftRenderRangeBinding globals_uniform;
     MinecraftRenderSamplerBinding sampler0;
+    MinecraftRenderSamplerBinding sampler2;
 };
 
 static bool fail(MinecraftRenderNativeState *state, int status) {
@@ -515,7 +534,11 @@ static bool begin_render_pass(void *user_data, uint32_t color_texture_id,
     state->scissor_height = state->frame_height;
     memset(&state->dynamic_uniform, 0, sizeof(state->dynamic_uniform));
     memset(&state->projection_uniform, 0, sizeof(state->projection_uniform));
+    memset(&state->terrain_uniform, 0, sizeof(state->terrain_uniform));
+    memset(&state->chunk_uniform, 0, sizeof(state->chunk_uniform));
+    memset(&state->globals_uniform, 0, sizeof(state->globals_uniform));
     memset(&state->sampler0, 0, sizeof(state->sampler0));
+    memset(&state->sampler2, 0, sizeof(state->sampler2));
     return true;
 }
 
@@ -679,7 +702,7 @@ static bool compile_pipeline(void *user_data, const MinecraftRenderCompiledPipel
         return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
     }
     if (pipeline == NULL || pipeline->pipeline_id == 0 ||
-            pipeline->family > MINECRAFT_RENDER_PIPELINE_FAMILY_GUI_TEXT ||
+            pipeline->family > MINECRAFT_RENDER_PIPELINE_FAMILY_WORLD_PARTICLE ||
             pipeline->attribute_count > MINECRAFT_RENDER_MAX_PIPELINE_ATTRIBUTES ||
             pipeline->vertex_stride > 4096u ||
             (pipeline->attribute_count != 0 && pipeline->attributes == NULL)) {
@@ -711,6 +734,10 @@ static bool compile_pipeline(void *user_data, const MinecraftRenderCompiledPipel
             bytes_contain(pipeline->vertex_shader, pipeline->vertex_shader_length, "grayscale") ||
             bytes_contain(pipeline->fragment_shader, pipeline->fragment_shader_length, "grayscale")) {
         record->flags |= 1u;
+    }
+    /* Bit 1 selects the cutout alpha test. Solid terrain must not discard water. */
+    if (bytes_contain(pipeline->location, pipeline->location_length, "cutout")) {
+        record->flags |= 2u;
     }
     if (pipeline->attribute_count != 0) {
         memcpy(record->attributes, pipeline->attributes,
@@ -746,6 +773,15 @@ static bool set_uniform_buffer(void *user_data, const MinecraftRenderUniformBuff
     } else if (name_is(binding->name, binding->name_length, "Projection") ||
             name_is(binding->name, binding->name_length, "projection")) {
         state->projection_uniform = stored;
+    } else if (name_is(binding->name, binding->name_length, "TerrainUniform") ||
+            name_is(binding->name, binding->name_length, "terrainUniform")) {
+        state->terrain_uniform = stored;
+    } else if (name_is(binding->name, binding->name_length, "ChunkSection") ||
+            name_is(binding->name, binding->name_length, "chunkSection")) {
+        state->chunk_uniform = stored;
+    } else if (name_is(binding->name, binding->name_length, "Globals") ||
+            name_is(binding->name, binding->name_length, "globals")) {
+        state->globals_uniform = stored;
     }
     return true;
 }
@@ -772,6 +808,15 @@ static bool set_texture_sampler(void *user_data, const MinecraftRenderTextureSam
         state->sampler0.address_u = binding->address_u;
         state->sampler0.address_v = binding->address_v;
         state->sampler0.bound = true;
+    } else if (name_is(binding->name, binding->name_length, "Sampler2") ||
+            name_is(binding->name, binding->name_length, "sampler2")) {
+        state->sampler2.texture_id = binding->texture_id;
+        state->sampler2.base_mip = binding->base_mip;
+        state->sampler2.min_filter = binding->min_filter;
+        state->sampler2.mag_filter = binding->mag_filter;
+        state->sampler2.address_u = binding->address_u;
+        state->sampler2.address_v = binding->address_v;
+        state->sampler2.bound = true;
     }
     return true;
 }
@@ -831,6 +876,29 @@ static bool retain_draw(MinecraftRenderNativeState *state, uint32_t kind, uint32
         draw->sampler0_mag_filter = state->sampler0.mag_filter;
         draw->sampler0_address_u = state->sampler0.address_u;
         draw->sampler0_address_v = state->sampler0.address_v;
+    }
+    if (state->terrain_uniform.bound) {
+        draw->terrain_buffer_id = state->terrain_uniform.buffer_id;
+        draw->terrain_offset = state->terrain_uniform.offset;
+        draw->terrain_length = state->terrain_uniform.length;
+    }
+    if (state->chunk_uniform.bound) {
+        draw->chunk_buffer_id = state->chunk_uniform.buffer_id;
+        draw->chunk_offset = state->chunk_uniform.offset;
+        draw->chunk_length = state->chunk_uniform.length;
+    }
+    if (state->globals_uniform.bound) {
+        draw->globals_buffer_id = state->globals_uniform.buffer_id;
+        draw->globals_offset = state->globals_uniform.offset;
+        draw->globals_length = state->globals_uniform.length;
+    }
+    if (state->sampler2.bound) {
+        draw->sampler2_texture_id = state->sampler2.texture_id;
+        draw->sampler2_base_mip = state->sampler2.base_mip;
+        draw->sampler2_min_filter = state->sampler2.min_filter;
+        draw->sampler2_mag_filter = state->sampler2.mag_filter;
+        draw->sampler2_address_u = state->sampler2.address_u;
+        draw->sampler2_address_v = state->sampler2.address_v;
     }
     state->pending_draw_count++;
     return true;
@@ -1147,6 +1215,36 @@ int64_t minecraft_render_native_draw_attribute(
             return draw->sampler0_address_u;
         case MINECRAFT_RENDER_DRAW_ATTRIBUTE_SAMPLER0_ADDRESS_V:
             return draw->sampler0_address_v;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_TERRAIN_BUFFER_ID:
+            return draw->terrain_buffer_id;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_TERRAIN_OFFSET:
+            return (int64_t)draw->terrain_offset;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_TERRAIN_LENGTH:
+            return (int64_t)draw->terrain_length;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_CHUNK_BUFFER_ID:
+            return draw->chunk_buffer_id;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_CHUNK_OFFSET:
+            return (int64_t)draw->chunk_offset;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_CHUNK_LENGTH:
+            return (int64_t)draw->chunk_length;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_GLOBALS_BUFFER_ID:
+            return draw->globals_buffer_id;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_GLOBALS_OFFSET:
+            return (int64_t)draw->globals_offset;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_GLOBALS_LENGTH:
+            return (int64_t)draw->globals_length;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_SAMPLER2_TEXTURE_ID:
+            return draw->sampler2_texture_id;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_SAMPLER2_BASE_MIP:
+            return draw->sampler2_base_mip;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_SAMPLER2_MIN_FILTER:
+            return draw->sampler2_min_filter;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_SAMPLER2_MAG_FILTER:
+            return draw->sampler2_mag_filter;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_SAMPLER2_ADDRESS_U:
+            return draw->sampler2_address_u;
+        case MINECRAFT_RENDER_DRAW_ATTRIBUTE_SAMPLER2_ADDRESS_V:
+            return draw->sampler2_address_v;
         default:
             return 0;
     }

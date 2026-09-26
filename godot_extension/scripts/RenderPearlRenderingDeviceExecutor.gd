@@ -59,6 +59,8 @@ var _gpu_buffer_sizes: Dictionary = {}
 var _gpu_buffer_usages: Dictionary = {}
 var _gui_draws: RefCounted = GuiDrawListScript.new()
 var java_gui_draw_count := 0
+var java_world_draw_count := 0
+var _logged_world_present := false
 var _gpu_textures: Dictionary = {}
 var _gpu_texture_signatures: Dictionary = {}
 var _gpu_framebuffers: Dictionary = {}
@@ -310,9 +312,15 @@ func _collect_draws(native_bridge: Object) -> Array:
 			"sampler0_address_u": native_bridge.call(&"get_render_draw_attribute", index, 33),
 			"sampler0_address_v": native_bridge.call(&"get_render_draw_attribute", index, 34),
 			"grayscale": _pipeline_flag(native_bridge, pipeline_id, 1),
+			"cutout": _pipeline_flag(native_bridge, pipeline_id, 2),
 			"attributes": _collect_pipeline_attributes(native_bridge, pipeline_id),
 			"dynamic_bytes": _read_bound_uniform(native_bridge, index, 23, 24, 25),
 			"projection_bytes": _read_bound_uniform(native_bridge, index, 26, 27, 28),
+			"terrain_bytes": _read_bound_uniform(native_bridge, index, 35, 36, 37),
+			"chunk_bytes": _read_bound_uniform(native_bridge, index, 38, 39, 40),
+			"globals_bytes": _read_bound_uniform(native_bridge, index, 41, 42, 43),
+			"sampler2_texture_id": native_bridge.call(&"get_render_draw_attribute", index, 44),
+			"sampler2_base_mip": native_bridge.call(&"get_render_draw_attribute", index, 45),
 			"target_size": _texture_size(
 					native_bridge, native_bridge.call(&"get_render_draw_attribute", index, 0)
 			),
@@ -423,9 +431,15 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 				rendering_device, _gpu_buffers, _gpu_textures, _gpu_framebuffers, passes, draws
 		)
 		var completed: int = result.get("draws", 0)
+		var world_completed: int = result.get("world_draws", 0)
 		if completed > 0:
 			java_gui_draw_count = completed
 			call_deferred("_emit_java_gui_presented")
+		if world_completed > 0:
+			java_world_draw_count = world_completed
+			if not _logged_world_present:
+				_logged_world_present = true
+				print("MINECRAFT_GD_WORLD presented %d" % world_completed)
 		# Blur pyramids are smaller than the main GUI target. Present the last
 		# largest target so an intermediate pass cannot cover the Java UI.
 		var best: Dictionary = {}

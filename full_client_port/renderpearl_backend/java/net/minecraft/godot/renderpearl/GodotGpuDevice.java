@@ -113,6 +113,9 @@ public final class GodotGpuDevice implements GpuDevice {
     @Override
     public CommandEncoder createCommandEncoder() {
         requireOpen();
+        // Fallback when the launcher could not replace Minecraft.run. The
+        // between-tick loop consumes the task first and ignores this call.
+        drainLauncherTask();
         // One reload used to keep every texture declaration and upload in a
         // single frame. Past 64MB the native mailbox rejects it, and growing
         // the Java buffer copies the whole prefix on every new packet.
@@ -188,6 +191,17 @@ public final class GodotGpuDevice implements GpuDevice {
         lastSubmittedBytes = frame == null ? 0 : frame.length;
         lastSubmittedDraws = draws;
         lastSubmittedPasses = passes;
+    }
+
+    private static void drainLauncherTask() {
+        try {
+            Class<?> type = Class.forName("net.minecraft.godot.ExtractedClientLauncher");
+            type.getMethod("runPendingRenderTask").invoke(null);
+        } catch (ClassNotFoundException ignored) {
+            // Adapter tests compile without the extracted-client launcher.
+        } catch (ReflectiveOperationException failure) {
+            System.err.println("MINECRAFT_GD_WORLD task " + failure.getClass().getSimpleName());
+        }
     }
 
     private void waitForMailboxDrain() {
@@ -496,6 +510,25 @@ public final class GodotGpuDevice implements GpuDevice {
         if (key.contains("core/gui") || key.contains("pipeline/gui") || key.contains(":gui")) {
             return GodotCompiledRenderPipeline.FAMILY_GUI_COLOR;
         }
+        // World families stay after the GUI checks. "block_screen_effect" is a
+        // GUI overlay and must not be pulled in by a bare "block" match.
+        if (key.contains("terrain") || key.contains("core/block")
+                || key.contains("solid_block") || key.contains("cutout_block")
+                || key.contains("translucent_block") || key.contains("crumbling")) {
+            return GodotCompiledRenderPipeline.FAMILY_WORLD_TERRAIN;
+        }
+        if (key.contains("particle") || key.contains("weather")) {
+            return GodotCompiledRenderPipeline.FAMILY_WORLD_PARTICLE;
+        }
+        if (key.contains("entity") || key.contains("core/item") || key.contains("pipeline/item")
+                || key.contains("glint") || key.contains("leash") || key.contains("banner")
+                || key.contains("armor")) {
+            return GodotCompiledRenderPipeline.FAMILY_WORLD_ENTITY;
+        }
+        if (key.contains("sky") || key.contains("cloud") || key.contains("star")
+                || key.contains("celestial") || key.contains("sunrise") || key.contains("world_border")) {
+            return GodotCompiledRenderPipeline.FAMILY_WORLD_SKY;
+        }
         return GodotCompiledRenderPipeline.FAMILY_UNKNOWN;
     }
 
@@ -553,6 +586,26 @@ public final class GodotGpuDevice implements GpuDevice {
         }
         if ("UV0".equals(elementName)) {
             return family == GodotCompiledRenderPipeline.FAMILY_GUI_TEXTURED ? 1 : 2;
+        }
+        if (family < GodotCompiledRenderPipeline.FAMILY_WORLD_TERRAIN) {
+            return 255;
+        }
+        // Locations are for the Godot shader, not the extracted GLSL. Offsets
+        // still come from the extracted vertex format.
+        if ("UV1".equals(elementName)) {
+            return 3;
+        }
+        if ("UV2".equals(elementName) || "UV3".equals(elementName)) {
+            return 4;
+        }
+        if ("Normal".equals(elementName)) {
+            return 5;
+        }
+        if ("ChunkPosition".equals(elementName)) {
+            return 6;
+        }
+        if ("ChunkVisibility".equals(elementName)) {
+            return 7;
         }
         return 255;
     }

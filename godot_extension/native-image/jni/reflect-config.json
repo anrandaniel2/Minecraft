@@ -3,15 +3,31 @@
     "name": "net.minecraft.client.Minecraft",
     "allDeclaredFields": true,
     "methods": [
-      {"name": "getInstance", "parameterTypes": []}
+      {"name": "getInstance", "parameterTypes": []},
+      {"name": "isRunning", "parameterTypes": []},
+      {"name": "stop", "parameterTypes": []},
+      {"name": "createWorldOpenFlows", "parameterTypes": []},
+      {"name": "setScreenAndShow", "parameterTypes": ["net.minecraft.client.gui.screens.Screen"]},
+      {"name": "runTick", "parameterTypes": ["boolean"]}
     ]
+  },
+  {
+    "name": "net.minecraft.client.Options",
+    "allDeclaredFields": true
   },
   {
     "name": "net.minecraft.client.gui.Gui",
     "allDeclaredFields": true,
     "methods": [
       {"name": "screen", "parameterTypes": []},
-      {"name": "overlay", "parameterTypes": []}
+      {"name": "overlay", "parameterTypes": []},
+      {"name": "setScreen", "parameterTypes": ["net.minecraft.client.gui.screens.Screen"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.godot.ExtractedClientLauncher",
+    "methods": [
+      {"name": "runPendingRenderTask", "parameterTypes": []}
     ]
   },
   {

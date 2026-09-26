@@ -46,6 +46,7 @@ func _process(delta: float) -> void:
 	var draws := 0
 	var gui_draws := 0
 	var text_draws := 0
+	var world_draws := 0
 	if native:
 		# TouchControls already executed the mailbox this frame. Reading it
 		# again would consume the frame before the viewport can present it.
@@ -54,23 +55,30 @@ func _process(delta: float) -> void:
 		var families := _gui_family_counts(bridge, draws)
 		gui_draws = int(families.x)
 		text_draws = int(families.y)
+		world_draws = int(families.z)
 	var elapsed := int(_java_gui_wait)
 	var presented := _presented_gui_draws()
+	var presented_world := _presented_world_draws()
+	var require_world := OS.get_environment("MINECRAFT_REQUIRE_WORLD") == "1"
 	if elapsed > 0 and elapsed % 10 == 0 and int(_java_gui_wait - delta) != elapsed:
-		print("JAVA_GUI_WAIT native %s passes %d draws %d gui %d text %d presented %d" % [str(native), passes, draws, gui_draws, text_draws, presented])
-	# A single color quad can be the loading panel. Menu text is family 3,
-	# and the viewport must have replayed draws before this counts.
-	if text_draws > 0 and presented > 0:
+		print("JAVA_GUI_WAIT native %s passes %d draws %d gui %d text %d world %d presented %d world_presented %d" % [str(native), passes, draws, gui_draws, text_draws, world_draws, presented, presented_world])
+	# A single color quad can be the loading panel. Menu text is family 3.
+	# A world proof needs a presented terrain/entity/sky draw, not that menu.
+	var menu_ready := text_draws > 0 and presented > 0
+	var world_ready := world_draws > 0 and presented_world > 0
+	if (require_world and world_ready) or (not require_world and menu_ready):
 		_java_gui_reported = true
-		print("JAVA_GUI_COMMANDS %d presented %d text %d" % [gui_draws, presented, text_draws])
+		print("JAVA_GUI_COMMANDS %d presented %d text %d world %d" % [gui_draws, presented, text_draws, world_draws])
 		_exit_proof(bridge, 0)
 		return
 	# The standalone boot test allows 180s for construction. A 90s gate quit
 	# before a slow extracted client could submit its first GuiRenderer frame.
 	# Resource reload can keep the loading overlay up for several minutes.
-	if _java_gui_wait >= 300.0:
+	# Entering a world and meshing the first chunks needs longer than the menu.
+	var limit := 600.0 if require_world else 300.0
+	if _java_gui_wait >= limit:
 		_java_gui_reported = true
-		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d text %d presented %d" % [str(native), passes, draws, gui_draws, text_draws, presented])
+		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d text %d world %d presented %d world_presented %d" % [str(native), passes, draws, gui_draws, text_draws, world_draws, presented, presented_world])
 		_exit_proof(bridge, 2)
 
 
@@ -81,16 +89,26 @@ func _presented_gui_draws() -> int:
 	return 0 if presented_value == null else int(presented_value)
 
 
-func _gui_family_counts(bridge: Object, draws: int) -> Vector2i:
+func _presented_world_draws() -> int:
+	if resource_executor == null:
+		return 0
+	var presented_value = resource_executor.get("java_world_draw_count")
+	return 0 if presented_value == null else int(presented_value)
+
+
+func _gui_family_counts(bridge: Object, draws: int) -> Vector3i:
 	var gui := 0
 	var text := 0
+	var world := 0
 	for index in range(draws):
 		var family := int(bridge.call(&"get_render_draw_attribute", index, 2))
 		if family >= 1 and family <= 3:
 			gui += 1
 		if family == 3:
 			text += 1
-	return Vector2i(gui, text)
+		if family >= 4 and family <= 7:
+			world += 1
+	return Vector3i(gui, text, world)
 
 
 func _exit_proof(bridge: Object, code: int) -> void:

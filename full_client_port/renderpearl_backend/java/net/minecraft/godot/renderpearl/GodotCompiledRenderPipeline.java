@@ -17,6 +17,10 @@ final class GodotCompiledRenderPipeline implements CompiledRenderPipeline {
     static final int FAMILY_GUI_COLOR = 1;
     static final int FAMILY_GUI_TEXTURED = 2;
     static final int FAMILY_GUI_TEXT = 3;
+    static final int FAMILY_WORLD_TERRAIN = 4;
+    static final int FAMILY_WORLD_ENTITY = 5;
+    static final int FAMILY_WORLD_SKY = 6;
+    static final int FAMILY_WORLD_PARTICLE = 7;
 
     static final int BLEND_ALPHA = 0;
     static final int BLEND_PREMULTIPLIED = 1;
@@ -55,7 +59,7 @@ final class GodotCompiledRenderPipeline implements CompiledRenderPipeline {
             byte[] fragmentShader
     ) {
         this.registry = Objects.requireNonNull(registry, "registry");
-        if (family < FAMILY_UNKNOWN || family > FAMILY_GUI_TEXT) {
+        if (family < FAMILY_UNKNOWN || family > FAMILY_WORLD_PARTICLE) {
             throw new IllegalArgumentException("Unknown pipeline family " + family);
         }
         if (vertexStride < 0) {
