@@ -285,6 +285,8 @@ jobs:
           set +e
           # Keep Godot's crash backtrace in the log. A redirected stdout is
           # block-buffered, so a fatal signal otherwise drops handle_crash.
+          # Tee as well: a cancelled job never reaches the tail below, and the
+          # step log is the only copy that survives.
           # Do not pass --headless: that selects the dummy rendering driver.
           xvfb-run -a --server-args="-screen 0 1280x720x24" \
             stdbuf -o0 -e0 timeout 1500 "$GODOT_BIN" \
@@ -292,8 +294,8 @@ jobs:
               --audio-driver Dummy \
               --rendering-driver vulkan \
               --rendering-method forward_plus \
-              --path godot_extension >> "$RUNNER_TEMP/godot-gui.log" 2>&1
-          godot_status=$?
+              --path godot_extension 2>&1 | tee -a "$RUNNER_TEMP/godot-gui.log"
+          godot_status=${PIPESTATUS[0]}
           set -e
           tail -n 40 "$RUNNER_TEMP/godot-gui.log"
           if ! grep -q "JAVA_GUI_COMMANDS" "$RUNNER_TEMP/godot-gui.log"; then
