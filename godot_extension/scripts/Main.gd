@@ -74,8 +74,9 @@ func _process(delta: float) -> void:
 	# The standalone boot test allows 180s for construction. A 90s gate quit
 	# before a slow extracted client could submit its first GuiRenderer frame.
 	# Resource reload can keep the loading overlay up for several minutes.
-	# Entering a world and meshing the first chunks needs longer than the menu.
-	var limit := 600.0 if require_world else 300.0
+	# Title and resource reload can consume most of the viewport window. World
+	# creation and the first chunk meshes need time after that.
+	var limit := 1100.0 if require_world else 300.0
 	if _java_gui_wait >= limit:
 		_java_gui_reported = true
 		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d text %d world %d presented %d world_presented %d" % [str(native), passes, draws, gui_draws, text_draws, world_draws, presented, presented_world])

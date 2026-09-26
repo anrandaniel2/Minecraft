@@ -286,7 +286,7 @@ jobs:
           # block-buffered, so a fatal signal otherwise drops handle_crash.
           # Do not pass --headless: that selects the dummy rendering driver.
           xvfb-run -a --server-args="-screen 0 1280x720x24" \
-            stdbuf -o0 -e0 timeout 720 "$GODOT_BIN" \
+            stdbuf -o0 -e0 timeout 1260 "$GODOT_BIN" \
               --display-driver x11 \
               --audio-driver Dummy \
               --rendering-driver vulkan \

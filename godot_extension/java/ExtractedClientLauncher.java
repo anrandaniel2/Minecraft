@@ -739,14 +739,22 @@ public final class ExtractedClientLauncher {
         if (screen != null && screen.getClass().getSimpleName().contains("Confirm")
                 && acceptBooleanCallback(screen)) {
             System.err.println("MINECRAFT_GD_WORLD confirmed " + screenName);
-            worldEntryRequested.set(false);
             return;
         }
+        // createFreshLevel returns before the client joins. A null level is the
+        // loading screen, not a failure. Retry only after we are back on the title.
+        if (worldEntryRequested.get()) {
+            if (!screenName.equals("TitleScreen") || now < nextWorldAttemptNanos) {
+                return;
+            }
+            worldEntryRequested.set(false);
+            System.err.println("MINECRAFT_GD_WORLD retry");
+        }
         if (screen == null || !screen.getClass().getName().endsWith("TitleScreen")
-                || now < nextWorldAttemptNanos
                 || !worldEntryRequested.compareAndSet(false, true)) {
             return;
         }
+        nextWorldAttemptNanos = now + 20_000_000_000L;
         System.err.println("MINECRAFT_GD_WORLD title");
         tuneHeadlessOptions(minecraft);
         createFreshWorld(minecraft);
@@ -821,11 +829,8 @@ public final class ExtractedClientLauncher {
                     WorldPresets::createNormalWorldDimensions,
                     returnScreen
             );
-            System.err.println("MINECRAFT_GD_WORLD create");
-            if (readMember(minecraft, "level") == null) {
-                worldEntryRequested.set(false);
-                nextWorldAttemptNanos = System.nanoTime() + 5_000_000_000L;
-            }
+            System.err.println("MINECRAFT_GD_WORLD create level "
+                    + (readMember(minecraft, "level") != null));
         } catch (Throwable failure) {
             worldEntryRequested.set(false);
             nextWorldAttemptNanos = System.nanoTime() + 5_000_000_000L;
