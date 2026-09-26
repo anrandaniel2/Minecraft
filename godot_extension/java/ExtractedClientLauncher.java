@@ -21,9 +21,13 @@ import net.minecraft.client.main.GameConfig;
 import net.minecraft.client.main.Main;
 import net.minecraft.godot.renderpearl.GodotGpuBackend;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.server.packs.VanillaPackResourcesBuilder;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -39,7 +43,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
-import java.util.function.Consumer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -71,6 +74,9 @@ public final class ExtractedClientLauncher {
     /** Set by the Godot host from the process environment before the isolate starts. */
     private static volatile boolean enterWorldFromHost;
     private static volatile Path gameDirectoryPath;
+    private static final AtomicInteger vanillaPackApplications = new AtomicInteger();
+    private static final StringBuilder capturedErrors = new StringBuilder();
+    private static PrintStream originalErr;
     /** True while {@code runTick} is on the stack, so encoder hooks leave the task queued. */
     private static volatile boolean insideClientTick;
     private static long nextWorldAttemptNanos;
@@ -401,6 +407,7 @@ public final class ExtractedClientLauncher {
             Runtime.getRuntime().addShutdownHook(new Thread(
                     ExtractedClientLauncher::printCrashReports, "minecraft-crash-report"));
             System.err.println("MINECRAFT_GD_USER_DIR " + System.getProperty("user.dir"));
+            installErrorTap();
             configureProcess();
             loadNativeLibraries();
             SharedConstants.tryDetectVersion();
@@ -693,36 +700,21 @@ public final class ExtractedClientLauncher {
     /**
      * Native image cannot turn classpath resources into a file or jar path, so
      * {@code pushJarResources} lists an empty vanilla pack and world creation
-     * bails back to the title screen. Register the extracted tree instead.
+     * bails back to the title screen. A direct write stays visible to analysis;
+     * a reflective write can be constant-folded back to the no-op consumer.
      */
     private static void exposeExtractedVanillaPack() {
         Path root = extractedRoot();
         if (root == null) {
-            System.err.println("MINECRAFT_GD_WORLD pack missing");
+            System.err.println("MINECRAFT_GD_WORLD pack missing dir " + System.getProperty("user.dir"));
             return;
         }
-        try {
-            Class<?> builderType = Class.forName("net.minecraft.server.packs.VanillaPackResourcesBuilder");
-            Method push = builderType.getMethod("pushUniversalPath", Path.class);
-            Field field = builderType.getField("developmentConfig");
-            Object previous = field.get(null);
-            field.set(null, (Consumer<Object>) target -> {
-                if (previous instanceof Consumer<?> consumer) {
-                    @SuppressWarnings("unchecked")
-                    Consumer<Object> typed = (Consumer<Object>) consumer;
-                    typed.accept(target);
-                }
-                try {
-                    push.invoke(target, root);
-                } catch (ReflectiveOperationException failure) {
-                    System.err.println("MINECRAFT_GD_WORLD pack " + failure.getClass().getSimpleName());
-                }
-            });
-            System.err.println("MINECRAFT_GD_WORLD pack " + root);
-        } catch (ReflectiveOperationException failure) {
-            System.err.println("MINECRAFT_GD_WORLD pack " + failure.getClass().getSimpleName()
-                    + " " + failure.getMessage());
-        }
+        VanillaPackResourcesBuilder.developmentConfig = builder -> {
+            builder.pushUniversalPath(root);
+            int applied = vanillaPackApplications.incrementAndGet();
+            System.err.println("MINECRAFT_GD_WORLD pack-applied " + applied + " " + root);
+        };
+        System.err.println("MINECRAFT_GD_WORLD pack " + root);
     }
 
     private static Path extractedRoot() {
@@ -765,6 +757,93 @@ public final class ExtractedClientLauncher {
             Files.writeString(file, "# headless viewport\n[prefix]/\n[/]\n");
         } catch (IOException failure) {
             System.err.println("MINECRAFT_GD_WORLD symlinks " + failure.getClass().getSimpleName());
+        }
+    }
+
+    private static void installErrorTap() {
+        if (originalErr != null) {
+            return;
+        }
+        originalErr = System.err;
+        System.setErr(new PrintStream(new OutputStream() {
+            private final ByteArrayOutputStream line = new ByteArrayOutputStream();
+
+            @Override
+            public void write(int value) {
+                originalErr.write(value);
+                if (value == '\n') {
+                    rememberErrorLine(line.toString(StandardCharsets.UTF_8));
+                    line.reset();
+                } else if (value != '\r') {
+                    line.write(value);
+                }
+            }
+
+            @Override
+            public void write(byte[] buffer, int offset, int length) {
+                originalErr.write(buffer, offset, length);
+                for (int index = offset; index < offset + length; index++) {
+                    int value = buffer[index] & 0xff;
+                    if (value == '\n') {
+                        rememberErrorLine(line.toString(StandardCharsets.UTF_8));
+                        line.reset();
+                    } else if (value != '\r') {
+                        line.write(value);
+                    }
+                }
+            }
+        }, true, StandardCharsets.UTF_8));
+    }
+
+    private static void rememberErrorLine(String line) {
+        String lower = line.toLowerCase();
+        if (!(lower.contains("fail") || lower.contains("exception") || lower.contains("error")
+                || lower.contains("datapack") || lower.contains("symlink") || lower.contains("warn")
+                || lower.contains("couldn't") || lower.contains("could not"))) {
+            return;
+        }
+        if (line.contains("MINECRAFT_GD_")) {
+            return;
+        }
+        synchronized (capturedErrors) {
+            if (capturedErrors.length() > 4000) {
+                capturedErrors.delete(0, capturedErrors.length() - 2500);
+            }
+            if (capturedErrors.length() > 0) {
+                capturedErrors.append(" || ");
+            }
+            capturedErrors.append(line);
+        }
+    }
+
+    private static void printCapturedErrors() {
+        String text;
+        synchronized (capturedErrors) {
+            text = capturedErrors.toString();
+        }
+        System.err.println("MINECRAFT_GD_WORLD fail " + (text.isBlank() ? "no-captured-error" : clip(text, 700)));
+    }
+
+    /** A failed create can leave the level folder behind and make the retry fail differently. */
+    private static void deletePartialWorld() {
+        Path directory = gameDirectoryPath;
+        if (directory == null) {
+            return;
+        }
+        Path world = directory.resolve("saves").resolve("godot");
+        if (!Files.exists(world)) {
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(world)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                    // The next create reports the leftover if it still matters.
+                }
+            });
+        } catch (IOException failure) {
+            System.err.println("MINECRAFT_GD_WORLD cleanup " + failure.getClass().getSimpleName());
         }
     }
 
@@ -935,6 +1014,7 @@ public final class ExtractedClientLauncher {
                     false,
                     WorldDataConfiguration.DEFAULT
             );
+            deletePartialWorld();
             flows.createFreshLevel(
                     "godot",
                     settings,
@@ -943,9 +1023,12 @@ public final class ExtractedClientLauncher {
                     returnScreen
             );
             boolean joined = readMember(minecraft, "level") != null;
-            System.err.println("MINECRAFT_GD_WORLD create level " + joined);
+            System.err.println("MINECRAFT_GD_WORLD create level " + joined
+                    + " applied " + vanillaPackApplications.get()
+                    + " dir " + gameDirectoryPath);
             if (!joined) {
                 printWorldLogTail();
+                printCapturedErrors();
             }
         } catch (Throwable failure) {
             worldEntryRequested.set(false);

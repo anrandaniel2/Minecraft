@@ -19,7 +19,11 @@ DIAGNOSTIC_MARKERS = (
     "MINECRAFT_GD_RELOAD",
     "JAVA_GUI_MISSING",
     "JAVA_GUI_COMMANDS",
-    "Failed to load",
+    "Failed to ",
+    "Couldn't resolve",
+    "unexpected schema",
+    "does not exist in classpath",
+    "MINECRAFT_GD_USER_DIR",
     "MINECRAFT_GD_WORLD",
 )
 
