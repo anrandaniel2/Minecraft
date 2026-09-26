@@ -307,7 +307,7 @@ jobs:
               python3 tools/report_minecraft_crash.py . || true
               echo "GODOT_MARKERS_END"
               echo "DIAG_WORLD"
-              grep -E 'MINECRAFT_GD_WORLD (pack|pack-applied|title|create|retry|log|fail|cause|symlinks|confirmed|requested|cleanup)|MINECRAFT_GD_USER_DIR' "$RUNNER_TEMP/godot-gui.log" | tail -n 40 || true
+              grep -E 'MINECRAFT_GD_WORLD (pack|pack-applied|title|create|retry|log|fail|cause|raw|thread|symlinks|confirmed|requested|cleanup)|MINECRAFT_GD_USER_DIR' "$RUNNER_TEMP/godot-gui.log" | tail -n 40 || true
               echo "DIAG_FAIL"
               grep -E 'Failed to |ERROR|Couldn.t resolve|unexpected schema|does not exist in classpath|datapack|symlink|Exception' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_STACK' | tail -n 20 || true
               echo "DIAG_CLIENT"

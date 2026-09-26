@@ -36,6 +36,7 @@ import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -76,6 +77,8 @@ public final class ExtractedClientLauncher {
     private static volatile Path gameDirectoryPath;
     private static final AtomicInteger vanillaPackApplications = new AtomicInteger();
     private static final StringBuilder capturedErrors = new StringBuilder();
+    private static final ArrayDeque<String> worldErrRing = new ArrayDeque<>();
+    private static volatile boolean captureWorldCauses;
     private static PrintStream originalErr;
     /** True while {@code runTick} is on the stack, so encoder hooks leave the task queued. */
     private static volatile boolean insideClientTick;
@@ -718,7 +721,9 @@ public final class ExtractedClientLauncher {
         VanillaPackResourcesBuilder.developmentConfig = builder -> {
             builder.pushUniversalPath(root);
             int applied = vanillaPackApplications.incrementAndGet();
-            System.err.println("MINECRAFT_GD_WORLD pack-applied " + applied + " " + root);
+            if (applied <= 3) {
+                System.err.println("MINECRAFT_GD_WORLD pack-applied " + applied + " " + root);
+            }
         };
         System.err.println("MINECRAFT_GD_WORLD pack " + root);
     }
@@ -803,13 +808,22 @@ public final class ExtractedClientLauncher {
     }
 
     private static void rememberErrorLine(String line) {
-        String lower = line.toLowerCase();
-        if (!(lower.contains("fail") || lower.contains("exception") || lower.contains("error")
-                || lower.contains("datapack") || lower.contains("symlink") || lower.contains("warn")
-                || lower.contains("couldn't") || lower.contains("could not"))) {
+        if (line.contains("MINECRAFT_GD_")) {
             return;
         }
-        if (line.contains("MINECRAFT_GD_")) {
+        if (captureWorldCauses) {
+            synchronized (worldErrRing) {
+                worldErrRing.add(line);
+                while (worldErrRing.size() > 12) {
+                    worldErrRing.removeFirst();
+                }
+            }
+            if (worldCause(line)) {
+                originalErr.println("MINECRAFT_GD_WORLD cause " + clip(line, 180));
+            }
+            return;
+        }
+        if (!worldCause(line)) {
             return;
         }
         synchronized (capturedErrors) {
@@ -823,19 +837,45 @@ public final class ExtractedClientLauncher {
         }
     }
 
+    private static boolean worldCause(String line) {
+        String lower = line.toLowerCase();
+        return lower.contains("fail") || lower.contains("exception") || lower.contains("error")
+                || lower.contains("warn") || lower.contains("disconnect") || lower.contains("protocol")
+                || lower.contains("closed") || lower.contains("crash") || lower.contains("unavailable")
+                || lower.contains("login") || lower.contains("invalid") || lower.contains("missing")
+                || lower.contains("unable") || lower.contains("datapack") || lower.contains("symlink");
+    }
+
     private static void printCapturedCauses() {
-        String text;
-        synchronized (capturedErrors) {
-            text = capturedErrors.toString();
+        String[] lines;
+        synchronized (worldErrRing) {
+            lines = worldErrRing.toArray(String[]::new);
         }
-        if (text.isBlank()) {
-            System.err.println("MINECRAFT_GD_WORLD cause none");
+        if (lines.length == 0) {
+            System.err.println("MINECRAFT_GD_WORLD raw none");
             return;
         }
-        String[] parts = text.split(" \\|\\| ");
-        int start = Math.max(0, parts.length - 4);
-        for (int index = start; index < parts.length; index++) {
-            System.err.println("MINECRAFT_GD_WORLD cause " + clip(parts[index], 180));
+        int start = Math.max(0, lines.length - 6);
+        for (int index = start; index < lines.length; index++) {
+            System.err.println("MINECRAFT_GD_WORLD raw " + clip(lines[index], 180));
+        }
+    }
+
+    private static void printServerThreads() {
+        int shown = 0;
+        for (Thread thread : Thread.getAllStackTraces().keySet()) {
+            String name = thread.getName().toLowerCase();
+            if (!name.contains("server") && !name.contains("integrated")) {
+                continue;
+            }
+            System.err.println("MINECRAFT_GD_WORLD thread " + thread.getName() + " " + thread.getState());
+            shown++;
+            if (shown >= 4) {
+                break;
+            }
+        }
+        if (shown == 0) {
+            System.err.println("MINECRAFT_GD_WORLD thread server-missing");
         }
     }
 
@@ -1033,6 +1073,10 @@ public final class ExtractedClientLauncher {
             synchronized (capturedErrors) {
                 capturedErrors.setLength(0);
             }
+            synchronized (worldErrRing) {
+                worldErrRing.clear();
+            }
+            captureWorldCauses = true;
             flows.createFreshLevel(
                     "godot",
                     settings,
@@ -1041,9 +1085,13 @@ public final class ExtractedClientLauncher {
                     returnScreen
             );
             boolean joined = readMember(minecraft, "level") != null;
+            Object screenNow = gui == null ? null : invokeNoArgs(gui, "screen");
+            String screenNowName = screenNow == null ? "none" : screenNow.getClass().getSimpleName();
             System.err.println("MINECRAFT_GD_WORLD create level " + joined
+                    + " screen " + screenNowName
                     + " applied " + vanillaPackApplications.get()
                     + " dir " + gameDirectoryPath);
+            printServerThreads();
             if (!joined) {
                 printCapturedCauses();
                 printWorldLogTail();
