@@ -106,6 +106,9 @@ final class GodotRenderPass implements RenderPass {
     @Override
     public void setUniform(String name, GpuBufferSlice bufferSlice) {
         requireOpen();
+        if (bufferSlice == null) {
+            return;
+        }
         GodotGpuBuffer buffer = requireBuffer(bufferSlice);
         writer.setUniformBuffer(name, buffer.nativeHandle(), bufferSlice.offset(), bufferSlice.length());
     }
@@ -156,6 +159,11 @@ final class GodotRenderPass implements RenderPass {
     @Override
     public void setVertexBuffer(int slot, GpuBufferSlice vertexBuffer) {
         requireOpen();
+        // VulkanRenderPass returns when the slice is null. World passes use that
+        // to skip an empty slot; throwing aborted the first world frame.
+        if (vertexBuffer == null) {
+            return;
+        }
         GodotGpuBuffer buffer = requireBuffer(vertexBuffer);
         writer.setVertexBuffer(slot, buffer.nativeHandle(), vertexBuffer.offset(), vertexBuffer.length());
     }
@@ -224,12 +232,45 @@ final class GodotRenderPass implements RenderPass {
             Collection<String> dynamicUniforms,
             T uniformArgument
     ) {
-        throw unsupported("dynamic-uniform indexed multi-draw");
+        requireOpen();
+        if (draws == null || draws.isEmpty()) {
+            return;
+        }
+        RenderPass.UniformUploader uploader = new RenderPass.UniformUploader() {
+            @Override
+            public void setUniform(String name, GpuBufferSlice slice) {
+                GodotRenderPass.this.setUniform(name, slice);
+            }
+
+            @Override
+            public void pushConstants(ByteBuffer data) {
+                // Chunk and entity draws bind uniforms by name. Push constants are unused here.
+            }
+        };
+        for (RenderPass.Draw<T> draw : draws) {
+            if (draw == null || draw.indexCount() <= 0) {
+                continue;
+            }
+            if (draw.uniformUploaderConsumer() != null) {
+                draw.uniformUploaderConsumer().accept(uniformArgument, uploader);
+            }
+            GpuBuffer vertices = draw.vertexBuffer();
+            if (vertices != null) {
+                setVertexBuffer(draw.slot(), vertices.slice());
+            }
+            GpuBuffer indices = draw.indexBuffer() != null ? draw.indexBuffer() : defaultIndexBuffer;
+            IndexType indexType = draw.indexType() != null ? draw.indexType() : defaultIndexType;
+            if (indices != null) {
+                setIndexBuffer(indices, indexType);
+            }
+            writer.drawIndexed(draw.indexCount(), 1, draw.firstIndex(), draw.baseVertex(), 0);
+        }
     }
 
     @Override
     public void drawIndexedIndirect(GpuBufferSlice commands, int drawCount) {
-        throw unsupported("indexed indirect draws");
+        requireOpen();
+        expandIndirect(commands, drawCount, true);
     }
 
     @Override
@@ -268,7 +309,44 @@ final class GodotRenderPass implements RenderPass {
 
     @Override
     public void drawIndirect(GpuBufferSlice commands, int drawCount) {
-        throw unsupported("indirect draws");
+        requireOpen();
+        expandIndirect(commands, drawCount, false);
+    }
+
+    /** Expands CPU-staged indirect commands into the direct draws this executor records. */
+    private void expandIndirect(GpuBufferSlice commands, int drawCount, boolean indexed) {
+        if (commands == null || drawCount <= 0 || !(commands.buffer() instanceof GodotGpuBuffer buffer)) {
+            return;
+        }
+        int stride = indexed ? 20 : 16;
+        long offset = commands.offset();
+        for (int draw = 0; draw < drawCount; draw++) {
+            byte[] raw;
+            try {
+                raw = buffer.copyRange(offset + (long) draw * stride, stride);
+            } catch (RuntimeException ignored) {
+                return;
+            }
+            ByteBuffer view = ByteBuffer.wrap(raw).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            if (indexed) {
+                int indexCount = view.getInt();
+                int instanceCount = view.getInt();
+                int firstIndex = view.getInt();
+                int vertexOffset = view.getInt();
+                int firstInstance = view.getInt();
+                if (indexCount > 0 && instanceCount > 0) {
+                    writer.drawIndexed(indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+                }
+            } else {
+                int vertexCount = view.getInt();
+                int instanceCount = view.getInt();
+                int firstVertex = view.getInt();
+                view.getInt();
+                if (vertexCount > 0 && instanceCount > 0) {
+                    writer.draw(vertexCount, instanceCount, firstVertex, 0);
+                }
+            }
+        }
     }
 
     @Override

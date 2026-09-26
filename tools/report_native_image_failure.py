@@ -34,6 +34,7 @@ PRIORITY_MARKERS = (
     "MINECRAFT_GD_WORLD cause",
     "MINECRAFT_GD_WORLD raw",
     "MINECRAFT_GD_WORLD thread",
+    "MINECRAFT_GD_WORLD tick",
     "MINECRAFT_GD_WORLD logfile",
 )
 
@@ -56,7 +57,7 @@ def diagnostic_lines(lines: list[str]) -> list[str]:
         selected.extend(matched[-limit:])
     for marker in PRIORITY_MARKERS:
         matched = [line for line in lines if marker in line]
-        limit = 8 if marker == "MINECRAFT_GD_WORLD logfile" else 3
+        limit = 8 if marker == "MINECRAFT_GD_WORLD logfile" or marker == "MINECRAFT_GD_WORLD tick" else 3
         selected.extend(matched[-limit:])
     return selected
 

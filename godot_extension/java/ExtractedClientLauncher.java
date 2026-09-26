@@ -1056,6 +1056,26 @@ public final class ExtractedClientLauncher {
     }
 
     private static volatile boolean loggedWorldLoaded;
+    private static int tickFailures;
+
+    private static void emitTickTrace(Throwable cause) {
+        StackTraceElement[] trace = cause.getStackTrace();
+        int limit = Math.min(trace.length, 6);
+        for (int index = 0; index < limit; index++) {
+            emit("MINECRAFT_GD_WORLD tick " + trace[index]);
+        }
+        Throwable nested = cause.getCause();
+        if (nested == null) {
+            return;
+        }
+        emit("MINECRAFT_GD_WORLD tick cause " + nested.getClass().getSimpleName()
+                + " " + nested.getMessage());
+        StackTraceElement[] nestedTrace = nested.getStackTrace();
+        int nestedLimit = Math.min(nestedTrace.length, 4);
+        for (int index = 0; index < nestedLimit; index++) {
+            emit("MINECRAFT_GD_WORLD tick " + nestedTrace[index]);
+        }
+    }
 
     private static void maybeEnterWorld(Minecraft minecraft) {
         if (!enterWorldRequested()) {
@@ -1250,9 +1270,15 @@ public final class ExtractedClientLauncher {
                 Throwable cause = wrapped.getCause() == null ? wrapped : wrapped.getCause();
                 emit("MINECRAFT_GD_WORLD tick " + cause.getClass().getSimpleName()
                         + " " + cause.getMessage());
-                cause.printStackTrace(System.err);
+                if (tickFailures < 3) {
+                    tickFailures++;
+                    emitTickTrace(cause);
+                }
                 if (cause instanceof OutOfMemoryError) {
                     System.gc();
+                }
+                // One bad frame must not abandon a world the server already saved.
+                if (minecraft.isRunning()) {
                     continue;
                 }
                 break;
