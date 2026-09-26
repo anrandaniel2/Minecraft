@@ -287,7 +287,7 @@ jobs:
           # block-buffered, so a fatal signal otherwise drops handle_crash.
           # Do not pass --headless: that selects the dummy rendering driver.
           xvfb-run -a --server-args="-screen 0 1280x720x24" \
-            stdbuf -o0 -e0 timeout 1260 "$GODOT_BIN" \
+            stdbuf -o0 -e0 timeout 1500 "$GODOT_BIN" \
               --display-driver x11 \
               --audio-driver Dummy \
               --rendering-driver vulkan \
@@ -307,7 +307,7 @@ jobs:
               python3 tools/report_minecraft_crash.py . || true
               echo "GODOT_MARKERS_END"
               echo "DIAG_WORLD"
-              grep -E 'MINECRAFT_GD_WORLD (pack|pack-applied|title|create|retry|log|logfile|log4j|uncaught|fail|cause|raw|thread|tick|symlinks|confirmed|requested|cleanup)|MINECRAFT_GD_USER_DIR' "$RUNNER_TEMP/godot-gui.log" | tail -n 40 || true
+              grep -E 'MINECRAFT_GD_WORLD (pack|pack-applied|title|create|retry|log|logfile|log4j|uncaught|fail|cause|raw|thread|tick|symlinks|confirmed|requested|cleanup|seed|families|category|pipeline)|MINECRAFT_GD_USER_DIR' "$RUNNER_TEMP/godot-gui.log" | tail -n 40 || true
               echo "DIAG_LOGFILE"
               if [[ -f /tmp/minecraft-godot.log ]]; then
                 tail -n 6 /tmp/minecraft-godot.log | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
@@ -334,12 +334,18 @@ jobs:
             exit "$godot_status"
           fi
           proof_line="$(grep -m1 'JAVA_GUI_COMMANDS' "$RUNNER_TEMP/godot-gui.log")"
-          echo "::notice title=Java GUI proof::${proof_line}"
+          family_line="$(grep -m1 'JAVA_GUI_FAMILIES' "$RUNNER_TEMP/godot-gui.log" || true)"
+          echo "::notice title=Java GUI proof::${proof_line} ${family_line}"
           presented="$(awk '{print $4}' <<< "$proof_line")"
           world_draws="$(awk '{print $8}' <<< "$proof_line")"
-          if [[ "${presented:-0}" -le 0 || "${world_draws:-0}" -le 0 ]]; then
+          terrain_draws="$(awk '{print $3}' <<< "$family_line")"
+          entity_draws="$(awk '{print $5}' <<< "$family_line")"
+          particle_draws="$(awk '{print $9}' <<< "$family_line")"
+          fluid_draws="$(awk '{print $11}' <<< "$family_line")"
+          post_draws="$(awk '{print $13}' <<< "$family_line")"
+          if [[ "${presented:-0}" -le 0 || "${world_draws:-0}" -le 0 || "${terrain_draws:-0}" -le 0 || "${entity_draws:-0}" -le 0 || "${particle_draws:-0}" -le 0 || "${fluid_draws:-0}" -le 0 || "${post_draws:-0}" -le 0 ]]; then
             {
-              echo "Viewport did not present a Java world draw: $proof_line"
+              echo "Viewport did not present terrain, entity, fluid, particle, and post draws: $proof_line $family_line"
               grep 'MINECRAFT_GD_WORLD' "$RUNNER_TEMP/godot-gui.log" | tail -n 30 || true
               if [[ -f /tmp/minecraft-godot.log ]]; then
                 tail -n 6 /tmp/minecraft-godot.log | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true

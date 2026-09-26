@@ -13,6 +13,7 @@ const FAMILY_WORLD_TERRAIN := 4
 const FAMILY_WORLD_ENTITY := 5
 const FAMILY_WORLD_SKY := 6
 const FAMILY_WORLD_PARTICLE := 7
+const FAMILY_WORLD_POST := 8
 
 const KIND_DRAW := 1
 const KIND_DRAW_INDEXED := 2
@@ -83,6 +84,8 @@ func execute(
 	var presented: Array = []
 	var completed := 0
 	var world_completed := 0
+	var fluid_completed := 0
+	var family_counts: Array[int] = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 	for pass_variant in passes:
 		var render_pass: Dictionary = pass_variant
 		var color_id: int = render_pass.get("color_id", 0)
@@ -92,7 +95,9 @@ func execute(
 		var start: int = render_pass.get("draw_start", 0)
 		var count: int = render_pass.get("draw_count", 0)
 		var size: Vector2i = render_pass.get("size", Vector2i.ZERO)
-		var wants_depth := int(render_pass.get("depth_id", 0)) != 0 or _pass_has_world(draws, start, count)
+		# Post composites share the scene color target. Attaching a fresh depth
+		# buffer here would clear the world depth the composite has to keep.
+		var wants_depth := int(render_pass.get("depth_id", 0)) != 0 or _pass_has_scene(draws, start, count)
 		var framebuffer := _framebuffer(
 				rendering_device, framebuffers, color_id, color_texture, wants_depth, size
 		)
@@ -101,6 +106,9 @@ func execute(
 		var depth_attached: bool = bool(_framebuffer_has_depth.get(color_id, false))
 		var prepared: Array = []
 		var temporary: Array[RID] = []
+		var scene_draws := 0
+		var gui_draws := 0
+		var post_draws := 0
 		for index in range(start, mini(start + count, draws.size())):
 			var ready := _prepare_draw(
 					rendering_device, draws[index], buffer_rids, texture_rids, framebuffer, temporary, depth_attached
@@ -136,13 +144,35 @@ func execute(
 		for ready_variant in prepared:
 			if _record_draw(rendering_device, draw_list, ready_variant):
 				completed += 1
-				if int(ready_variant.get("family", 0)) >= FAMILY_WORLD_TERRAIN:
+				var family := int(ready_variant.get("family", 0))
+				if family >= FAMILY_WORLD_TERRAIN:
 					world_completed += 1
+				if family >= 0 and family < family_counts.size():
+					family_counts[family] += 1
+				if family == FAMILY_WORLD_TERRAIN and int(ready_variant.get("blend", BLEND_OPAQUE)) != BLEND_OPAQUE:
+					fluid_completed += 1
+				if family == FAMILY_WORLD_TERRAIN or family == FAMILY_WORLD_ENTITY or family == FAMILY_WORLD_SKY:
+					scene_draws += 1
+				if family >= FAMILY_GUI_COLOR and family <= FAMILY_GUI_TEXT:
+					gui_draws += 1
+				if family == FAMILY_WORLD_POST:
+					post_draws += 1
 		rendering_device.draw_list_end()
 		_free_rids(rendering_device, temporary)
 		if size.x > 1 and size.y > 1:
-			presented.append({"rid": color_texture, "size": size})
-	return {"draws": completed, "world_draws": world_completed, "presented": presented}
+			presented.append({
+				"rid": color_texture,
+				"size": size,
+				"scene": scene_draws > 0,
+				"post_only": post_draws > 0 and scene_draws == 0 and gui_draws == 0,
+			})
+	return {
+		"draws": completed,
+		"world_draws": world_completed,
+		"fluid_draws": fluid_completed,
+		"family_counts": family_counts,
+		"presented": presented,
+	}
 
 
 func _free_rids(rendering_device: RenderingDevice, rids: Array[RID]) -> void:
@@ -151,11 +181,36 @@ func _free_rids(rendering_device: RenderingDevice, rids: Array[RID]) -> void:
 			rendering_device.free_rid(rid)
 
 
-func _pass_has_world(draws: Array, start: int, count: int) -> bool:
+func _pass_has_scene(draws: Array, start: int, count: int) -> bool:
 	for index in range(start, mini(start + count, draws.size())):
-		if int(draws[index].get("family", 0)) >= FAMILY_WORLD_TERRAIN:
+		var family := int(draws[index].get("family", 0))
+		if family >= FAMILY_WORLD_TERRAIN and family != FAMILY_WORLD_POST:
 			return true
 	return false
+
+
+func _fullscreen_triangle(rendering_device: RenderingDevice) -> Dictionary:
+	# Matches core/screenquad.vsh: one oversized triangle, UV in location 2
+	# because world shaderLocation remaps UV0 there.
+	var bytes := PackedByteArray()
+	bytes.resize(60)
+	var vertices := PackedFloat32Array([
+		-1.0, -1.0, 0.0, 0.0, 0.0,
+		3.0, -1.0, 0.0, 2.0, 0.0,
+		-1.0, 3.0, 0.0, 0.0, 2.0,
+	])
+	for index in vertices.size():
+		bytes.encode_float(index * 4, vertices[index])
+	var buffer := rendering_device.vertex_buffer_create(bytes.size(), bytes)
+	if not buffer.is_valid():
+		return {}
+	return {
+		"buffer": buffer,
+		"attributes": [
+			{"location": 0, "offset": 0, "format": GPU_RGB32_FLOAT},
+			{"location": 2, "offset": 12, "format": GPU_RG32_FLOAT},
+		],
+	}
 
 
 func _prepare_draw(
@@ -168,11 +223,29 @@ func _prepare_draw(
 		depth_attached: bool = false
 ) -> Dictionary:
 	var family: int = draw.get("family", 0)
-	if family < FAMILY_GUI_COLOR or family > FAMILY_WORLD_PARTICLE:
+	if family < FAMILY_GUI_COLOR or family > FAMILY_WORLD_POST:
 		return {}
 	var stride: int = draw.get("vertex_stride", 0)
 	var vertex_buffer: RID = buffer_rids.get(draw.get("vertex_buffer_id", 0), RID())
-	if stride <= 0 or not vertex_buffer.is_valid():
+	# screenquad.vsh draws from gl_VertexIndex and binds no vertex buffer.
+	# OIT composite and blit_screen are that kind of pass.
+	if family == FAMILY_WORLD_POST and (stride <= 0 or not vertex_buffer.is_valid()):
+		var synthesized := _fullscreen_triangle(rendering_device)
+		if synthesized.is_empty():
+			return {}
+		temporary.append(synthesized["buffer"])
+		vertex_buffer = synthesized["buffer"]
+		stride = 20
+		draw = draw.duplicate()
+		draw["attributes"] = synthesized["attributes"]
+		draw["vertex_stride"] = 20
+		draw["kind"] = KIND_DRAW
+		draw["count"] = 3
+		draw["first"] = 0
+		draw["base_vertex"] = 0
+		draw["vertex_offset"] = 0
+		draw["topology"] = 4
+	elif stride <= 0 or not vertex_buffer.is_valid():
 		return {}
 	var pipeline := _pipeline(rendering_device, framebuffer, family, draw, depth_attached)
 	if not pipeline.is_valid():
@@ -184,7 +257,11 @@ func _prepare_draw(
 			draw.get("scissor_height", 0)
 	)
 	if scissor.size.x <= 0.0 or scissor.size.y <= 0.0:
-		return {}
+		var target_size: Vector2i = draw.get("target_size", Vector2i.ZERO)
+		if family == FAMILY_WORLD_POST and target_size.x > 0 and target_size.y > 0:
+			scissor = Rect2(0, 0, target_size.x, target_size.y)
+		else:
+			return {}
 	var topology := int(draw.get("topology", 4))
 	var indexed: bool = int(draw.get("kind", 0)) == KIND_DRAW_INDEXED
 	# Vulkan draws QUADS as triangle lists. Indexed GUI buffers are already the
@@ -258,6 +335,7 @@ func _prepare_draw(
 		"index_array": index_array,
 		"uniform_sets": uniform_sets,
 		"instances": maxi(int(draw.get("instance_count", 1)), 1),
+		"blend": int(draw.get("blend", BLEND_OPAQUE)),
 	}
 
 
@@ -311,6 +389,10 @@ func _uniform_sets(
 	if family == FAMILY_GUI_COLOR or family == FAMILY_WORLD_SKY:
 		return sets
 	var texture: RID = texture_rids.get(draw.get("sampler0_texture_id", 0), RID())
+	# A missing post sampler must not be replaced with white. That would paint
+	# over the scene color target the composite is supposed to leave alone.
+	if family == FAMILY_WORLD_POST and not texture.is_valid():
+		return []
 	if not texture.is_valid():
 		texture = _white(rendering_device)
 	var base_mip: int = draw.get("sampler0_base_mip", 0)
@@ -586,10 +668,31 @@ func _vertex_format(rendering_device: RenderingDevice, family: int, stride: int,
 func _world_location_used(family: int, location: int) -> bool:
 	if family == FAMILY_WORLD_SKY:
 		return location == 0
+	if family == FAMILY_WORLD_POST:
+		return location == 0 or location == 2
 	return location == 0 or location == 1 or location == 2 or location == 4
 
 
 func _world_vertex_shader(family: int, draw: Dictionary) -> String:
+	if family == FAMILY_WORLD_POST:
+		return """#version 450
+layout(location = 0) in vec3 a_position;
+layout(location = 2) in vec2 a_uv;
+layout(location = 0) out vec2 v_uv;
+layout(std140, set = 0, binding = 0) uniform DynamicTransforms {
+	mat4 ModelViewMat;
+	mat4 TextureMat;
+	vec4 ColorModulator;
+	vec4 ModelOffset;
+};
+layout(std140, set = 1, binding = 0) uniform Projection {
+	mat4 ProjMat;
+};
+void main() {
+	gl_Position = vec4(a_position.xy, 0.0, 1.0);
+	v_uv = a_uv;
+}
+"""
 	if family == FAMILY_WORLD_SKY:
 		return """#version 450
 layout(location = 0) in vec3 a_position;
@@ -685,6 +788,23 @@ func _world_fragment_shader(family: int, draw: Dictionary) -> String:
 	var discard_test := "if (color.a == 0.0) { discard; }"
 	if bool(draw.get("cutout", false)):
 		discard_test = "if (color.a < 0.1) { discard; }"
+	if family == FAMILY_WORLD_POST:
+		# Approximate core/oit_composite.fsh. Empty texels are discarded so a
+		# composite cannot wipe the opaque scene when its blend is opaque.
+		return """#version 450
+layout(location = 0) in vec2 v_uv;
+layout(set = 2, binding = 0) uniform sampler2D Sampler0;
+layout(location = 0) out vec4 frag_color;
+void main() {
+	vec4 accumulated = texture(Sampler0, v_uv);
+	if (accumulated.a < 0.00001 && dot(accumulated.rgb, vec3(1.0)) < 0.00001) {
+		discard;
+	}
+	float coverage = clamp(accumulated.a, 0.0, 1.0);
+	float normalization = accumulated.a > 0.00001 ? coverage / accumulated.a : 1.0;
+	frag_color = vec4(accumulated.rgb * normalization, max(coverage, 0.00001));
+}
+"""
 	if family == FAMILY_WORLD_SKY:
 		return """#version 450
 layout(location = 0) in vec4 v_color;
@@ -803,7 +923,7 @@ func _depth_texture(rendering_device: RenderingDevice, color_id: int, size: Vect
 
 func _depth_state(family: int, depth_attached: bool) -> RDPipelineDepthStencilState:
 	var state := RDPipelineDepthStencilState.new()
-	if family >= FAMILY_WORLD_TERRAIN and depth_attached:
+	if family >= FAMILY_WORLD_TERRAIN and family != FAMILY_WORLD_POST and depth_attached:
 		state.enable_depth_test = true
 		state.enable_depth_write = true
 		# Reversed-Z: near fragments have the greater depth value.

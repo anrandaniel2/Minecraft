@@ -702,7 +702,7 @@ static bool compile_pipeline(void *user_data, const MinecraftRenderCompiledPipel
         return fail(state, MINECRAFT_RENDER_BAD_FRAME_ORDER);
     }
     if (pipeline == NULL || pipeline->pipeline_id == 0 ||
-            pipeline->family > MINECRAFT_RENDER_PIPELINE_FAMILY_WORLD_PARTICLE ||
+            pipeline->family > MINECRAFT_RENDER_PIPELINE_FAMILY_WORLD_POST ||
             pipeline->attribute_count > MINECRAFT_RENDER_MAX_PIPELINE_ATTRIBUTES ||
             pipeline->vertex_stride > 4096u ||
             (pipeline->attribute_count != 0 && pipeline->attributes == NULL)) {

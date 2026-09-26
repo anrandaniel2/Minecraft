@@ -21,6 +21,7 @@ final class GodotCompiledRenderPipeline implements CompiledRenderPipeline {
     static final int FAMILY_WORLD_ENTITY = 5;
     static final int FAMILY_WORLD_SKY = 6;
     static final int FAMILY_WORLD_PARTICLE = 7;
+    static final int FAMILY_WORLD_POST = 8;
 
     static final int BLEND_ALPHA = 0;
     static final int BLEND_PREMULTIPLIED = 1;
@@ -59,7 +60,7 @@ final class GodotCompiledRenderPipeline implements CompiledRenderPipeline {
             byte[] fragmentShader
     ) {
         this.registry = Objects.requireNonNull(registry, "registry");
-        if (family < FAMILY_UNKNOWN || family > FAMILY_WORLD_PARTICLE) {
+        if (family < FAMILY_UNKNOWN || family > FAMILY_WORLD_POST) {
             throw new IllegalArgumentException("Unknown pipeline family " + family);
         }
         if (vertexStride < 0) {

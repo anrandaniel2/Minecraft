@@ -59,16 +59,21 @@ func _process(delta: float) -> void:
 	var elapsed := int(_java_gui_wait)
 	var presented := _presented_gui_draws()
 	var presented_world := _presented_world_draws()
+	var categories := _presented_categories()
 	var require_world := OS.get_environment("MINECRAFT_REQUIRE_WORLD") == "1"
 	if elapsed > 0 and elapsed % 10 == 0 and int(_java_gui_wait - delta) != elapsed:
 		print("JAVA_GUI_WAIT native %s passes %d draws %d gui %d text %d world %d presented %d world_presented %d" % [str(native), passes, draws, gui_draws, text_draws, world_draws, presented, presented_world])
+		print(_family_line(categories))
 	# A single color quad can be the loading panel. Menu text is family 3.
-	# A world proof needs a presented terrain/entity/sky draw, not that menu.
+	# A world proof needs presented terrain, an entity, a fluid, particles, and
+	# the OIT/post composite. The first sky or terrain frame is not enough.
 	var menu_ready := text_draws > 0 and presented > 0
-	var world_ready := world_draws > 0 and presented_world > 0
+	var world_ready := presented_world > 0 and categories.terrain > 0 and categories.entity > 0 and categories.particle > 0 and categories.fluid > 0 and categories.post > 0
 	if (require_world and world_ready) or (not require_world and menu_ready):
 		_java_gui_reported = true
 		print("JAVA_GUI_COMMANDS %d presented %d text %d world %d" % [gui_draws, presented, text_draws, world_draws])
+		print("JAVA_GUI_FAMILIES terrain %d entity %d sky %d particle %d fluid %d post %d" % [categories.terrain, categories.entity, categories.sky, categories.particle, categories.fluid, categories.post])
+		print(_family_line(categories))
 		_exit_proof(bridge, 0)
 		return
 	# The standalone boot test allows 180s for construction. A 90s gate quit
@@ -76,10 +81,11 @@ func _process(delta: float) -> void:
 	# Resource reload can keep the loading overlay up for several minutes.
 	# Title and resource reload can consume most of the viewport window. World
 	# creation and the first chunk meshes need time after that.
-	var limit := 1100.0 if require_world else 300.0
+	var limit := 1200.0 if require_world else 300.0
 	if _java_gui_wait >= limit:
 		_java_gui_reported = true
 		print("JAVA_GUI_MISSING native %s passes %d draws %d gui %d text %d world %d presented %d world_presented %d" % [str(native), passes, draws, gui_draws, text_draws, world_draws, presented, presented_world])
+		print(_family_line(categories))
 		_exit_proof(bridge, 2)
 
 
@@ -88,6 +94,39 @@ func _presented_gui_draws() -> int:
 		return 0
 	var presented_value = resource_executor.get("java_gui_draw_count")
 	return 0 if presented_value == null else int(presented_value)
+
+
+func _presented_categories() -> Dictionary:
+	var counts := PackedInt32Array()
+	var fluid := 0
+	if resource_executor != null:
+		var presented_value = resource_executor.get("java_presented_families")
+		if presented_value is PackedInt32Array:
+			counts = presented_value
+		fluid = int(resource_executor.get("java_presented_fluid"))
+	return {
+		"terrain": _category_count(counts, 4),
+		"entity": _category_count(counts, 5),
+		"sky": _category_count(counts, 6),
+		"particle": _category_count(counts, 7),
+		"post": _category_count(counts, 8),
+		"fluid": fluid,
+	}
+
+
+func _category_count(counts: PackedInt32Array, family: int) -> int:
+	return int(counts[family]) if counts.size() > family else 0
+
+
+func _family_line(categories: Dictionary) -> String:
+	return "MINECRAFT_GD_WORLD families terrain %d entity %d sky %d particle %d fluid %d post %d" % [
+		categories.terrain,
+		categories.entity,
+		categories.sky,
+		categories.particle,
+		categories.fluid,
+		categories.post,
+	]
 
 
 func _presented_world_draws() -> int:
@@ -107,7 +146,7 @@ func _gui_family_counts(bridge: Object, draws: int) -> Vector3i:
 			gui += 1
 		if family == 3:
 			text += 1
-		if family >= 4 and family <= 7:
+		if family >= 4 and family <= 8:
 			world += 1
 	return Vector3i(gui, text, world)
 

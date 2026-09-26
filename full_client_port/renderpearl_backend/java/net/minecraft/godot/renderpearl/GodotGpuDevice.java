@@ -30,9 +30,11 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -494,9 +496,20 @@ public final class GodotGpuDevice implements GpuDevice {
         }
     }
 
+    private static final Set<String> loggedPipelineKeys = new HashSet<>();
+
     private static int pipelineFamily(Identifier location, Identifier vertexShader, Identifier fragmentShader) {
         String key = (text(location) + " " + text(vertexShader) + " " + text(fragmentShader))
                 .toLowerCase(Locale.ROOT);
+        int family = classifyPipeline(key);
+        if ((family == GodotCompiledRenderPipeline.FAMILY_WORLD_POST || key.contains("oit")
+                || key.contains("blit") || key.contains("water")) && loggedPipelineKeys.add(key)) {
+            System.err.println("MINECRAFT_GD_WORLD pipeline " + family + " " + key);
+        }
+        return family;
+    }
+
+    private static int classifyPipeline(String key) {
         boolean gui = key.contains("gui");
         // "gui_textured" also contains the substring "gui_text", so textured
         // pipelines have to be classified before text pipelines.
@@ -512,6 +525,18 @@ public final class GodotGpuDevice implements GpuDevice {
         }
         // World families stay after the GUI checks. "block_screen_effect" is a
         // GUI overlay and must not be pulled in by a bare "block" match.
+        // Water-mask, lightmap, and depth blits write utility targets. Running
+        // them as color draws would replace the scene. OIT composite and screen
+        // blits are the passes that put fluids and post onto the color target.
+        if (key.contains("lightmap") || key.contains("water_mask") || key.contains("blit_depth")
+                || key.contains("integrate_depth") || key.contains("depth_bounds")) {
+            return GodotCompiledRenderPipeline.FAMILY_UNKNOWN;
+        }
+        if (key.contains("oit_composite") || key.contains("blit_screen") || key.contains("vignette")
+                || key.contains("outline") || key.contains("nausea") || key.contains("spider")
+                || key.contains("creeper")) {
+            return GodotCompiledRenderPipeline.FAMILY_WORLD_POST;
+        }
         if (key.contains("terrain") || key.contains("core/block")
                 || key.contains("solid_block") || key.contains("cutout_block")
                 || key.contains("translucent_block") || key.contains("crumbling")) {

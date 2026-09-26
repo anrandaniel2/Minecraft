@@ -1056,6 +1056,12 @@ public final class ExtractedClientLauncher {
     }
 
     private static volatile boolean loggedWorldLoaded;
+    private static final AtomicBoolean contentSeeded = new AtomicBoolean();
+    private static int contentSeedAttempts;
+    private static int particleBursts;
+    private static long nextSeedNanos;
+    private static long nextParticleNanos;
+    private static long nextSeedLogNanos;
     private static int tickFailures;
 
     private static void emitTickTrace(Throwable cause) {
@@ -1086,6 +1092,7 @@ public final class ExtractedClientLauncher {
                 loggedWorldLoaded = true;
                 emit("MINECRAFT_GD_WORLD loaded");
             }
+            seedVisibleContent(minecraft);
             return;
         }
         long now = System.nanoTime();
@@ -1127,6 +1134,158 @@ public final class ExtractedClientLauncher {
         emit("MINECRAFT_GD_WORLD title");
         tuneHeadlessOptions(minecraft);
         createFreshWorld(minecraft);
+    }
+
+    /**
+     * A fresh world has no mob, water, or particle in view, so the viewport
+     * cannot show those families. Place them in front of the player once the
+     * host asked to enter this world. This does not replace LevelRenderer.
+     */
+    private static void seedVisibleContent(Minecraft minecraft) {
+        if (!enterWorldFromHost || (contentSeeded.get() && particleBursts >= 8)) {
+            return;
+        }
+        long now = System.nanoTime();
+        Object player = declaredMember(minecraft, "player");
+        Object server = invokeNoArgs(minecraft, "getSingleplayerServer");
+        if (player == null || server == null) {
+            return;
+        }
+        double x;
+        double y;
+        double z;
+        try {
+            Class<?> entity = Class.forName("net.minecraft.world.entity.Entity");
+            if (!contentSeeded.get()) {
+                entity.getMethod("setYRot", float.class).invoke(player, Float.valueOf(-90.0f));
+                entity.getMethod("setXRot", float.class).invoke(player, Float.valueOf(12.0f));
+            }
+            x = ((Number) entity.getMethod("getX").invoke(player)).doubleValue();
+            y = ((Number) entity.getMethod("getY").invoke(player)).doubleValue();
+            z = ((Number) entity.getMethod("getZ").invoke(player)).doubleValue();
+        } catch (ReflectiveOperationException failure) {
+            if (now >= nextSeedLogNanos) {
+                nextSeedLogNanos = now + 10_000_000_000L;
+                emit("MINECRAFT_GD_WORLD seed-pos " + failure.getClass().getSimpleName()
+                        + " " + clip(String.valueOf(failure.getMessage()), 120));
+            }
+            return;
+        }
+        if (!contentSeeded.get() && contentSeedAttempts < 4 && (contentSeedAttempts == 0 || now >= nextSeedNanos)) {
+            if (queueSeed(server, x, y, z, false)) {
+                contentSeedAttempts++;
+                nextSeedNanos = now + 15_000_000_000L;
+            }
+        }
+        if (particleBursts < 8 && now >= nextParticleNanos) {
+            if (queueSeed(server, x, y, z, true)) {
+                particleBursts++;
+                nextParticleNanos = now + 3_000_000_000L;
+            }
+        }
+    }
+
+    private static boolean queueSeed(Object server, double x, double y, double z, boolean particlesOnly) {
+        try {
+            Class<?> serverType = Class.forName("net.minecraft.server.MinecraftServer");
+            Method execute = serverType.getMethod("executeIfPossible", Runnable.class);
+            execute.invoke(server, new SeedCommands(server, x, y, z, particlesOnly));
+            return true;
+        } catch (ReflectiveOperationException failure) {
+            emit("MINECRAFT_GD_WORLD seed-queue " + failure.getClass().getSimpleName()
+                    + " " + clip(String.valueOf(failure.getMessage()), 120));
+            return false;
+        }
+    }
+
+    private static void runSeedCommands(Object server, double x, double y, double z, boolean particlesOnly) {
+        try {
+            Class<?> serverType = Class.forName("net.minecraft.server.MinecraftServer");
+            Object commands = serverType.getMethod("getCommands").invoke(server);
+            Object source = serverType.getMethod("createCommandSourceStack").invoke(server);
+            Class<?> commandsType = Class.forName("net.minecraft.commands.Commands");
+            Class<?> sourceType = Class.forName("net.minecraft.commands.CommandSourceStack");
+            Method perform = commandsType.getMethod("performPrefixedCommand", sourceType, String.class);
+            int blockX = (int) Math.floor(x);
+            int blockY = (int) Math.floor(y);
+            int blockZ = (int) Math.floor(z);
+            String[] commandsText = particlesOnly
+                    ? new String[] {
+                        "/particle minecraft:campfire_cosy_smoke " + (x + 2.0) + " " + (y + 1.0) + " " + z
+                                + " 0.4 0.6 0.4 0.01 24 force"
+                    }
+                    : new String[] {
+                        "/execute as @p at @p run tp @s ~ ~ ~ -90 12",
+                        "/summon minecraft:armor_stand " + (x + 3.0) + " " + y + " " + z,
+                        "/summon minecraft:pig " + (x + 3.0) + " " + y + " " + (z - 1.0),
+                        "/setblock " + (blockX + 5) + " " + (blockY - 1) + " " + blockZ + " minecraft:stone",
+                        "/setblock " + (blockX + 5) + " " + blockY + " " + (blockZ + 1) + " minecraft:stone",
+                        "/setblock " + (blockX + 5) + " " + blockY + " " + (blockZ - 1) + " minecraft:stone",
+                        "/setblock " + (blockX + 4) + " " + blockY + " " + blockZ + " minecraft:stone",
+                        "/setblock " + (blockX + 6) + " " + blockY + " " + blockZ + " minecraft:stone",
+                        "/setblock " + (blockX + 5) + " " + blockY + " " + blockZ + " minecraft:water",
+                        "/setblock " + (blockX + 3) + " " + (blockY - 1) + " " + (blockZ + 2) + " minecraft:stone",
+                        "/setblock " + (blockX + 3) + " " + blockY + " " + (blockZ + 2) + " minecraft:campfire[lit=true]",
+                        "/particle minecraft:campfire_cosy_smoke " + (x + 2.0) + " " + (y + 1.0) + " " + z
+                                + " 0.4 0.6 0.4 0.01 24 force"
+                    };
+            int failed = 0;
+            for (String command : commandsText) {
+                if (!runSeedCommand(perform, commands, source, command)) {
+                    failed++;
+                }
+            }
+            if (particlesOnly) {
+                return;
+            }
+            if (failed < commandsText.length) {
+                contentSeeded.set(true);
+                emit("MINECRAFT_GD_WORLD seeded " + (commandsText.length - failed));
+            } else {
+                emit("MINECRAFT_GD_WORLD seed-failed");
+            }
+        } catch (Throwable failure) {
+            Throwable cause = failure instanceof InvocationTargetException && failure.getCause() != null
+                    ? failure.getCause()
+                    : failure;
+            emit("MINECRAFT_GD_WORLD seed-failed " + cause.getClass().getSimpleName()
+                    + " " + clip(String.valueOf(cause.getMessage()), 140));
+        }
+    }
+
+    private static boolean runSeedCommand(Method perform, Object commands, Object source, String command) {
+        try {
+            perform.invoke(commands, source, command);
+            return true;
+        } catch (Throwable failure) {
+            Throwable cause = failure instanceof InvocationTargetException && failure.getCause() != null
+                    ? failure.getCause()
+                    : failure;
+            emit("MINECRAFT_GD_WORLD seed-cmd " + cause.getClass().getSimpleName()
+                    + " " + clip(command, 80));
+            return false;
+        }
+    }
+
+    private static final class SeedCommands implements Runnable {
+        private final Object server;
+        private final double x;
+        private final double y;
+        private final double z;
+        private final boolean particlesOnly;
+
+        private SeedCommands(Object server, double x, double y, double z, boolean particlesOnly) {
+            this.server = server;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.particlesOnly = particlesOnly;
+        }
+
+        @Override
+        public void run() {
+            runSeedCommands(server, x, y, z, particlesOnly);
+        }
     }
 
     private static boolean acceptBooleanCallback(Object screen) {

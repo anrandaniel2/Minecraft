@@ -60,6 +60,8 @@ var _gpu_buffer_usages: Dictionary = {}
 var _gui_draws: RefCounted = GuiDrawListScript.new()
 var java_gui_draw_count := 0
 var java_world_draw_count := 0
+var java_presented_families := PackedInt32Array([0, 0, 0, 0, 0, 0, 0, 0, 0])
+var java_presented_fluid := 0
 var _logged_world_present := false
 var _gpu_textures: Dictionary = {}
 var _gpu_texture_signatures: Dictionary = {}
@@ -409,6 +411,23 @@ func _texture_size(native_bridge: Object, texture_id: int) -> Vector2i:
 	return Vector2i.ZERO
 
 
+func _accumulate_presented_families(result: Dictionary) -> void:
+	var counts: Array = result.get("family_counts", [])
+	if java_presented_families.size() < 9:
+		java_presented_families.resize(9)
+	for index in range(mini(counts.size(), java_presented_families.size())):
+		var added := int(counts[index])
+		if added <= 0:
+			continue
+		if java_presented_families[index] == 0:
+			print("MINECRAFT_GD_WORLD category %d" % index)
+		java_presented_families[index] += added
+	var fluid := int(result.get("fluid_draws", 0))
+	if fluid > 0 and java_presented_fluid == 0:
+		print("MINECRAFT_GD_WORLD category fluid")
+	java_presented_fluid += fluid
+
+
 func _bits_to_float(bits: int) -> float:
 	var bytes := PackedByteArray()
 	bytes.resize(4)
@@ -432,6 +451,7 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 		)
 		var completed: int = result.get("draws", 0)
 		var world_completed: int = result.get("world_draws", 0)
+		_accumulate_presented_families(result)
 		if completed > 0:
 			java_gui_draw_count = completed
 			call_deferred("_emit_java_gui_presented")
@@ -440,17 +460,24 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 			if not _logged_world_present:
 				_logged_world_present = true
 				print("MINECRAFT_GD_WORLD presented %d" % world_completed)
-		# Blur pyramids are smaller than the main GUI target. Present the last
-		# largest target so an intermediate pass cannot cover the Java UI.
+		# Blur pyramids are smaller than the main GUI target. A later OIT buffer
+		# can be the same size; it must not replace the scene or the HUD.
 		var best: Dictionary = {}
 		var best_area := 0
+		var fallback: Dictionary = {}
+		var fallback_area := 0
 		for presented_variant in result.get("presented", []):
 			var presented: Dictionary = presented_variant
 			var size: Vector2i = presented["size"]
 			var area := size.x * size.y
-			if area >= best_area:
+			if area >= fallback_area:
+				fallback = presented
+				fallback_area = area
+			if not bool(presented.get("post_only", false)) and area >= best_area:
 				best = presented
 				best_area = area
+		if best.is_empty():
+			best = fallback
 		if not best.is_empty():
 			_present_color_target(best["rid"], best["size"])
 		return
