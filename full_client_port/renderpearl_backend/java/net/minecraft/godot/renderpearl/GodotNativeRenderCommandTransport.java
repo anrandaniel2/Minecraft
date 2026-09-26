@@ -45,6 +45,7 @@ public final class GodotNativeRenderCommandTransport implements RenderCommandTra
      * The mailbox keeps only the latest frame. A reload flush must not submit
      * the next chunk until Godot has taken this one, or the upload is dropped.
      */
+    @Override
     public void waitUntilDrained(long timeoutMs) {
         long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
         try {

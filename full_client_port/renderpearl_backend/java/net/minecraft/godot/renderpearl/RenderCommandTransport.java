@@ -11,4 +11,12 @@ package net.minecraft.godot.renderpearl;
 @FunctionalInterface
 interface RenderCommandTransport {
     int submit(byte[] frame);
+
+    /**
+     * Blocks until a native mailbox has taken the latest frame. Test transports
+     * do nothing. The Graal implementation lives outside the preflight compile
+     * set, so the device must not name that class.
+     */
+    default void waitUntilDrained(long timeoutMs) {
+    }
 }

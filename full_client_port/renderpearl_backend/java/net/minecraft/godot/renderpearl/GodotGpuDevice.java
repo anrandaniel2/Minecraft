@@ -191,10 +191,7 @@ public final class GodotGpuDevice implements GpuDevice {
     }
 
     private void waitForMailboxDrain() {
-        if (!(transport instanceof GodotNativeRenderCommandTransport nativeTransport)) {
-            return;
-        }
-        nativeTransport.waitUntilDrained(5_000L);
+        transport.waitUntilDrained(5_000L);
     }
 
     private void recordLiveResources(RenderCommandWriter writer) {
