@@ -111,13 +111,20 @@ func _exit_tree() -> void:
 
 
 func _collect_snapshot(native_bridge: Object) -> Dictionary:
-	var buffers: Array = _collect_buffers(native_bridge)
-	var textures: Array = _collect_textures(native_bridge)
+	# Draws first. A world frame's unused chunk buffers must not be copied into
+	# Godot; that transfer is what kept the proof thread from ever presenting.
+	var draws: Array = _collect_draws(native_bridge)
 	var render_pass := _collect_pass(native_bridge)
 	var frame_passes: Array = _collect_frame_passes(native_bridge)
-	var draws: Array = _collect_draws(native_bridge)
+	var needed := _needed_resource_ids(draws, frame_passes, render_pass)
+	var restrict_uploads := not draws.is_empty()
+	var buffers: Array = _collect_buffers(native_bridge, needed, restrict_uploads)
+	var textures: Array = _collect_textures(native_bridge, needed, restrict_uploads)
 	if buffers.is_empty() and textures.is_empty() and render_pass.is_empty() and draws.is_empty():
 		return {}
+	printerr("MINECRAFT_GD_WORLD sync draws %d buffers %d textures %d" % [
+		draws.size(), buffers.size(), textures.size()
+	])
 	return {
 		"buffers": buffers,
 		"textures": textures,
@@ -127,7 +134,26 @@ func _collect_snapshot(native_bridge: Object) -> Dictionary:
 	}
 
 
-func _collect_buffers(native_bridge: Object) -> Array:
+func _needed_resource_ids(draws: Array, passes: Array, render_pass: Dictionary) -> Dictionary:
+	var needed := {}
+	var color_id := int(render_pass.get("color_id", 0))
+	if color_id > 0:
+		needed[color_id] = true
+	for pass_variant in passes:
+		var frame_pass: Dictionary = pass_variant
+		color_id = int(frame_pass.get("color_id", 0))
+		if color_id > 0:
+			needed[color_id] = true
+	for draw_variant in draws:
+		var draw: Dictionary = draw_variant
+		for key in ["vertex_buffer_id", "index_buffer_id", "sampler0_texture_id", "sampler2_texture_id"]:
+			var resource_id := int(draw.get(key, 0))
+			if resource_id > 0:
+				needed[resource_id] = true
+	return needed
+
+
+func _collect_buffers(native_bridge: Object, needed: Dictionary, restrict_uploads: bool) -> Array:
 	var uploads: Array = []
 	var count: int = native_bridge.call(&"get_render_buffer_count")
 	for index in range(count):
@@ -136,6 +162,9 @@ func _collect_buffers(native_bridge: Object) -> Array:
 		var revision: int = native_bridge.call(&"get_render_buffer_attribute", index, BUFFER_REVISION)
 		var usage: int = native_bridge.call(&"get_render_buffer_attribute", index, BUFFER_USAGE)
 		if resource_id <= 0 or size_bytes <= 0 or revision <= 0:
+			continue
+		# Chunk meshes that this frame will not draw stay on the native side.
+		if restrict_uploads and not needed.has(resource_id) and size_bytes > 256 * 1024:
 			continue
 		if _submitted_buffer_sizes.get(resource_id, -1) == size_bytes \
 				and _submitted_buffer_revisions.get(resource_id, -1) == revision \
@@ -157,7 +186,7 @@ func _collect_buffers(native_bridge: Object) -> Array:
 	return uploads
 
 
-func _collect_textures(native_bridge: Object) -> Array:
+func _collect_textures(native_bridge: Object, needed: Dictionary, restrict_uploads: bool) -> Array:
 	var uploads: Array = []
 	var count: int = native_bridge.call(&"get_render_texture_count")
 	for index in range(count):
@@ -171,6 +200,8 @@ func _collect_textures(native_bridge: Object) -> Array:
 		var mip_levels: int = native_bridge.call(&"get_render_texture_attribute", index, TEXTURE_MIP_LEVELS)
 		var revision: int = native_bridge.call(&"get_render_texture_attribute", index, TEXTURE_REVISION)
 		if resource_id <= 0 or width <= 0 or height <= 0 or depth_or_layers <= 0 or mip_levels <= 0 or revision <= 0:
+			continue
+		if restrict_uploads and not needed.has(resource_id) and width * height * depth_or_layers > 256 * 256:
 			continue
 		var signature := [Vector4i(format, width, height, depth_or_layers), mip_levels]
 		if format != RENDERPEARL_RGBA8_UNORM:
@@ -420,11 +451,11 @@ func _accumulate_presented_families(result: Dictionary) -> void:
 		if added <= 0:
 			continue
 		if java_presented_families[index] == 0:
-			print("MINECRAFT_GD_WORLD category %d" % index)
+			printerr("MINECRAFT_GD_WORLD category %d" % index)
 		java_presented_families[index] += added
 	var fluid := int(result.get("fluid_draws", 0))
 	if fluid > 0 and java_presented_fluid == 0:
-		print("MINECRAFT_GD_WORLD category fluid")
+		printerr("MINECRAFT_GD_WORLD category fluid")
 	java_presented_fluid += fluid
 
 
@@ -459,7 +490,7 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 			java_world_draw_count = world_completed
 			if not _logged_world_present:
 				_logged_world_present = true
-				print("MINECRAFT_GD_WORLD presented %d" % world_completed)
+				printerr("MINECRAFT_GD_WORLD presented %d" % world_completed)
 		# Blur pyramids are smaller than the main GUI target. A later OIT buffer
 		# can be the same size; it must not replace the scene or the HUD.
 		var best: Dictionary = {}

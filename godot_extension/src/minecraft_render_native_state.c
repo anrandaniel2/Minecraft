@@ -8,6 +8,10 @@
 /* Extracted 26.3 GpuFormat.RGBA8_UNORM ordinal. */
 #define MINECRAFT_RENDER_RGBA8_UNORM 6u
 #define MINECRAFT_RENDER_RGBA8_BYTES_PER_PIXEL 4u
+/* Keep enough of each family for the viewport proof, not every section. */
+#define MINECRAFT_RENDER_RETAIN_PER_FAMILY 48u
+#define MINECRAFT_RENDER_RETAIN_FLUID 16u
+#define MINECRAFT_RENDER_BLEND_OPAQUE 2u
 
 static uint32_t next_revision(uint32_t revision) {
     /* Zero means "not initialized" to the Godot-side synchronizer. */
@@ -178,6 +182,11 @@ struct MinecraftRenderNativeState {
     bool index_bound;
     int callback_status;
     int last_execution_status;
+    /* Per-frame sample of each family. A world frame can contain every chunk
+     * section; collecting all of them on the Godot thread never returns. */
+    uint16_t retained_family[9];
+    uint16_t retained_fluid;
+    uint32_t dropped_draws;
     MinecraftRenderPipelineRecord *pipelines;
     MinecraftRenderDrawRecord *draws;
     MinecraftRenderPassRecord *passes;
@@ -287,6 +296,9 @@ static bool frame_begin(void *user_data, uint64_t frame_id, uint32_t width, uint
     state->completed_depth_texture = 0;
     state->completed_draw_count = 0;
     state->completed_draw_start = 0;
+    memset(state->retained_family, 0, sizeof(state->retained_family));
+    state->retained_fluid = 0;
+    state->dropped_draws = 0;
     return true;
 }
 
@@ -306,6 +318,14 @@ static bool frame_end(void *user_data) {
         return fail(state, error);
     }
     state->deferred_error = 0;
+    if (state->dropped_draws > 0) {
+        static int logged_caps = 0;
+        if (logged_caps < 3) {
+            logged_caps++;
+            fprintf(stderr, "MINECRAFT_GD_WORLD capped kept %zu dropped %u\n",
+                    state->draw_count, state->dropped_draws);
+        }
+    }
     return true;
 }
 
@@ -821,6 +841,27 @@ static bool set_texture_sampler(void *user_data, const MinecraftRenderTextureSam
     return true;
 }
 
+static bool over_retain_budget(MinecraftRenderNativeState *state, uint32_t family, uint32_t blend) {
+    if (family > MINECRAFT_RENDER_PIPELINE_FAMILY_WORLD_POST) {
+        return true;
+    }
+    /* Water is translucent terrain. The opaque sections fill the terrain budget
+     * first, so fluids have their own sample or the proof never sees one. */
+    if (family == MINECRAFT_RENDER_PIPELINE_FAMILY_WORLD_TERRAIN &&
+            blend != MINECRAFT_RENDER_BLEND_OPAQUE) {
+        if (state->retained_fluid >= MINECRAFT_RENDER_RETAIN_FLUID) {
+            return true;
+        }
+        state->retained_fluid++;
+        return false;
+    }
+    if (family >= 9u || state->retained_family[family] >= MINECRAFT_RENDER_RETAIN_PER_FAMILY) {
+        return true;
+    }
+    state->retained_family[family]++;
+    return false;
+}
+
 static bool retain_draw(MinecraftRenderNativeState *state, uint32_t kind, uint32_t count,
                         uint32_t instance_count, uint32_t first, int32_t base_vertex,
                         uint32_t first_instance) {
@@ -834,6 +875,13 @@ static bool retain_draw(MinecraftRenderNativeState *state, uint32_t kind, uint32
         return skip_packet("draw-cap", state->active_pipeline);
     }
     const MinecraftRenderPipelineRecord *pipeline = find_pipeline(state, state->active_pipeline);
+    uint32_t family = pipeline == NULL
+            ? MINECRAFT_RENDER_PIPELINE_FAMILY_UNKNOWN : pipeline->family;
+    uint32_t blend = pipeline == NULL ? 0u : pipeline->blend;
+    if (over_retain_budget(state, family, blend)) {
+        state->dropped_draws++;
+        return true;
+    }
     MinecraftRenderDrawRecord *draw = &state->draws[state->draw_count++];
     memset(draw, 0, sizeof(*draw));
     draw->color_texture_id = state->pending_color_texture;

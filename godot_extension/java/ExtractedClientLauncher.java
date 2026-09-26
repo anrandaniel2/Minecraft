@@ -202,8 +202,8 @@ public final class ExtractedClientLauncher {
         }
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                logReloadProgress();
-                logStuckStacks();
+            logReloadProgress();
+            logStuckStacks();
             } catch (Throwable error) {
                 System.err.println("MINECRAFT_GD_STACK watchdog " + error.getClass().getSimpleName());
             }
@@ -313,8 +313,11 @@ public final class ExtractedClientLauncher {
         }
         if (render == null) {
             System.err.println("MINECRAFT_GD_STACK render-thread missing");
+            emit("MINECRAFT_GD_WORLD alive render-thread missing");
         } else {
-            System.err.println(clip("MINECRAFT_GD_STACK " + summarize(render, traces.get(render)), 220));
+            String summary = summarize(render, traces.get(render));
+            System.err.println(clip("MINECRAFT_GD_STACK " + summary, 220));
+            emit("MINECRAFT_GD_WORLD alive " + clip(summary, 180));
         }
         int extra = 0;
         for (Map.Entry<Thread, StackTraceElement[]> entry : traces.entrySet()) {
@@ -1151,6 +1154,7 @@ public final class ExtractedClientLauncher {
         if (player == null || server == null) {
             return;
         }
+        clampServerDistances(server);
         double x;
         double y;
         double z;
@@ -1308,6 +1312,39 @@ public final class ExtractedClientLauncher {
             }
         }
         return false;
+    }
+
+    private static volatile boolean serverDistanceClamped;
+
+    /** The integrated server otherwise keeps the default view and fills memory. */
+    private static void clampServerDistances(Object server) {
+        if (serverDistanceClamped) {
+            return;
+        }
+        try {
+            Method execute = server.getClass().getMethod("executeIfPossible", Runnable.class);
+            execute.invoke(server, (Runnable) () -> applyServerDistances(server));
+        } catch (Throwable failure) {
+            emit("MINECRAFT_GD_WORLD distance " + failure.getClass().getSimpleName());
+        }
+    }
+
+    private static void applyServerDistances(Object server) {
+        if (serverDistanceClamped) {
+            return;
+        }
+        try {
+            Object players = server.getClass().getMethod("getPlayerList").invoke(server);
+            if (players == null) {
+                return;
+            }
+            players.getClass().getMethod("setViewDistance", int.class).invoke(players, Integer.valueOf(2));
+            players.getClass().getMethod("setSimulationDistance", int.class).invoke(players, Integer.valueOf(2));
+            serverDistanceClamped = true;
+            emit("MINECRAFT_GD_WORLD distance 2");
+        } catch (Throwable failure) {
+            emit("MINECRAFT_GD_WORLD distance " + failure.getClass().getSimpleName());
+        }
     }
 
     private static void tuneHeadlessOptions(Minecraft minecraft) {

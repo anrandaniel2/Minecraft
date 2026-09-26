@@ -461,9 +461,9 @@ final class GodotCommandEncoder implements CommandEncoder {
 
     /**
      * The extracted client reads the main target back for the world icon.
-     * Godot owns those pixels, so the staging buffer stays as allocated.
-     * Completing the callback is required: throwing aborts the render frame
-     * on every later screenshot attempt.
+     * Godot owns those pixels. Running the client's pixel callback here stalls
+     * the render thread before the world frame is submitted, so the callback
+     * is not invoked. The method still returns normally.
      */
     private void completeTextureReadback(GpuTexture source, GpuBuffer target, long offset, Runnable callback) {
         requireOpen();
@@ -481,15 +481,14 @@ final class GodotCommandEncoder implements CommandEncoder {
         if (callback == null) {
             return;
         }
+        // The extracted callback maps every pixel on the render thread and then
+        // accepts the image. That runs before the open world frame is submitted,
+        // so a large target never reaches the viewport. The world icon is not
+        // the proof. Close the staging buffer and let the frame continue.
         try {
-            callback.run();
-        } catch (Throwable failure) {
-            String message = failure.getMessage() == null ? "" : failure.getMessage();
-            if (message.length() > 140) {
-                message = message.substring(0, 140);
-            }
-            System.err.println("MINECRAFT_GD_WORLD readback-callback " + failure.getClass().getSimpleName()
-                    + " " + message);
+            buffer.close();
+        } catch (Throwable ignored) {
+            // A closed staging buffer must not abort the frame that follows.
         }
     }
 

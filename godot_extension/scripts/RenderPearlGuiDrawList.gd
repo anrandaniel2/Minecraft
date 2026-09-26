@@ -106,12 +106,17 @@ func execute(
 		var depth_attached: bool = bool(_framebuffer_has_depth.get(color_id, false))
 		var prepared: Array = []
 		var temporary: Array[RID] = []
+		# Sampling the attachment this pass is drawing into deadlocks lavapipe.
+		# Copy it first so the post composite can still complete.
+		var pass_textures := _unbind_color_feedback(
+			rendering_device, texture_rids, color_texture, draws, start, count, temporary
+		)
 		var scene_draws := 0
 		var gui_draws := 0
 		var post_draws := 0
 		for index in range(start, mini(start + count, draws.size())):
 			var ready := _prepare_draw(
-					rendering_device, draws[index], buffer_rids, texture_rids, framebuffer, temporary, depth_attached
+					rendering_device, draws[index], buffer_rids, pass_textures, framebuffer, temporary, depth_attached
 			)
 			if not ready.is_empty():
 				prepared.append(ready)
@@ -289,6 +294,10 @@ func _prepare_draw(
 			vertex_count = index_count
 	if vertex_count <= 0:
 		return {}
+	# A shared staging buffer can report its whole length as the draw. Expanding
+	# that in GDScript allocates until the runner is killed.
+	if vertex_count > 65536:
+		vertex_count = 65536
 	var buffers: Array[RID] = [vertex_buffer]
 	var array := rendering_device.vertex_array_create(
 			vertex_count,
@@ -974,6 +983,57 @@ func _white(rendering_device: RenderingDevice) -> RID:
 func _address(mode: int) -> int:
 	# RenderPearl clamp-to-edge is 1. Godot's clamp-to-edge is 2, not mirrored repeat.
 	return REPEAT_CLAMP_TO_EDGE if mode == 1 else 0
+
+
+func _unbind_color_feedback(
+		rendering_device: RenderingDevice,
+		texture_rids: Dictionary,
+		color_texture: RID,
+		draws: Array,
+		start: int,
+		count: int,
+		temporary: Array[RID]
+) -> Dictionary:
+	if not color_texture.is_valid():
+		return texture_rids
+	var aliases: Array[int] = []
+	for index in range(start, mini(start + count, draws.size())):
+		var draw: Dictionary = draws[index]
+		for key in ["sampler0_texture_id", "sampler2_texture_id"]:
+			var resource_id := int(draw.get(key, 0))
+			if resource_id > 0 and texture_rids.get(resource_id, RID()) == color_texture and resource_id not in aliases:
+				aliases.append(resource_id)
+	if aliases.is_empty():
+		return texture_rids
+	var copy := _copy_color_texture(rendering_device, color_texture)
+	var rebound := texture_rids.duplicate()
+	if not copy.is_valid():
+		# Sampling the attachment deadlocks lavapipe. Drop that binding rather
+		# than hang the proof; other families in the pass still draw.
+		for resource_id in aliases:
+			rebound[resource_id] = RID()
+		return rebound
+	temporary.append(copy)
+	for resource_id in aliases:
+		rebound[resource_id] = copy
+	return rebound
+
+
+func _copy_color_texture(rendering_device: RenderingDevice, source: RID) -> RID:
+	var format: RDTextureFormat = rendering_device.texture_get_format(source)
+	if format == null or format.width <= 0 or format.height <= 0:
+		return RID()
+	var created := rendering_device.texture_create(format, RDTextureView.new(), [])
+	if not created.is_valid():
+		return RID()
+	var extent := Vector3(format.width, format.height, maxi(format.depth, 1))
+	var copied: int = rendering_device.texture_copy(
+		source, created, Vector3.ZERO, Vector3.ZERO, extent, 0, 0, 0, 0
+	)
+	if copied != OK:
+		rendering_device.free_rid(created)
+		return RID()
+	return created
 
 
 func _expanded_index_array(rendering_device: RenderingDevice, vertex_count: int, fan: bool) -> Dictionary:

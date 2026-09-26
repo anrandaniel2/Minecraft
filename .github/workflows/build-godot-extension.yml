@@ -318,12 +318,48 @@ jobs:
               --path godot_extension >> "$RUNNER_TEMP/godot-gui.log" 2>&1 &
           godot_pid=$!
           waited=0
+          last_progress=""
+          notices=0
+          # GitHub keeps 10 annotations of each type per step. A notice every
+          # 30s consumes that budget before VIEWPORT_DONE, so progress that
+          # does not change goes to the step summary instead.
+          progress_pattern='JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|readback|seeded|loaded|presented|capped|sync|alive|distance)|MINECRAFT_GD_STACK|MINECRAFT_GD_CLIENT execute'
+          tree_rss_kb() {
+            local pid="$1"
+            local rss=0
+            local child
+            local line
+            if [[ -r "/proc/${pid}/status" ]]; then
+              line="$(awk '/^VmRSS:/ {print $2}' "/proc/${pid}/status")"
+              rss=$((rss + ${line:-0}))
+            fi
+            for child in $(pgrep -P "$pid" || true); do
+              rss=$((rss + $(tree_rss_kb "$child")))
+            done
+            echo "$rss"
+          }
           while kill -0 "$godot_pid" 2>/dev/null && [[ "$waited" -lt 900 ]]; do
             sleep 10
             waited=$((waited + 10))
             if [[ $((waited % 30)) -eq 0 ]]; then
-              progress="$(grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|readback|seeded|loaded|presented)' "$RUNNER_TEMP/godot-gui.log" | tail -n 4 | tr '\n' ' ' | cut -c1-700 || true)"
-              echo "::notice::VIEWPORT_PROGRESS ${waited}s ${progress}"
+              progress="$(grep -E "$progress_pattern" "$RUNNER_TEMP/godot-gui.log" | tail -n 6 | tr '\n' ' ' | cut -c1-700 || true)"
+              if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+                printf '### Viewport %ss\n\n%s\n\n' "$waited" "$progress" >> "$GITHUB_STEP_SUMMARY"
+              fi
+              if [[ "$progress" != "$last_progress" && "$notices" -lt 8 ]]; then
+                echo "::notice::VIEWPORT_PROGRESS ${waited}s ${progress}"
+                last_progress="$progress"
+                notices=$((notices + 1))
+              fi
+              rss_kb="$(tree_rss_kb "$godot_pid")"
+              if [[ "$rss_kb" -gt 6500000 ]]; then
+                echo "MINECRAFT_GD_CLIENT godot-rss ${rss_kb}" | tee -a "$RUNNER_TEMP/godot-gui.log"
+                echo "::warning::VIEWPORT_RSS ${rss_kb}KB at ${waited}s"
+                kill -TERM "$godot_pid" 2>/dev/null || true
+                sleep 10
+                kill -KILL "$godot_pid" 2>/dev/null || true
+                break
+              fi
             fi
           done
           if kill -0 "$godot_pid" 2>/dev/null; then
@@ -332,12 +368,17 @@ jobs:
             sleep 15
             kill -KILL "$godot_pid" 2>/dev/null || true
           fi
-          wait "$godot_pid"
+          # A GPU call stuck in D state never reaps. Do not block the result line.
+          # set +e is in effect, so a non-zero wait must not be swallowed.
+          timeout 20s wait "$godot_pid"
           godot_status=$?
           set -e
           echo "MINECRAFT_GD_CLIENT godot-exit $godot_status"
-          progress="$(grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|readback|seeded|loaded|presented)' "$RUNNER_TEMP/godot-gui.log" | tail -n 6 | tr '\n' ' ' | cut -c1-900 || true)"
+          progress="$(grep -E "$progress_pattern" "$RUNNER_TEMP/godot-gui.log" | tail -n 6 | tr '\n' ' ' | cut -c1-900 || true)"
           echo "::notice::VIEWPORT_DONE ${godot_status} ${progress}"
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            printf '### Viewport done %s\n\n%s\n\n' "$godot_status" "$progress" >> "$GITHUB_STEP_SUMMARY"
+          fi
           tail -n 40 "$RUNNER_TEMP/godot-gui.log"
           if ! grep -q "JAVA_GUI_COMMANDS" "$RUNNER_TEMP/godot-gui.log"; then
             {
@@ -350,7 +391,7 @@ jobs:
               python3 tools/report_minecraft_crash.py . || true
               echo "GODOT_MARKERS_END"
               echo "DIAG_WORLD"
-              grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|pipeline|readback|seeded|seed-)' "$RUNNER_TEMP/godot-gui.log" | tail -n 20 || true
+              grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|pipeline|readback|seeded|seed-|capped|sync|alive|distance|presented)' "$RUNNER_TEMP/godot-gui.log" | tail -n 20 || true
               grep -E 'MINECRAFT_GD_WORLD (pack|pack-applied|title|create|retry|log|logfile|log4j|uncaught|fail|cause|raw|thread|tick|symlinks|confirmed|requested|cleanup|seed|families|category|pipeline|readback)|MINECRAFT_GD_USER_DIR' "$RUNNER_TEMP/godot-gui.log" | tail -n 40 || true
               echo "DIAG_LOGFILE"
               if [[ -f /tmp/minecraft-godot.log ]]; then
@@ -390,7 +431,7 @@ jobs:
           if [[ "${presented:-0}" -le 0 || "${world_draws:-0}" -le 0 || "${terrain_draws:-0}" -le 0 || "${entity_draws:-0}" -le 0 || "${particle_draws:-0}" -le 0 || "${fluid_draws:-0}" -le 0 || "${post_draws:-0}" -le 0 ]]; then
             {
               echo "Viewport did not present terrain, entity, fluid, particle, and post draws: $proof_line $family_line"
-              grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|pipeline|readback|seeded|seed-)' "$RUNNER_TEMP/godot-gui.log" | tail -n 20 || true
+              grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|pipeline|readback|seeded|seed-|capped|sync|alive|distance|presented)' "$RUNNER_TEMP/godot-gui.log" | tail -n 20 || true
               grep 'MINECRAFT_GD_WORLD' "$RUNNER_TEMP/godot-gui.log" | tail -n 30 || true
               if [[ -f /tmp/minecraft-godot.log ]]; then
                 tail -n 6 /tmp/minecraft-godot.log | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
