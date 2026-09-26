@@ -33,7 +33,9 @@ permissions:
   contents: write
 
 concurrency:
-  group: extracted-client-${{ github.ref }}
+  # Do not share a group with a stuck older run. A pending proof otherwise
+  # waits forever for a job that ignores cancellation.
+  group: extracted-client-viewport-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
