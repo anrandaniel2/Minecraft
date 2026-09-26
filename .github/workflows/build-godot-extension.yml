@@ -33,9 +33,8 @@ permissions:
   contents: write
 
 concurrency:
-  # Do not share a group with a stuck older run. A pending proof otherwise
-  # waits forever for a job that ignores cancellation.
-  group: extracted-client-viewport-${{ github.ref }}
+  # One group per commit. A stuck older run must not hold the next proof.
+  group: extracted-client-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -248,14 +247,25 @@ jobs:
         run: python3 tools/verify_minecraft_resource_pack.py
 
       - name: Load and run the complete-resource renderer in a Godot viewport
+        timeout-minutes: 40
         run: |
           set -euo pipefail
+          on_exit() {
+            status=$?
+            if [[ "$status" -ne 0 ]]; then
+              echo "::error::VIEWPORT_STEP_FAILED ${status} $(tail -c 1800 "$RUNNER_TEMP/godot-gui.log" 2>/dev/null | tr '\n' ' ')"
+            fi
+          }
+          trap on_exit EXIT
           GODOT_VERSION=4.7.2-stable
-          sudo apt-get update
-          sudo apt-get install -y xvfb mesa-vulkan-drivers vulkan-tools
-          curl --fail --location --retry 3 \
+          echo "MINECRAFT_GD_CLIENT apt-start"
+          sudo timeout --kill-after=20s 180s apt-get update
+          sudo timeout --kill-after=20s 300s apt-get install -y xvfb mesa-vulkan-drivers vulkan-tools
+          echo "MINECRAFT_GD_CLIENT apt-done"
+          curl --fail --location --retry 3 --max-time 180 \
             -o "$RUNNER_TEMP/godot.zip" \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          echo "MINECRAFT_GD_CLIENT godot-zip-done"
           unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
           GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_*' -print -quit)"
           test -n "$GODOT_BIN"
@@ -289,22 +299,34 @@ jobs:
           mkdir -p godot_extension/.godot
           printf '%s\n' 'res://minecraft.gdextension' > godot_extension/.godot/extension_list.cfg
           set +e
-          # Keep Godot's crash backtrace in the log. A redirected stdout is
-          # block-buffered, so a fatal signal otherwise drops handle_crash.
-          # Tee as well: a cancelled job never reaches the tail below, and the
-          # step log is the only copy that survives.
           # Do not pass --headless: that selects the dummy rendering driver.
-          # Without --kill-after, timeout only sends TERM and then waits forever
-          # if the isolate ignores it. The proof must still be able to report.
+          # Run in the background and kill it ourselves. timeout inside
+          # xvfb-run does not return if the display server ignores the signal,
+          # and the proof then never prints.
+          echo "MINECRAFT_GD_CLIENT godot-start"
           xvfb-run -a --server-args="-screen 0 1280x720x24" \
-            stdbuf -o0 -e0 timeout --kill-after=20s 1500 "$GODOT_BIN" \
+            stdbuf -o0 -e0 "$GODOT_BIN" \
               --display-driver x11 \
               --audio-driver Dummy \
               --rendering-driver vulkan \
               --rendering-method forward_plus \
-              --path godot_extension 2>&1 | tee -a "$RUNNER_TEMP/godot-gui.log"
-          godot_status=${PIPESTATUS[0]}
+              --path godot_extension >> "$RUNNER_TEMP/godot-gui.log" 2>&1 &
+          godot_pid=$!
+          waited=0
+          while kill -0 "$godot_pid" 2>/dev/null && [[ "$waited" -lt 1500 ]]; do
+            sleep 5
+            waited=$((waited + 5))
+          done
+          if kill -0 "$godot_pid" 2>/dev/null; then
+            echo "MINECRAFT_GD_CLIENT godot-term" | tee -a "$RUNNER_TEMP/godot-gui.log"
+            kill -TERM "$godot_pid" 2>/dev/null || true
+            sleep 15
+            kill -KILL "$godot_pid" 2>/dev/null || true
+          fi
+          wait "$godot_pid"
+          godot_status=$?
           set -e
+          echo "MINECRAFT_GD_CLIENT godot-exit $godot_status"
           tail -n 40 "$RUNNER_TEMP/godot-gui.log"
           if ! grep -q "JAVA_GUI_COMMANDS" "$RUNNER_TEMP/godot-gui.log"; then
             {
