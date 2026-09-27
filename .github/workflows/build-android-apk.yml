@@ -167,6 +167,13 @@ jobs:
           void JVM_Halt(int code) {
               _exit(code);
           }
+          # Android launches the client without a POSIX console. Returning
+          # no TTY bits makes java.io.Console correctly remain unavailable.
+          int Java_java_io_Console_ttyStatus(void *env, void *cls) {
+              (void) env;
+              (void) cls;
+              return 0;
+          }
           EOF
           "$HOST_CLANG" --target=aarch64-linux-android30 \
             --sysroot="$SYSROOT" -resource-dir="$CLANG_RESOURCE" \
