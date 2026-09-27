@@ -117,6 +117,12 @@ jobs:
           name: minecraft-android-bionic-sysroot
           path: ${{ runner.temp }}/android-bionic-toolchain
 
+      - name: Restore cached Android static JDK libraries
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/android-jdklibs
+          key: minecraft-jdklibs-android-aarch64-23
+
       - name: Install Android static JDK libraries
         run: |
           set -uo pipefail
@@ -124,15 +130,21 @@ jobs:
           # GraalVM's regular JDK distribution does not ship the Android
           # static Java/NIO/Net archives. This is the published Android
           # static-JDK build used by the mobile Native Image toolchain.
-          JDKLIBS_ARCHIVE="$RUNNER_TEMP/jdklibs-android-aarch64-23.tgz"
-          # This archive is retried because the external mobile mirror can
-          # occasionally reset a large download on the first request.
-          JDKLIBS_URL='https://download2.gluonhq.com/mobile/jdklibs-android-aarch64-23.tgz'
-          curl --fail --location --retry 5 --retry-all-errors -o "$JDKLIBS_ARCHIVE" "$JDKLIBS_URL" || fail "Android static JDK download failed: $JDKLIBS_URL"
           mkdir -p "$RUNNER_TEMP/android-jdklibs"
-          tar -xzf "$JDKLIBS_ARCHIVE" -C "$RUNNER_TEMP/android-jdklibs" || fail 'Android static JDK extraction failed'
-          STATIC_ANDROID="$(find "$RUNNER_TEMP/android-jdklibs" -type f -name libjava.a -printf '%h\n' -quit)"
-          test -n "$STATIC_ANDROID" || fail "Android static JDK archive has no libjava.a: $(tar -tzf "$JDKLIBS_ARCHIVE" | head -n 40 | tr '\n' ' ')"
+          STATIC_ANDROID="$(find "$RUNNER_TEMP/android-jdklibs" -type f -name libjava.a -printf '%h\n' -quit || true)"
+          if [[ -n "$STATIC_ANDROID" ]]; then
+            echo "Using cached Android static JDK libraries from $STATIC_ANDROID"
+          else
+            JDKLIBS_ARCHIVE="$RUNNER_TEMP/jdklibs-android-aarch64-23.tgz"
+            # This archive is retried because the external mobile mirror can
+            # occasionally reset a large download on the first request.
+            JDKLIBS_URL='https://download2.gluonhq.com/mobile/jdklibs-android-aarch64-23.tgz'
+            curl --http1.1 --fail --location --retry 12 --retry-delay 10 --retry-all-errors \
+              -o "$JDKLIBS_ARCHIVE" "$JDKLIBS_URL" || fail "Android static JDK download failed: $JDKLIBS_URL"
+            tar -xzf "$JDKLIBS_ARCHIVE" -C "$RUNNER_TEMP/android-jdklibs" || fail 'Android static JDK extraction failed'
+            STATIC_ANDROID="$(find "$RUNNER_TEMP/android-jdklibs" -type f -name libjava.a -printf '%h\n' -quit || true)"
+          fi
+          test -n "$STATIC_ANDROID" || fail 'Android static JDK cache/archive has no libjava.a'
           GRAALVM_HOME="${JAVA_HOME:-}"
           if [[ ! -x "$GRAALVM_HOME/bin/java" ]]; then
             GRAALVM_HOME="$(cd "$(dirname "$(command -v java)")/.." && pwd)"
