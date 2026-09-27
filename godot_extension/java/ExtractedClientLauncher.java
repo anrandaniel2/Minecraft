@@ -594,6 +594,15 @@ public final class ExtractedClientLauncher {
             error.printStackTrace(System.err);
             return;
         }
+        if ("1".equals(System.getenv("MINECRAFT_GODOT_ANDROID"))) {
+            // The Android image has the mobile LWJGL core plus the SDL stub,
+            // but deliberately does not load desktop OpenGL/OpenAL/freetype/
+            // shaderc/spvc natives. RenderPearl is redirected to Godot's
+            // RenderingDevice, so those desktop loaders are both unnecessary
+            // and invalid in the Android bionic process.
+            System.err.println("LWJGL_ANDROID desktop native loaders skipped");
+            return;
+        }
         try {
             NativeLibrariesBootstrap.loadLibraries();
         } catch (Throwable loadFailure) {
