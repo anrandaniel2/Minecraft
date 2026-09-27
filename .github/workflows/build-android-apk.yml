@@ -20,6 +20,7 @@ permissions:
   contents: read
 
 # The extracted client must be imaged on an AArch64 Linux host: GraalVM Native
+# The workflow also carries the generated Graal isolate headers into packaging.
 # Image does not cross-compile its guest architecture. Android's official NDK
 # does not ship an ARM Linux host toolchain, so the image job uses native ARM
 # clang with the NDK bionic sysroot and the packaging job uses the x86_64 NDK
