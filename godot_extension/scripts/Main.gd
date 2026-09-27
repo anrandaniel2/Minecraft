@@ -180,4 +180,5 @@ func _hide_godot_status_after_java_gui() -> void:
 
 
 func _sync_renderpearl_resources(native_bridge: Object) -> void:
+	printerr("MINECRAFT_GD_WORLD sync-signal")
 	resource_executor.synchronize(native_bridge)

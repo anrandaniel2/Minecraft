@@ -32,6 +32,7 @@ const MobileInputFallback := preload("res://scripts/MobileInputFallback.gd")
 var minecraft_touch: Object
 var using_native_bridge := false
 var look_touch_id := -1
+var _logged_mailbox_execution := false
 
 func _ready() -> void:
 	_ensure_input_actions()
@@ -106,6 +107,9 @@ func _process(_delta: float) -> void:
 	if using_native_bridge and OS.get_environment("MINECRAFT_REQUIRE_JAVA_GUI") == "1":
 		var proof_packets: int = minecraft_touch.call(&"execute_render_mailbox")
 		if proof_packets > 0:
+			if not _logged_mailbox_execution:
+				_logged_mailbox_execution = true
+				printerr("MINECRAFT_GD_WORLD mailbox-executed %d" % proof_packets)
 			render_mailbox_executed.emit(minecraft_touch)
 		elif proof_packets != -7:
 			print("MINECRAFT_GD_SUBMIT_FAIL mailbox %d" % proof_packets)
