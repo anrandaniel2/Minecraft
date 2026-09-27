@@ -1,0 +1,60 @@
+name: Validate Kotlin VulkanMod Android overlay
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'godot_extension/android_plugin/**'
+      - 'godot_extension/addons/minecraft_vulkan_overlay/**'
+      - 'godot_extension/scripts/MinecraftVulkanOverlay.gd'
+      - '.github/workflows/validate-vulkan-overlay.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Kotlin Android overlay AAR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android build dependencies
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
+          test -n "$sdkmanager"
+          yes | "$sdkmanager" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$sdkmanager" --sdk_root="$ANDROID_HOME" \
+            'platform-tools' 'platforms;android-35' 'build-tools;35.0.0' 'cmake;3.22.1'
+
+      - name: Build debug and release AARs
+        run: |
+          set -uo pipefail
+          log="$RUNNER_TEMP/minecraft-vulkan-overlay-gradle.log"
+          if command -v gradle >/dev/null 2>&1; then
+            gradle_cmd=(gradle)
+          else
+            curl --fail --location --retry 5 --retry-all-errors \
+              -o "$RUNNER_TEMP/gradle.zip" \
+              'https://services.gradle.org/distributions/gradle-8.11.1-bin.zip' || exit 1
+            unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP/gradle" || exit 1
+            gradle_cmd=("$RUNNER_TEMP/gradle/gradle-8.11.1/bin/gradle")
+          fi
+          if ! "${gradle_cmd[@]}" --no-daemon --stacktrace --console=plain \
+            -p godot_extension/android_plugin \
+            :plugin:assembleDebug :plugin:assembleRelease >"$log" 2>&1; then
+            diagnostic="$( { head -n 100 "$log"; tail -n 100 "$log"; } | awk '!seen[$0]++' | tr '\n' ' ' | cut -c1-6000)"
+            echo "::error title=Kotlin VulkanMod overlay build failure::$diagnostic"
+            cat "$log"
+            exit 1
+          fi
+          test -s godot_extension/android_plugin/plugin/build/outputs/aar/MinecraftVulkanOverlay-debug.aar
+          test -s godot_extension/android_plugin/plugin/build/outputs/aar/MinecraftVulkanOverlay-release.aar
+          unzip -l godot_extension/android_plugin/plugin/build/outputs/aar/MinecraftVulkanOverlay-debug.aar | grep -q classes.jar
