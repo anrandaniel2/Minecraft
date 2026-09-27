@@ -208,6 +208,12 @@ jobs:
               (void) cls;
               return 0;
           }
+          int Java_sun_nio_ch_UnixFileDispatcherImpl_available0(void *env, void *self, void *fdo) {
+              (void) env;
+              (void) self;
+              (void) fdo;
+              return 0;
+          }
           EOF
           "$HOST_CLANG" --target=aarch64-linux-android30 \
             --sysroot="$SYSROOT" -resource-dir="$CLANG_RESOURCE" \
