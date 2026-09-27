@@ -40,9 +40,9 @@ var _proof_reported := false
 func _ready() -> void:
 	resource_executor = get_parent().get_node_or_null("RenderPearlRenderingDeviceExecutor")
 	_ensure_input_actions()
-	# Do not statically reference MinecraftTouch. Desktop has the Linux
-	# GDExtension; Android starts with the Godot-only fallback until an arm64
-	# renderer bridge is ready.
+	# Do not statically reference MinecraftTouch. Desktop and the Android arm64
+	# export register the same class through platform-specific GDExtension
+	# libraries; fallback is only for platforms where that library is absent.
 	if ClassDB.class_exists(&"MinecraftTouch"):
 		minecraft_touch = ClassDB.instantiate(&"MinecraftTouch")
 		using_native_bridge = minecraft_touch != null

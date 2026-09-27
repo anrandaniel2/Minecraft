@@ -225,6 +225,11 @@ static int java_start(void) {
     keep_openal_from_blocking();
     publish_extension_symbols();
     export_native_dir();
+#if defined(__ANDROID__) || defined(ANDROID)
+    /* Native Image and LWJGL use the same APK arm64-v8a namespace. This
+     * marker lets the Java launcher skip desktop-only OpenGL/OpenAL loaders. */
+    setenv("MINECRAFT_GODOT_ANDROID", "1", 1);
+#endif
     /* Godot may already own a large virtual mapping, so the 16 GB reservation
      * used by the standalone boot test can fail here. Retry smaller sizes. */
     for (index = 0; index < sizeof(reservations) / sizeof(reservations[0]); index++) {
