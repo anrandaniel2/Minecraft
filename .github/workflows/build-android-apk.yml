@@ -139,7 +139,7 @@ jobs:
             # This archive is retried because the external mobile mirror can
             # occasionally reset a large download on the first request.
             JDKLIBS_URL='https://download2.gluonhq.com/mobile/jdklibs-android-aarch64-23.tgz'
-            curl --http1.1 --fail --location --retry 12 --retry-delay 10 --retry-all-errors \
+            curl --fail --location --retry 12 --retry-delay 10 --retry-all-errors \
               -o "$JDKLIBS_ARCHIVE" "$JDKLIBS_URL" || fail "Android static JDK download failed: $JDKLIBS_URL"
             tar -xzf "$JDKLIBS_ARCHIVE" -C "$RUNNER_TEMP/android-jdklibs" || fail 'Android static JDK extraction failed'
             STATIC_ANDROID="$(find "$RUNNER_TEMP/android-jdklibs" -type f -name libjava.a -printf '%h\n' -quit || true)"
