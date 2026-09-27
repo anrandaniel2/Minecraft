@@ -26,5 +26,5 @@ class AndroidExportPlugin extends EditorExportPlugin:
 	func _get_android_libraries(_platform: EditorExportPlatform, debug: bool) -> PackedStringArray:
 		var variant := "debug" if debug else "release"
 		return PackedStringArray([
-			"res://addons/minecraft_vulkan_overlay/bin/%s/%s-%s.aar" % [variant, PLUGIN_NAME, variant]
+			"minecraft_vulkan_overlay/bin/%s/%s-%s.aar" % [variant, PLUGIN_NAME, variant]
 		])
