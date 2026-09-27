@@ -326,11 +326,11 @@ jobs:
             echo 'Android Graal image contains glibc versioned symbols' >&2
             exit 1
           fi
-          unresolved_jvm="$(readelf --dyn-syms --wide godot_extension/bin/libminecraft_java.so | awk '$0 ~ / UND +JVM_/ {print $NF}' | sort -u)"
-          if [[ -n "$unresolved_jvm" ]]; then
-            echo "Android Graal image still has unresolved JVM entry points: $unresolved_jvm" >&2
-            echo "::error title=Unresolved Android JVM symbols::$unresolved_jvm"
-            echo "Unresolved Android JVM symbols: $unresolved_jvm" >> "$GITHUB_STEP_SUMMARY"
+          unresolved_android_runtime="$(readelf --dyn-syms --wide godot_extension/bin/libminecraft_java.so | awk '$0 ~ / UND +(JVM_|Java_)/ {print $NF}' | sort -u)"
+          if [[ -n "$unresolved_android_runtime" ]]; then
+            echo "Android Graal image still has unresolved runtime entry points: $unresolved_android_runtime" >&2
+            echo "::error title=Unresolved Android runtime symbols::$unresolved_android_runtime"
+            echo "Unresolved Android runtime symbols: $unresolved_android_runtime" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
