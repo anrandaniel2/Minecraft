@@ -8,11 +8,13 @@ extends Node
 var _renderpearl_display: TextureRect
 var _java_gui_wait := 0.0
 var _java_gui_reported := false
+var _logged_main_process := false
 var _logged_sync_process := false
 
 
 func _ready() -> void:
 	print("MINECRAFT_GD_MAIN_READY")
+	printerr("MINECRAFT_GD_WORLD main-ready")
 	_renderpearl_display = TextureRect.new()
 	_renderpearl_display.name = "RenderPearlDisplay"
 	_renderpearl_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -37,6 +39,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if not _logged_main_process:
+		_logged_main_process = true
+		printerr("MINECRAFT_GD_WORLD main-process")
 	# CI sets this so a headless run proves the extracted client submitted Java
 	# GUI draws. A normal viewport must keep running after that proof.
 	if OS.get_environment("MINECRAFT_REQUIRE_JAVA_GUI") != "1" or _java_gui_reported:
@@ -58,8 +63,7 @@ func _process(delta: float) -> void:
 		gui_draws = int(families.x)
 		text_draws = int(families.y)
 		world_draws = int(families.z)
-		if draws > 0:
-			_sync_renderpearl_resources(bridge)
+		_sync_renderpearl_resources(bridge)
 	var elapsed := int(_java_gui_wait)
 	var presented := _presented_gui_draws()
 	var presented_world := _presented_world_draws()
