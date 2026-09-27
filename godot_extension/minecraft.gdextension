@@ -8,3 +8,23 @@ linux.editor.x86_64 = "res://bin/libminecraft_godot.so"
 linux.debug.x86_64 = "res://bin/libminecraft_godot.so"
 linux.release.x86_64 = "res://bin/libminecraft_godot.so"
 linux.x86_64 = "res://bin/libminecraft_godot.so"
+android.arm64 = "res://bin/libminecraft_godot.so"
+android.debug.arm64 = "res://bin/libminecraft_godot.so"
+android.release.arm64 = "res://bin/libminecraft_godot.so"
+
+[dependencies]
+android.arm64 = {
+"res://bin/libminecraft_java.so": "",
+"res://bin/liblwjgl.so": "",
+"res://bin/libSDL3.so": ""
+}
+android.debug.arm64 = {
+"res://bin/libminecraft_java.so": "",
+"res://bin/liblwjgl.so": "",
+"res://bin/libSDL3.so": ""
+}
+android.release.arm64 = {
+"res://bin/libminecraft_java.so": "",
+"res://bin/liblwjgl.so": "",
+"res://bin/libSDL3.so": ""
+}
