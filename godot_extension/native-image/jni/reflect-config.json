@@ -17,7 +17,15 @@
     "methods": [
       {"name": "getCommands", "parameterTypes": []},
       {"name": "createCommandSourceStack", "parameterTypes": []},
+      {"name": "getPlayerList", "parameterTypes": []},
       {"name": "executeIfPossible", "parameterTypes": ["java.lang.Runnable"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.server.players.PlayerList",
+    "methods": [
+      {"name": "setViewDistance", "parameterTypes": ["int"]},
+      {"name": "setSimulationDistance", "parameterTypes": ["int"]}
     ]
   },
   {

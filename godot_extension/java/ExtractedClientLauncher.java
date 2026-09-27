@@ -88,6 +88,7 @@ public final class ExtractedClientLauncher {
     private static volatile boolean insideClientTick;
     private static long nextWorldAttemptNanos;
     private static long nextWorldScreenLogNanos;
+    private static boolean loggedRenderAlive;
 
     private ExtractedClientLauncher() {
     }
@@ -313,11 +314,17 @@ public final class ExtractedClientLauncher {
         }
         if (render == null) {
             System.err.println("MINECRAFT_GD_STACK render-thread missing");
-            emit("MINECRAFT_GD_WORLD alive render-thread missing");
+            if (!loggedRenderAlive) {
+                loggedRenderAlive = true;
+                emit("MINECRAFT_GD_WORLD alive render-thread missing");
+            }
         } else {
             String summary = summarize(render, traces.get(render));
             System.err.println(clip("MINECRAFT_GD_STACK " + summary, 220));
-            emit("MINECRAFT_GD_WORLD alive " + clip(summary, 180));
+            if (!loggedRenderAlive) {
+                loggedRenderAlive = true;
+                emit("MINECRAFT_GD_WORLD alive " + clip(summary, 180));
+            }
         }
         int extra = 0;
         for (Map.Entry<Thread, StackTraceElement[]> entry : traces.entrySet()) {
@@ -1047,7 +1054,9 @@ public final class ExtractedClientLauncher {
         try {
             Files.writeString(options, String.join("\n",
                     "renderDistance:2",
-                    "simulationDistance:2",
+                    // The client option rejects values below its UI minimum;
+                    // the integrated server is clamped to 2 separately below.
+                    "simulationDistance:5",
                     "pauseOnLostFocus:false",
                     "guiScale:2",
                     "onboardAccessibility:false",
@@ -1322,7 +1331,13 @@ public final class ExtractedClientLauncher {
             return;
         }
         try {
-            Method execute = server.getClass().getMethod("executeIfPossible", Runnable.class);
+            // Native Image does not retain every public method on the concrete
+            // IntegratedServer/IntegratedPlayerList subclasses. Resolve the
+            // declared methods on the extracted base classes that are present in
+            // reflect-config, then invoke them on the live instances.
+            Class<?> serverType = Class.forName("net.minecraft.server.MinecraftServer");
+            Method execute = serverType.getDeclaredMethod("executeIfPossible", Runnable.class);
+            execute.setAccessible(true);
             execute.invoke(server, (Runnable) () -> applyServerDistances(server));
         } catch (Throwable failure) {
             emit("MINECRAFT_GD_WORLD distance " + failure.getClass().getSimpleName());
@@ -1334,12 +1349,20 @@ public final class ExtractedClientLauncher {
             return;
         }
         try {
-            Object players = server.getClass().getMethod("getPlayerList").invoke(server);
+            Class<?> serverType = Class.forName("net.minecraft.server.MinecraftServer");
+            Method getPlayers = serverType.getDeclaredMethod("getPlayerList");
+            getPlayers.setAccessible(true);
+            Object players = getPlayers.invoke(server);
             if (players == null) {
                 return;
             }
-            players.getClass().getMethod("setViewDistance", int.class).invoke(players, Integer.valueOf(2));
-            players.getClass().getMethod("setSimulationDistance", int.class).invoke(players, Integer.valueOf(2));
+            Class<?> playersType = Class.forName("net.minecraft.server.players.PlayerList");
+            Method viewDistance = playersType.getDeclaredMethod("setViewDistance", int.class);
+            Method simulationDistance = playersType.getDeclaredMethod("setSimulationDistance", int.class);
+            viewDistance.setAccessible(true);
+            simulationDistance.setAccessible(true);
+            viewDistance.invoke(players, Integer.valueOf(2));
+            simulationDistance.invoke(players, Integer.valueOf(2));
             serverDistanceClamped = true;
             emit("MINECRAFT_GD_WORLD distance 2");
         } catch (Throwable failure) {
@@ -1356,7 +1379,9 @@ public final class ExtractedClientLauncher {
         setBooleanField(options, "onboardAccessibility", false);
         setBooleanField(options, "onboardingAccessibilityFinished", true);
         setOptionValue(options, "renderDistance", 2);
-        setOptionValue(options, "simulationDistance", 2);
+        // OptionInstance enforces the UI minimum of five. The server-side
+        // PlayerList setter below is the low simulation-distance clamp.
+        setOptionValue(options, "simulationDistance", 5);
     }
 
     private static void setOptionValue(Object options, String name, int value) {

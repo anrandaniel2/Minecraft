@@ -67,6 +67,8 @@ var _gpu_textures: Dictionary = {}
 var _gpu_texture_signatures: Dictionary = {}
 var _gpu_framebuffers: Dictionary = {}
 var _submitted_pass_revision := 0
+var _snapshot_pending := false
+var _logged_first_gpu_result := false
 var _presented_texture: Texture2DRD
 var _presented_rid := RID()
 
@@ -82,14 +84,18 @@ func _ready() -> void:
 func synchronize(native_bridge: Object) -> bool:
 	if not _rendering_device_available or native_bridge == null:
 		return false
+	# Do not queue one render-thread callback per client frame. In particular,
+	# force_sync() here can block Godot's main thread while lavapipe is compiling
+	# the first world pipelines, which prevents the proof loop from observing the
+	# counters that the callback will publish. The next mailbox frame is enough
+	# once this callback has returned.
+	if _snapshot_pending:
+		return true
 	var snapshot := _collect_snapshot(native_bridge)
 	if snapshot.is_empty():
 		return true
+	_snapshot_pending = true
 	RenderingServer.call_on_render_thread(_apply_snapshot.bind(snapshot))
-	# The headless proof exits in the same frame it sees Java draws. Flush the
-	# render thread so java_gui_draw_count is set before that check.
-	if OS.get_environment("MINECRAFT_REQUIRE_JAVA_GUI") == "1":
-		RenderingServer.force_sync()
 	return true
 
 
@@ -469,6 +475,7 @@ func _bits_to_float(bits: int) -> float:
 func _apply_snapshot(snapshot: Dictionary) -> void:
 	var rendering_device := RenderingServer.get_rendering_device()
 	if rendering_device == null:
+		_snapshot_pending = false
 		return
 	for buffer_variant in snapshot.get("buffers", []):
 		_apply_buffer(rendering_device, buffer_variant, snapshot)
@@ -482,6 +489,15 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 		)
 		var completed: int = result.get("draws", 0)
 		var world_completed: int = result.get("world_draws", 0)
+		if not _logged_first_gpu_result:
+			_logged_first_gpu_result = true
+			printerr("MINECRAFT_GD_WORLD gpu draws %d world %d fluid %d presented %d families %s" % [
+				completed,
+				world_completed,
+				int(result.get("fluid_draws", 0)),
+				result.get("presented", []).size(),
+				str(result.get("family_counts", [])),
+			])
 		_accumulate_presented_families(result)
 		if completed > 0:
 			java_gui_draw_count = completed
@@ -511,10 +527,12 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 			best = fallback
 		if not best.is_empty():
 			_present_color_target(best["rid"], best["size"])
+		_snapshot_pending = false
 		return
 	var render_pass: Dictionary = snapshot.get("pass", {})
 	if not render_pass.is_empty():
 		_clear_color_target(rendering_device, render_pass)
+	_snapshot_pending = false
 
 
 func _apply_buffer(rendering_device: RenderingDevice, buffer_upload: Dictionary, snapshot: Dictionary) -> void:

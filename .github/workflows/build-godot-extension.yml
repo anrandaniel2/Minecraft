@@ -368,10 +368,23 @@ jobs:
             sleep 15
             kill -KILL "$godot_pid" 2>/dev/null || true
           fi
-          # A GPU call stuck in D state never reaps. Do not block the result line.
-          # set +e is in effect, so a non-zero wait must not be swallowed.
-          timeout 20s wait "$godot_pid"
-          godot_status=$?
+          # `wait` is a shell builtin, so `timeout 20s wait ...` actually
+          # returns 127 instead of waiting for Godot. If Godot exited normally,
+          # reap it directly and preserve that status. If the earlier bounded
+          # kill is still stuck in D state, do not block the result line.
+          set +e
+          if kill -0 "$godot_pid" 2>/dev/null; then
+            godot_state="$(ps -o stat= -p "$godot_pid" 2>/dev/null | tr -d ' ' || true)"
+            if [[ "$godot_state" == Z* ]]; then
+              wait "$godot_pid"
+              godot_status=$?
+            else
+              godot_status=124
+            fi
+          else
+            wait "$godot_pid"
+            godot_status=$?
+          fi
           set -e
           echo "MINECRAFT_GD_CLIENT godot-exit $godot_status"
           progress="$(grep -E "$progress_pattern" "$RUNNER_TEMP/godot-gui.log" | tail -n 6 | tr '\n' ' ' | cut -c1-900 || true)"
