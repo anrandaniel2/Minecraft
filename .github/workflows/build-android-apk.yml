@@ -183,8 +183,8 @@ jobs:
           void JVM_Halt(int code) {
               _exit(code);
           }
-          # Android launches the client without a POSIX console. Returning
-          # no TTY bits makes java.io.Console correctly remain unavailable.
+          // Android launches the client without a POSIX console. Returning
+          // no TTY bits makes java.io.Console correctly remain unavailable.
           int Java_java_io_Console_ttyStatus(void *env, void *cls) {
               (void) env;
               (void) cls;
