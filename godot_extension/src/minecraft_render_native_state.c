@@ -9,8 +9,11 @@
 #define MINECRAFT_RENDER_RGBA8_UNORM 6u
 #define MINECRAFT_RENDER_RGBA8_BYTES_PER_PIXEL 4u
 /* Keep enough of each family for the viewport proof, not every section. */
-#define MINECRAFT_RENDER_RETAIN_PER_FAMILY 8u
-#define MINECRAFT_RENDER_RETAIN_FLUID 8u
+/* One or two representative draws per family are enough for the proof. A
+ * loaded chunk frame otherwise makes Godot copy dozens of large VBOs before
+ * the first presented-family counter can be updated. */
+#define MINECRAFT_RENDER_RETAIN_PER_FAMILY 2u
+#define MINECRAFT_RENDER_RETAIN_FLUID 2u
 #define MINECRAFT_RENDER_BLEND_OPAQUE 2u
 
 static uint32_t next_revision(uint32_t revision) {

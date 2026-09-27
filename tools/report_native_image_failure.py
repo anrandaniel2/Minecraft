@@ -40,14 +40,16 @@ PRIORITY_MARKERS = (
     "MINECRAFT_GD_WORLD families",
     "MINECRAFT_GD_WORLD category",
     "MINECRAFT_GD_WORLD pipeline",
+    "MINECRAFT_GD_WORLD readback",
+    "JAVA_GUI_MISSING",
+    "JAVA_GUI_FAMILIES",
+    # These identify the handoff boundary and must be appended last; otherwise
+    # the frequent synthetic-readback rows truncate the useful first marker.
     "MINECRAFT_GD_WORLD sync",
     "MINECRAFT_GD_WORLD mailbox",
     "MINECRAFT_GD_WORLD gpu",
     "MINECRAFT_GD_WORLD upload-budget",
     "MINECRAFT_GD_CLIENT rd",
-    "MINECRAFT_GD_WORLD readback",
-    "JAVA_GUI_MISSING",
-    "JAVA_GUI_FAMILIES",
 )
 
 
