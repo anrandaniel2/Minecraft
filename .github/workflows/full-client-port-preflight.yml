@@ -1,0 +1,107 @@
+name: Full Client Godot Port Preflight
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'extracted/**'
+      - 'tools/full_client_inventory.py'
+      - 'tools/renderpearl_abi_inventory.py'
+      - 'full_client_port/**'
+      - '.github/workflows/full-client-port-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java for neutral RenderPearl protocol tests
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Verify complete Java 25 client input
+        run: |
+          python3 tools/full_client_inventory.py --output full-client-inventory.json
+          cat full-client-inventory.json
+
+      - name: Verify RenderPearl Godot-backend ABI lock
+        run: |
+          python3 tools/renderpearl_abi_inventory.py \
+            --verify full_client_port/renderpearl_backend/renderpearl-26.3-abi.json
+
+      - name: Compile and test neutral Java RenderPearl command writer
+        run: |
+          set -euo pipefail
+          mkdir -p build/renderpearl-command-protocol
+          javac -Xlint:all -Werror \
+            -d build/renderpearl-command-protocol \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandProtocol.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandWriter.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandWriterTest.java
+          java -cp build/renderpearl-command-protocol \
+            net.minecraft.godot.renderpearl.RenderCommandWriterTest
+
+      - name: Compile Godot resource adapters against extracted Java 25 RenderPearl API
+        run: |
+          set -euo pipefail
+          mkdir -p build/renderpearl-dependencies build/renderpearl-resource-adapters
+          # RenderPass exposes these upstream library types in its public 26.3
+          # ABI. They are compile-only here; they are not bundled in the APK.
+          curl --fail --location --retry 3 \
+            -o build/renderpearl-dependencies/joml.jar \
+            'https://repo1.maven.org/maven2/org/joml/joml/1.10.8/joml-1.10.8.jar'
+          curl --fail --location --retry 3 \
+            -o build/renderpearl-dependencies/lwjgl.jar \
+            'https://repo1.maven.org/maven2/org/lwjgl/lwjgl/3.3.6/lwjgl-3.3.6.jar'
+          curl --fail --location --retry 3 \
+            -o build/renderpearl-dependencies/fastutil.jar \
+            'https://repo1.maven.org/maven2/it/unimi/dsi/fastutil/8.5.16/fastutil-8.5.16.jar'
+          RENDERPEARL_CLASSPATH="extracted:build/renderpearl-dependencies/joml.jar:build/renderpearl-dependencies/lwjgl.jar:build/renderpearl-dependencies/fastutil.jar"
+          javac -Xlint:all -Werror \
+            -cp "$RENDERPEARL_CLASSPATH:build/renderpearl-command-protocol" \
+            -d build/renderpearl-resource-adapters \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderResourceRegistry.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuFence.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuQueryPool.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotTransientMemory.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuBuffer.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuTexture.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuTextureView.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuSampler.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCompiledRenderPipeline.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandTransport.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderPass.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCommandEncoder.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuSurface.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuDevice.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuBackend.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuResourceAdapterTest.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderPassTest.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCommandEncoderTest.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuDeviceTest.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuBackendTest.java
+          ADAPTER_TEST_CLASSPATH="build/renderpearl-resource-adapters:build/renderpearl-command-protocol:$RENDERPEARL_CLASSPATH"
+          java -cp "$ADAPTER_TEST_CLASSPATH" \
+            net.minecraft.godot.renderpearl.GodotGpuResourceAdapterTest
+          java -cp "$ADAPTER_TEST_CLASSPATH" \
+            net.minecraft.godot.renderpearl.GodotRenderPassTest
+          java -cp "$ADAPTER_TEST_CLASSPATH" \
+            net.minecraft.godot.renderpearl.GodotCommandEncoderTest
+          java -cp "$ADAPTER_TEST_CLASSPATH" \
+            net.minecraft.godot.renderpearl.GodotGpuDeviceTest
+          java -cp "$ADAPTER_TEST_CLASSPATH" \
+            net.minecraft.godot.renderpearl.GodotGpuBackendTest
+          python3 tools/redirect_graphics_backend.py --output build/PreferredGraphicsApi.class
+
+      - name: Upload full-client port inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-client-port-inventory
+          path: |
+            full-client-inventory.json
+            full_client_port/renderpearl_backend/renderpearl-26.3-abi.json
+          retention-days: 30

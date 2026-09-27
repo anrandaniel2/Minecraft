@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""Print the native-image log tail as one GitHub Actions error annotation.
+
+GitHub keeps only the first few workflow annotations. Emitting one line per
+log row hid the real failure behind Graal's recommendations banner.
+"""
+
+from __future__ import annotations
+
+import pathlib
+import sys
+
+TAIL_LINES = 50
+MAX_CHARS = 3500
+# A mixed tail of JAVA_GUI_WAIT lines hid the loading-screen log. These markers
+# are kept even when they are older than the last 50 rows.
+DIAGNOSTIC_MARKERS = (
+    "MINECRAFT_GD_CLIENT",
+    "MINECRAFT_GD_RELOAD",
+    "JAVA_GUI_MISSING",
+    "JAVA_GUI_COMMANDS",
+    "Failed to ",
+    "Couldn't resolve",
+    "unexpected schema",
+    "does not exist in classpath",
+    "MINECRAFT_GD_USER_DIR",
+    "MINECRAFT_GD_WORLD",
+)
+# Kept after the general tail. The annotation keeps the end of the message.
+PRIORITY_MARKERS = (
+    "MINECRAFT_GD_WORLD log4j",
+    "MINECRAFT_GD_WORLD create",
+    "MINECRAFT_GD_WORLD uncaught",
+    "MINECRAFT_GD_WORLD cause",
+    "MINECRAFT_GD_WORLD raw",
+    "MINECRAFT_GD_WORLD thread",
+    "MINECRAFT_GD_WORLD tick",
+    "MINECRAFT_GD_WORLD logfile",
+    "MINECRAFT_GD_WORLD seed",
+    "MINECRAFT_GD_WORLD families",
+    "MINECRAFT_GD_WORLD category",
+    "MINECRAFT_GD_WORLD pipeline",
+    "MINECRAFT_GD_WORLD readback",
+    "JAVA_GUI_MISSING",
+    "JAVA_GUI_FAMILIES",
+    # These identify the handoff boundary and must be appended last; otherwise
+    # the frequent synthetic-readback rows truncate the useful first marker.
+    "MINECRAFT_GD_WORLD sync",
+    "MINECRAFT_GD_WORLD mailbox",
+    "MINECRAFT_GD_WORLD gpu",
+    "MINECRAFT_GD_WORLD upload-budget",
+    "MINECRAFT_GD_CLIENT rd",
+)
+
+
+def sanitize(text: str) -> str:
+    return (
+        text.replace("\r", "")
+        .replace("\n", " ")
+        .replace("%", "%%")
+        .replace("::", " ")
+    )
+
+
+def diagnostic_lines(lines: list[str]) -> list[str]:
+    selected: list[str] = []
+    for marker in DIAGNOSTIC_MARKERS:
+        matched = [line for line in lines if marker in line]
+        # Client execute rows are frequent and used to push the world log out.
+        limit = 2 if marker == "MINECRAFT_GD_CLIENT" else 4 if marker == "MINECRAFT_GD_WORLD" else 4
+        selected.extend(matched[-limit:])
+    for marker in PRIORITY_MARKERS:
+        matched = [line for line in lines if marker in line]
+        limit = 8 if marker in {
+            "MINECRAFT_GD_WORLD logfile",
+            "MINECRAFT_GD_WORLD tick",
+            "MINECRAFT_GD_WORLD seed",
+            "MINECRAFT_GD_WORLD pipeline",
+        } else 3
+        selected.extend(matched[-limit:])
+    return selected
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print("usage: report_native_image_failure.py LOG", file=sys.stderr)
+        return 2
+    lines = pathlib.Path(sys.argv[1]).read_text(errors="replace").splitlines()
+    diagnostics = diagnostic_lines(lines)
+    if not diagnostics:
+        chosen = lines[-TAIL_LINES:]
+    else:
+        # Diagnostics go last. The annotation keeps the end of the message,
+        # and a mixed JAVA_GUI_WAIT tail must not push them out.
+        chosen = lines[-8:] + diagnostics
+    tail = [sanitize(line)[:220 if "MINECRAFT_GD_WORLD" in line else 160] for line in chosen]
+    message = "TAIL " + " || ".join(tail)
+    if len(message) > MAX_CHARS:
+        message = message[-MAX_CHARS:]
+    print(f"::error::{message}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,491 @@
+name: Build GraalVM Godot Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_linux_binary:
+        description: 'Commit the verified Linux x86_64 extracted-client libraries to this branch'
+        required: true
+        default: true
+        type: boolean
+  push:
+    paths:
+      - 'godot_extension/build.sh'
+      - 'godot_extension/include/**'
+      - 'godot_extension/java/**'
+      - 'godot_extension/native-image/**'
+      - 'godot_extension/src/**'
+      - 'godot_extension/tests/**'
+      - 'godot_extension/minecraft.gdextension'
+      - 'godot_extension/project.godot'
+      - 'godot_extension/scenes/**'
+      - 'godot_extension/scripts/**'
+      - 'extracted/assets/**'
+      - 'extracted/net/minecraft/client/**'
+      - 'full_client_port/renderpearl_backend/java/**'
+      - 'tools/stage_minecraft_assets.py'
+      - 'tools/verify_minecraft_resource_pack.py'
+      - 'tools/redirect_graphics_backend.py'
+      - 'tools/fetch_minecraft_libraries.py'
+      - '.github/workflows/build-godot-extension.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  # One group per commit. A stuck older run must not hold the next proof.
+  group: extracted-client-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Check out the current branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add swap for the extracted-client native image
+        continue-on-error: true
+        run: |
+          set +e
+          sudo fallocate -l 8G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+          free -h
+          df -h /
+          exit 0
+
+      - name: Install GraalVM JDK 25 with Native Image
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm
+          java-version: '25'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download extracted-client runtime libraries
+        run: |
+          set -euo pipefail
+          java -version
+          native-image --version
+          gcc -shared -fPIC -O2 -Wall -Wextra -Werror \
+            -o godot_extension/bin/libSDL3.so \
+            godot_extension/src/sdl3_viewport_stub.c
+          python3 tools/fetch_minecraft_libraries.py
+
+      - name: Collect native-image metadata from a short JVM probe
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          mkdir -p godot_extension/build/native-image-config
+          PROBE_CP="godot_extension/build/classes:extracted:$(paste -sd: godot_extension/native-image/libraries/classpath.txt)"
+          # The probe compiles nothing by itself. build.sh is the image build.
+          # Run the already-extracted classes only if a previous class output
+          # exists; otherwise compile just the launcher for the agent.
+          mkdir -p godot_extension/build/probe-classes godot_extension/build/overlay
+          python3 tools/redirect_graphics_backend.py \
+            --output godot_extension/build/overlay/net/minecraft/client/PreferredGraphicsApi.class
+          javac -d godot_extension/build/probe-classes \
+            -cp "godot_extension/build/overlay:extracted:$(paste -sd: godot_extension/native-image/libraries/classpath.txt)" \
+            godot_extension/java/ExtractedClientLauncher.java \
+            godot_extension/java/ExtractedClientInput.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandProtocol.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandWriter.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/RenderCommandTransport.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderResourceRegistry.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuBuffer.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuTexture.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuTextureView.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuSampler.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCompiledRenderPipeline.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotRenderPass.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotCommandEncoder.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuSurface.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuDevice.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuFence.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuQueryPool.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotGpuBackend.java \
+            full_client_port/renderpearl_backend/java/net/minecraft/godot/renderpearl/GodotNativeRenderCommandTransport.java
+          export MINECRAFT_GODOT_NATIVE_DIR="$PWD/godot_extension/bin/natives"
+          export LD_LIBRARY_PATH="$MINECRAFT_GODOT_NATIVE_DIR:${LD_LIBRARY_PATH:-}"
+          set +e
+          timeout 90 java \
+            -agentlib:native-image-agent=config-output-dir=godot_extension/build/native-image-config,experimental-class-define-support,config-write-period-secs=5 \
+            -Dminecraft.godot.jniProbeOnly=true \
+            -Dminecraft.godot.nativeDir="$MINECRAFT_GODOT_NATIVE_DIR" \
+            -cp "godot_extension/build/overlay:godot_extension/build/probe-classes:extracted:$(paste -sd: godot_extension/native-image/libraries/classpath.txt)" \
+            net.minecraft.godot.ExtractedClientLauncher > "$RUNNER_TEMP/jni-probe.log" 2>&1
+          jni_status=$?
+          set -e
+          echo "JNI probe exit: $jni_status"
+          find godot_extension/build/native-image-config -type f -print || true
+          if [[ "$jni_status" -ne 0 ]]; then
+            {
+              echo "JNI probe exit $jni_status"
+              tail -n 40 "$RUNNER_TEMP/jni-probe.log" || true
+            } > "$RUNNER_TEMP/jni-probe-report.log"
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/jni-probe-report.log"
+            exit 1
+          fi
+          echo "JNI probe captured bindings; hidden classes are generated during the image build."
+
+      - name: Build extracted-client shared libraries
+        run: |
+          set -euo pipefail
+          chmod +x godot_extension/build.sh
+          set +e
+          ./godot_extension/build.sh > "$RUNNER_TEMP/native-image.log" 2>&1
+          status=$?
+          set -e
+          mkdir -p godot_extension/build
+          cp "$RUNNER_TEMP/native-image.log" godot_extension/build/native-image.log
+          tail -n 40 "$RUNNER_TEMP/native-image.log"
+          if [[ "$status" -ne 0 ]]; then
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/native-image.log"
+            exit "$status"
+          fi
+
+      - name: Upload native-image log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-image-log
+          path: godot_extension/build/native-image.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Reject a sample-client image
+        run: |
+          set -euo pipefail
+          python3 tools/verify_extracted_native_image.py godot_extension/bin/libminecraft_java.so
+          nm -D --defined-only godot_extension/bin/libminecraft_java.so | grep -q ' minecraft_bootstrap$'
+          nm -D --defined-only godot_extension/bin/libminecraft_java.so | grep -q ' minecraft_client_running$'
+
+      - name: Upload Linux GDExtension bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-godot-extracted-client-linux-x86_64
+          path: |
+            godot_extension/bin/libminecraft_godot.so
+            godot_extension/bin/libminecraft_java.so
+            godot_extension/bin/libSDL3.so
+            godot_extension/bin/natives/
+            godot_extension/minecraft.gdextension
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Test neutral RenderPearl command ABI and typed executor
+        run: |
+          set -euo pipefail
+          gcc -std=c11 -O2 -Wall -Wextra -Werror \
+            -Igodot_extension/include \
+            godot_extension/src/minecraft_render_abi.c \
+            godot_extension/tests/render_abi_test.c \
+            -pthread -o "$RUNNER_TEMP/render_abi_test"
+          "$RUNNER_TEMP/render_abi_test"
+          gcc -std=c11 -O2 -Wall -Wextra -Werror \
+            -Igodot_extension/include \
+            godot_extension/src/minecraft_render_abi.c \
+            godot_extension/src/minecraft_render_executor.c \
+            godot_extension/tests/render_executor_test.c \
+            -pthread -o "$RUNNER_TEMP/render_executor_test"
+          "$RUNNER_TEMP/render_executor_test"
+          gcc -std=c11 -O2 -Wall -Wextra -Werror \
+            -Igodot_extension/include \
+            godot_extension/src/minecraft_render_abi.c \
+            godot_extension/src/minecraft_render_executor.c \
+            godot_extension/src/minecraft_render_native_state.c \
+            godot_extension/tests/render_native_state_test.c \
+            -pthread -o "$RUNNER_TEMP/render_native_state_test"
+          "$RUNNER_TEMP/render_native_state_test"
+
+      - name: Verify exported extension and runtime dependency
+        run: |
+          set -euo pipefail
+          test -f godot_extension/bin/libminecraft_godot.so
+          test -f godot_extension/bin/libminecraft_java.so
+          readelf --dyn-syms --wide godot_extension/bin/libminecraft_godot.so | grep -q 'godot_gdextension_init'
+          readelf -d godot_extension/bin/libminecraft_godot.so | grep -q 'libminecraft_java.so'
+          ldd godot_extension/bin/libminecraft_godot.so
+
+      - name: Boot the extracted client inside the native image
+        run: |
+          set -euo pipefail
+          mkdir -p godot_extension/build
+          {
+            echo "BOOT library $(stat -c%s godot_extension/bin/libminecraft_java.so) bytes"
+            ldd godot_extension/bin/libminecraft_java.so || true
+            nm -D --defined-only godot_extension/bin/libminecraft_java.so | grep -E 'graal_create_isolate|minecraft_bootstrap|minecraft_client_failure' || true
+          } > "$RUNNER_TEMP/boot.log"
+          set +e
+          gcc -std=c11 -O2 -Wall -Wextra -Werror -D_GNU_SOURCE -rdynamic \
+            -Igodot_extension/build/generated \
+            -Igodot_extension/include \
+            godot_extension/tests/extracted_client_boot_test.c \
+            godot_extension/src/minecraft_render_abi.c \
+            -Lgodot_extension/bin -lminecraft_java -ldl -pthread \
+            -o "$RUNNER_TEMP/extracted_client_boot_test" >> "$RUNNER_TEMP/boot.log" 2>&1
+          compile_status=$?
+          boot_status=$compile_status
+          if [[ "$compile_status" -eq 0 ]]; then
+            export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
+            timeout 200 "$RUNNER_TEMP/extracted_client_boot_test" "$PWD/godot_extension/bin/natives" >> "$RUNNER_TEMP/boot.log" 2>&1
+            boot_status=$?
+          fi
+          set -e
+          cp "$RUNNER_TEMP/boot.log" godot_extension/build/boot.log
+          tail -n 40 "$RUNNER_TEMP/boot.log"
+          if [[ "$boot_status" -ne 0 ]]; then
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/boot.log"
+            exit "$boot_status"
+          fi
+
+      - name: Stage complete Minecraft client resource pack for Godot
+        run: python3 tools/stage_minecraft_assets.py
+
+      - name: Verify Godot resource renderer inputs
+        run: python3 tools/verify_minecraft_resource_pack.py
+
+      - name: Load and run the complete-resource renderer in a Godot viewport
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          on_exit() {
+            status=$?
+            if [[ "$status" -ne 0 ]]; then
+              echo "::error::VIEWPORT_STEP_FAILED ${status} $(tail -c 1800 "$RUNNER_TEMP/godot-gui.log" 2>/dev/null | tr '\n' ' ')"
+            fi
+          }
+          trap on_exit EXIT
+          GODOT_VERSION=4.7.2-stable
+          echo "MINECRAFT_GD_CLIENT apt-start"
+          sudo timeout --kill-after=20s 180s apt-get update
+          sudo timeout --kill-after=20s 300s apt-get install -y xvfb mesa-vulkan-drivers vulkan-tools
+          echo "MINECRAFT_GD_CLIENT apt-done"
+          curl --fail --location --retry 3 --max-time 180 \
+            -o "$RUNNER_TEMP/godot.zip" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          echo "MINECRAFT_GD_CLIENT godot-zip-done"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_*' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          export LD_LIBRARY_PATH="$PWD/godot_extension/bin:$PWD/godot_extension/bin/natives:${LD_LIBRARY_PATH:-}"
+          export MINECRAFT_REQUIRE_JAVA_GUI=1
+          export MINECRAFT_REQUIRE_WORLD=1
+          export MINECRAFT_ENTER_WORLD=1
+          export MINECRAFT_EXTRACTED_DIR="$PWD/extracted"
+          # A 1280x720 lavapipe world, plus the integrated server, exhausts the
+          # hosted runner before the category proof can print. The draws are
+          # the same at a smaller target.
+          export GODOT_VIEWPORT_WIDTH=480
+          export GODOT_VIEWPORT_HEIGHT=270
+          # OpenAL Soft blocks in alcOpenDevice on a runner with no audio
+          # server. Resource reload applies on the render thread, so that
+          # hang keeps the loading overlay up and menu text is never drawn.
+          # The extension also sets this if it is still unset.
+          export ALSOFT_DRIVERS="${ALSOFT_DRIVERS:-null}"
+          export JACK_NO_START_SERVER=1
+          # --headless forces the dummy renderer, so get_rendering_device() is
+          # null and the viewport cannot replay Java draws. lavapipe is the
+          # software Vulkan device Forward+ can actually draw with.
+          LVP_ICD="$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)"
+          test -n "$LVP_ICD"
+          export VK_ICD_FILENAMES="$LVP_ICD"
+          export VK_DRIVER_FILES="$LVP_ICD"
+          # lavapipe's vulkaninfo can block with no output. A hang here never
+          # reaches Godot, and the step has no later log to show it.
+          echo "MINECRAFT_GD_CLIENT vulkaninfo-start"
+          timeout --kill-after=10s 30s vulkaninfo --summary > "$RUNNER_TEMP/vulkaninfo.txt" || true
+          echo "MINECRAFT_GD_CLIENT vulkaninfo-done"
+          echo "MINECRAFT_GD_CLIENT vulkan_icd $LVP_ICD" | tee "$RUNNER_TEMP/godot-gui.log"
+          # A fresh checkout has no editor cache. Godot only loads GDExtensions
+          # listed here, so the native bridge is missing unless we write it.
+          mkdir -p godot_extension/.godot
+          printf '%s\n' 'res://minecraft.gdextension' > godot_extension/.godot/extension_list.cfg
+          set +e
+          # Do not pass --headless: that selects the dummy rendering driver.
+          # Run in the background and kill it ourselves. timeout inside
+          # xvfb-run does not return if the display server ignores the signal,
+          # and the proof then never prints.
+          echo "MINECRAFT_GD_CLIENT godot-start"
+          xvfb-run -a --server-args="-screen 0 640x480x24" \
+            stdbuf -o0 -e0 "$GODOT_BIN" \
+              --display-driver x11 \
+              --audio-driver Dummy \
+              --rendering-driver vulkan \
+              --rendering-method forward_plus \
+              --path godot_extension >> "$RUNNER_TEMP/godot-gui.log" 2>&1 &
+          godot_pid=$!
+          waited=0
+          last_progress=""
+          notices=0
+          # GitHub keeps 10 annotations of each type per step. A notice every
+          # 30s consumes that budget before VIEWPORT_DONE, so progress that
+          # does not change goes to the step summary instead.
+          progress_pattern='JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|readback|seeded|loaded|presented|capped|sync|alive|distance)|MINECRAFT_GD_STACK|MINECRAFT_GD_CLIENT execute'
+          tree_rss_kb() {
+            local pid="$1"
+            local rss=0
+            local child
+            local line
+            if [[ -r "/proc/${pid}/status" ]]; then
+              line="$(awk '/^VmRSS:/ {print $2}' "/proc/${pid}/status")"
+              rss=$((rss + ${line:-0}))
+            fi
+            for child in $(pgrep -P "$pid" || true); do
+              rss=$((rss + $(tree_rss_kb "$child")))
+            done
+            echo "$rss"
+          }
+          while kill -0 "$godot_pid" 2>/dev/null && [[ "$waited" -lt 900 ]]; do
+            sleep 10
+            waited=$((waited + 10))
+            if [[ $((waited % 30)) -eq 0 ]]; then
+              progress="$(grep -E "$progress_pattern" "$RUNNER_TEMP/godot-gui.log" | tail -n 6 | tr '\n' ' ' | cut -c1-700 || true)"
+              if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+                printf '### Viewport %ss\n\n%s\n\n' "$waited" "$progress" >> "$GITHUB_STEP_SUMMARY"
+              fi
+              if [[ "$progress" != "$last_progress" && "$notices" -lt 8 ]]; then
+                echo "::notice::VIEWPORT_PROGRESS ${waited}s ${progress}"
+                last_progress="$progress"
+                notices=$((notices + 1))
+              fi
+              rss_kb="$(tree_rss_kb "$godot_pid")"
+              if [[ "$rss_kb" -gt 6500000 ]]; then
+                echo "MINECRAFT_GD_CLIENT godot-rss ${rss_kb}" | tee -a "$RUNNER_TEMP/godot-gui.log"
+                echo "::warning::VIEWPORT_RSS ${rss_kb}KB at ${waited}s"
+                kill -TERM "$godot_pid" 2>/dev/null || true
+                sleep 10
+                kill -KILL "$godot_pid" 2>/dev/null || true
+                break
+              fi
+            fi
+          done
+          if kill -0 "$godot_pid" 2>/dev/null; then
+            echo "MINECRAFT_GD_CLIENT godot-term" | tee -a "$RUNNER_TEMP/godot-gui.log"
+            kill -TERM "$godot_pid" 2>/dev/null || true
+            sleep 15
+            kill -KILL "$godot_pid" 2>/dev/null || true
+          fi
+          # `wait` is a shell builtin, so `timeout 20s wait ...` actually
+          # returns 127 instead of waiting for Godot. If Godot exited normally,
+          # reap it directly and preserve that status. If the earlier bounded
+          # kill is still stuck in D state, do not block the result line.
+          set +e
+          if kill -0 "$godot_pid" 2>/dev/null; then
+            godot_state="$(ps -o stat= -p "$godot_pid" 2>/dev/null | tr -d ' ' || true)"
+            if [[ "$godot_state" == Z* ]]; then
+              wait "$godot_pid"
+              godot_status=$?
+            else
+              godot_status=124
+            fi
+          else
+            wait "$godot_pid"
+            godot_status=$?
+          fi
+          set -e
+          echo "MINECRAFT_GD_CLIENT godot-exit $godot_status"
+          progress="$(grep -E "$progress_pattern" "$RUNNER_TEMP/godot-gui.log" | tail -n 6 | tr '\n' ' ' | cut -c1-900 || true)"
+          echo "::notice::VIEWPORT_DONE ${godot_status} ${progress}"
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            printf '### Viewport done %s\n\n%s\n\n' "$godot_status" "$progress" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          tail -n 40 "$RUNNER_TEMP/godot-gui.log"
+          if ! grep -q "JAVA_GUI_COMMANDS" "$RUNNER_TEMP/godot-gui.log"; then
+            {
+              echo "GODOT_STATUS $godot_status"
+              echo "SYMBOL_MAP"
+              python3 tools/map_godot_extension_crash.py "$RUNNER_TEMP/godot-gui.log" godot_extension/bin/libminecraft_godot.so || true
+              echo "GODOT_MARKERS"
+              grep -E 'MINECRAFT_GD_(SCENE|CLASS_READY|CREATE|METHODS_READY|MAIN_READY|BRIDGE|START|ISOLATE|SYMBOL|MAILBOX|CLIENT|USER_DIR|RUN_|CRASH|SUBMIT|RELOAD|STACK|WORLD)|JAVA_GUI_|BOOT_|LWJGL_|SCRIPT ERROR|Parse Error|Invalid call|handle_crash|timeout:|Game crashed|TEX_UPLOAD' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_REG' | tail -n 40 || true
+              echo "CRASH_FILE"
+              python3 tools/report_minecraft_crash.py . || true
+              echo "GODOT_MARKERS_END"
+              echo "DIAG_WORLD"
+              grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|pipeline|readback|seeded|seed-|capped|alive|distance|presented)' "$RUNNER_TEMP/godot-gui.log" | tail -n 20 || true
+              echo "DIAG_HANDOFF"
+              grep -E 'MINECRAFT_GD_WORLD (main-|sync|mailbox|gpu|upload-budget)|MINECRAFT_GD_CLIENT rd' "$RUNNER_TEMP/godot-gui.log" | tail -n 20 || true
+              grep -E 'MINECRAFT_GD_WORLD (pack|pack-applied|title|create|retry|log|logfile|log4j|uncaught|fail|cause|raw|thread|tick|symlinks|confirmed|requested|cleanup|seed|families|category|pipeline|readback)|MINECRAFT_GD_USER_DIR' "$RUNNER_TEMP/godot-gui.log" | tail -n 40 || true
+              echo "DIAG_LOGFILE"
+              if [[ -f /tmp/minecraft-godot.log ]]; then
+                tail -n 6 /tmp/minecraft-godot.log | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
+                grep -E 'ERROR|WARN|Exception|Failed|disconnect|Crash|datapack|symlink|Starting integrated' /tmp/minecraft-godot.log | tail -n 8 | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
+              else
+                echo "MINECRAFT_GD_WORLD logfile runner-missing"
+              fi
+              echo "DIAG_FAIL"
+              grep -E 'Failed to |ERROR|Couldn.t resolve|unexpected schema|does not exist in classpath|datapack|symlink|Exception' "$RUNNER_TEMP/godot-gui.log" | grep -v 'MINECRAFT_GD_STACK' | tail -n 20 || true
+              echo "DIAG_CLIENT"
+              grep 'MINECRAFT_GD_CLIENT' "$RUNNER_TEMP/godot-gui.log" | tail -n 8 || true
+              echo "DIAG_RELOAD"
+              grep 'MINECRAFT_GD_RELOAD' "$RUNNER_TEMP/godot-gui.log" | tail -n 8 || true
+              echo "DIAG_STACK"
+              grep 'MINECRAFT_GD_STACK' "$RUNNER_TEMP/godot-gui.log" | tail -n 8 || true
+            } > "$RUNNER_TEMP/godot-gui-report.log"
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui-report.log"
+            exit 1
+          fi
+          # JAVA_GUI_COMMANDS is the gate. Isolate teardown can still hang after
+          # the proof, and timeout then reports 124. A proved frame is success.
+          if [[ "$godot_status" -ne 0 && "$godot_status" -ne 124 ]]; then
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui.log"
+            exit "$godot_status"
+          fi
+          proof_line="$(grep -m1 'JAVA_GUI_COMMANDS' "$RUNNER_TEMP/godot-gui.log")"
+          family_line="$(grep -m1 'JAVA_GUI_FAMILIES' "$RUNNER_TEMP/godot-gui.log" || true)"
+          echo "::notice title=Java GUI proof::${proof_line} ${family_line}"
+          presented="$(awk '{print $4}' <<< "$proof_line")"
+          world_draws="$(awk '{print $8}' <<< "$proof_line")"
+          terrain_draws="$(awk '{print $3}' <<< "$family_line")"
+          entity_draws="$(awk '{print $5}' <<< "$family_line")"
+          particle_draws="$(awk '{print $9}' <<< "$family_line")"
+          fluid_draws="$(awk '{print $11}' <<< "$family_line")"
+          post_draws="$(awk '{print $13}' <<< "$family_line")"
+          if [[ "${presented:-0}" -le 0 || "${world_draws:-0}" -le 0 || "${terrain_draws:-0}" -le 0 || "${entity_draws:-0}" -le 0 || "${particle_draws:-0}" -le 0 || "${fluid_draws:-0}" -le 0 || "${post_draws:-0}" -le 0 ]]; then
+            {
+              echo "Viewport did not present terrain, entity, fluid, particle, and post draws: $proof_line $family_line"
+              grep -E 'JAVA_GUI_|MINECRAFT_GD_WORLD (families|category|pipeline|readback|seeded|seed-|capped|sync|alive|distance|presented)' "$RUNNER_TEMP/godot-gui.log" | tail -n 20 || true
+              grep 'MINECRAFT_GD_WORLD' "$RUNNER_TEMP/godot-gui.log" | tail -n 30 || true
+              if [[ -f /tmp/minecraft-godot.log ]]; then
+                tail -n 6 /tmp/minecraft-godot.log | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
+                grep -E 'ERROR|WARN|Exception|Failed|disconnect|Crash|datapack|symlink|Starting integrated' /tmp/minecraft-godot.log | tail -n 8 | sed 's/^/MINECRAFT_GD_WORLD logfile /' || true
+              else
+                echo "MINECRAFT_GD_WORLD logfile runner-missing"
+              fi
+            } > "$RUNNER_TEMP/godot-gui-report.log"
+            python3 tools/report_native_image_failure.py "$RUNNER_TEMP/godot-gui-report.log"
+            exit 1
+          fi
+
+      - name: Publish verified extracted-client libraries to this branch
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_linux_binary)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          JAVA_SIZE="$(stat -c%s godot_extension/bin/libminecraft_java.so)"
+          echo "extracted libminecraft_java.so is ${JAVA_SIZE} bytes"
+          if [[ "$JAVA_SIZE" -gt 95000000 ]]; then
+            echo "Native image exceeds GitHub's 100 MB file limit; publishing a release asset."
+            TAG="extracted-client-linux-${GITHUB_SHA}"
+            gh release delete "$TAG" --yes || true
+            git push origin ":refs/tags/${TAG}" || true
+            gh release create "$TAG" \
+              godot_extension/bin/libminecraft_java.so \
+              godot_extension/bin/libminecraft_godot.so \
+              --target "$GITHUB_REF_NAME" \
+              --title "Extracted Minecraft 26.3 native library ${GITHUB_SHA}" \
+              --notes "GraalVM native image of the extracted 26.3 client. The file is too large to commit."
+            exit 0
+          fi
+          git add godot_extension/bin/libminecraft_godot.so godot_extension/bin/libminecraft_java.so godot_extension/bin/natives
+          if git diff --cached --quiet; then
+            echo 'No binary changes to publish.'
+            exit 0
+          fi
+          git commit -m 'Build extracted Minecraft 26.3 GraalVM library'
+          git push origin "HEAD:${GITHUB_REF_NAME}"

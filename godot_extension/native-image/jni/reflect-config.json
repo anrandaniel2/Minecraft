@@ -1,0 +1,170 @@
+[
+  {
+    "name": "net.minecraft.client.Minecraft",
+    "allDeclaredFields": true,
+    "methods": [
+      {"name": "getInstance", "parameterTypes": []},
+      {"name": "isRunning", "parameterTypes": []},
+      {"name": "stop", "parameterTypes": []},
+      {"name": "createWorldOpenFlows", "parameterTypes": []},
+      {"name": "setScreenAndShow", "parameterTypes": ["net.minecraft.client.gui.screens.Screen"]},
+      {"name": "runTick", "parameterTypes": ["boolean"]},
+      {"name": "getSingleplayerServer", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "net.minecraft.server.MinecraftServer",
+    "methods": [
+      {"name": "getCommands", "parameterTypes": []},
+      {"name": "createCommandSourceStack", "parameterTypes": []},
+      {"name": "getPlayerList", "parameterTypes": []},
+      {"name": "executeIfPossible", "parameterTypes": ["java.lang.Runnable"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.server.players.PlayerList",
+    "methods": [
+      {"name": "setViewDistance", "parameterTypes": ["int"]},
+      {"name": "setSimulationDistance", "parameterTypes": ["int"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.commands.Commands",
+    "methods": [
+      {"name": "performPrefixedCommand", "parameterTypes": ["net.minecraft.commands.CommandSourceStack", "java.lang.String"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.world.entity.Entity",
+    "methods": [
+      {"name": "getX", "parameterTypes": []},
+      {"name": "getY", "parameterTypes": []},
+      {"name": "getZ", "parameterTypes": []},
+      {"name": "setYRot", "parameterTypes": ["float"]},
+      {"name": "setXRot", "parameterTypes": ["float"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.client.Options",
+    "allDeclaredFields": true
+  },
+  {
+    "name": "net.minecraft.client.OptionInstance",
+    "methods": [
+      {"name": "set", "parameterTypes": ["java.lang.Object"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.client.gui.screens.ConfirmScreen",
+    "allDeclaredFields": true
+  },
+  {
+    "name": "net.minecraft.client.gui.screens.worldselection.ConfirmExperimentalFeaturesScreen",
+    "allDeclaredFields": true
+  },
+  {
+    "name": "net.minecraft.client.gui.Gui",
+    "allDeclaredFields": true,
+    "methods": [
+      {"name": "screen", "parameterTypes": []},
+      {"name": "overlay", "parameterTypes": []},
+      {"name": "setScreen", "parameterTypes": ["net.minecraft.client.gui.screens.Screen"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.godot.ExtractedClientLauncher",
+    "methods": [
+      {"name": "runPendingRenderTask", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "net.minecraft.godot.ExtractedClientLauncher$SeedCommands",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "net.minecraft.client.gui.screens.LoadingOverlay",
+    "allDeclaredFields": true
+  },
+  {
+    "name": "net.minecraft.server.packs.resources.SimpleReloadInstance",
+    "allDeclaredFields": true,
+    "methods": [
+      {"name": "isDone", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "net.minecraft.server.packs.resources.ProfiledReloadInstance",
+    "allDeclaredFields": true,
+    "methods": [
+      {"name": "isDone", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "net.minecraft.server.packs.resources.ReloadInstance",
+    "methods": [
+      {"name": "isDone", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "org.apache.logging.log4j.core.config.Configurator",
+    "methods": [
+      {"name": "reconfigure", "parameterTypes": ["java.net.URI"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.server.packs.VanillaPackResourcesBuilder",
+    "fields": [
+      {"name": "developmentConfig"}
+    ],
+    "methods": [
+      {"name": "pushUniversalPath", "parameterTypes": ["java.nio.file.Path"]}
+    ]
+  },
+  {
+    "name": "net.minecraft.server.packs.resources.PreparableReloadListener",
+    "methods": [
+      {"name": "getName", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "io.netty.channel.local.LocalServerChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.local.LocalChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.socket.nio.NioServerSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.socket.nio.NioSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.epoll.EpollServerSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.epoll.EpollSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.kqueue.KQueueServerSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.netty.channel.kqueue.KQueueSocketChannel",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  }
+]

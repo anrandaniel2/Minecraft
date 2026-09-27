@@ -1,0 +1,54 @@
+; Engine configuration file.
+; Generated for the GraalVM Java / GDExtension touch input demonstration.
+config_version=5
+
+[application]
+config/name="Minecraft Java Touch GDExtension"
+run/main_scene="res://scenes/main.tscn"
+
+[input]
+
+minecraft_forward={
+"deadzone": 0.18,
+"events": []
+}
+minecraft_backward={
+"deadzone": 0.18,
+"events": []
+}
+minecraft_left={
+"deadzone": 0.18,
+"events": []
+}
+minecraft_right={
+"deadzone": 0.18,
+"events": []
+}
+minecraft_jump={
+"deadzone": 0.18,
+"events": []
+}
+minecraft_sneak={
+"deadzone": 0.18,
+"events": []
+}
+
+[display/window]
+size/viewport_width=1280
+size/viewport_height=720
+size/window_width_override=0
+size/window_height_override=0
+size/mode=3
+handheld/orientation=0
+stretch/mode="canvas_items"
+stretch/aspect="expand"
+
+[rendering]
+; RenderingDevice is required for the RenderPearl viewport executor. Desktop
+; uses Forward+ and Android uses the Vulkan Mobile renderer; Compatibility is
+; intentionally a non-rendering safety fallback for the native protocol sink.
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="mobile"
+
+[rendering/textures/vram_compression]
+import_etc2_astc=true
