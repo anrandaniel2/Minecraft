@@ -172,6 +172,9 @@ jobs:
           HOST_CLANG="$(command -v clang)"
           cat > "$RUNNER_TEMP/jvm_android_shim.c" <<'EOF'
           #include <dlfcn.h>
+          #include <stddef.h>
+          #include <stdlib.h>
+          #include <string.h>
           #include <unistd.h>
           int JVM_ActiveProcessorCount(void) {
               long count = sysconf(_SC_NPROCESSORS_ONLN);
@@ -182,6 +185,25 @@ jobs:
           }
           void JVM_Halt(int code) {
               _exit(code);
+          }
+          // Native Image's POSIX time-zone substitution calls this helper even
+          // though the Java 23 Android archive does not provide it. Android's
+          // app process has no desktop tzmappings file; prefer TZ when set and
+          // otherwise give java.time a valid, owned UTC string. The caller
+          // releases the returned pointer with free().
+          char *SVM_FindJavaTZmd(const char *mappings, int length) {
+              (void) mappings;
+              (void) length;
+              const char *zone = getenv("TZ");
+              if (zone == NULL || zone[0] == '\0') {
+                  zone = "UTC";
+              }
+              size_t zone_length = strlen(zone);
+              char *result = (char *) malloc(zone_length + 1);
+              if (result != NULL) {
+                  memcpy(result, zone, zone_length + 1);
+              }
+              return result;
           }
           // Android launches the client without a POSIX console. Returning
           // no TTY bits makes java.io.Console correctly remain unavailable.
@@ -365,7 +387,7 @@ jobs:
             echo 'Android Graal image contains glibc versioned symbols' >&2
             exit 1
           fi
-          unresolved_android_runtime="$(readelf --dyn-syms --wide godot_extension/bin/libminecraft_java.so | awk '$0 ~ / UND +(JVM_|Java_)/ {print $NF}' | sort -u)"
+          unresolved_android_runtime="$(readelf --dyn-syms --wide godot_extension/bin/libminecraft_java.so | awk '$0 ~ / UND +(JVM_|Java_|SVM_)/ {print $NF}' | sort -u)"
           if [[ -n "$unresolved_android_runtime" ]]; then
             echo "Android Graal image still has unresolved runtime entry points: $unresolved_android_runtime" >&2
             echo "::error title=Unresolved Android runtime symbols::$unresolved_android_runtime"
