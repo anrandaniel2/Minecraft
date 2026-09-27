@@ -1,4 +1,4 @@
-name: Build Godot Android APK
+name: Build Godot Android Java viewport APK
 
 on:
   workflow_dispatch:
@@ -6,48 +6,48 @@ on:
     paths:
       - 'godot_extension/**'
       - 'extracted/assets/**'
+      - 'extracted/net/minecraft/client/**'
+      - 'full_client_port/renderpearl_backend/java/**'
+      - 'tools/fetch_minecraft_libraries.py'
+      - 'tools/package_extracted_client.py'
+      - 'tools/redirect_graphics_backend.py'
       - 'tools/stage_minecraft_assets.py'
+      - 'tools/verify_extracted_native_image.py'
       - 'tools/verify_minecraft_resource_pack.py'
       - '.github/workflows/build-android-apk.yml'
 
 permissions:
   contents: read
 
+# The extracted client must be imaged on an AArch64 Linux host: GraalVM Native
+# Image does not cross-compile its guest architecture. Android's official NDK
+# does not ship an ARM Linux host toolchain, so the image job uses native ARM
+# clang with the NDK bionic sysroot and the packaging job uses the x86_64 NDK
+# compiler for the small C bridge.
 jobs:
-  android-debug-apk:
+  android-ndk-sysroot:
+    name: Prepare Android bionic sysroot for the AArch64 image builder
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     env:
-      GODOT_VERSION: 4.7.2-stable
-      # Godot's user-data directory uses the engine's dot-form version while
-      # release assets use the dash-form tag above.
-      GODOT_TEMPLATE_VERSION: 4.7.2.stable
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_NDK_VERSION: 29.0.14206865
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Stage complete Minecraft client resource pack for Godot
-        run: python3 tools/stage_minecraft_assets.py
-
-      - name: Verify Godot resource renderer inputs
-        run: python3 tools/verify_minecraft_resource_pack.py
-
-      - name: Set up Java for Android export
+      - name: Set up Java for sdkmanager
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK components
+      - name: Install the official Android NDK
         run: |
           set -euo pipefail
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
           if [ -z "$SDKMANAGER" ]; then
-            echo 'Android command-line tools are not preinstalled; installing an isolated copy.'
             mkdir -p "$RUNNER_TEMP/android-cmdline-tools"
-            curl --fail --location --retry 3 \
+            curl --fail --location --retry 5 --retry-all-errors \
               -o "$RUNNER_TEMP/cmdline-tools.zip" \
               'https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip'
             unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/android-cmdline-tools"
@@ -55,26 +55,337 @@ jobs:
             mv "$RUNNER_TEMP/android-cmdline-tools/cmdline-tools"/* "$ANDROID_HOME/cmdline-tools/latest/"
             SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           fi
-          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --version
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "ndk;${ANDROID_NDK_VERSION}"
+
+      - name: Stage only the target sysroot and compiler runtime
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64"
+          test -d "$NDK/sysroot"
+          RESOURCE_DIR="$(find "$NDK/lib/clang" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          test -n "$RESOURCE_DIR"
+          mkdir -p "$RUNNER_TEMP/android-bionic-toolchain"
+          cp -a "$NDK/sysroot" "$RUNNER_TEMP/android-bionic-toolchain/"
+          mkdir -p "$RUNNER_TEMP/android-bionic-toolchain/clang"
+          cp -a "$RESOURCE_DIR" "$RUNNER_TEMP/android-bionic-toolchain/clang/"
+
+      - name: Upload Android bionic sysroot
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-android-bionic-sysroot
+          path: ${{ runner.temp }}/android-bionic-toolchain
+          if-no-files-found: error
+          retention-days: 1
+
+  android-graal-arm64:
+    name: Build extracted Java/Graal image for Android arm64
+    needs: android-ndk-sysroot
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 240
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_API_LEVEL: '30'
+      ANDROID_NDK_VERSION: 29.0.14206865
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add swap for the extracted-client native image
+        continue-on-error: true
+        run: |
+          set +e
+          sudo fallocate -l 8G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+          free -h
+          df -h /
+          exit 0
+
+      - name: Install GraalVM JDK 25 with Native Image
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm
+          java-version: '25'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download the Android bionic sysroot
+        uses: actions/download-artifact@v4
+        with:
+          name: minecraft-android-bionic-sysroot
+          path: ${{ runner.temp }}/android-bionic-toolchain
+
+      - name: Install Android static JDK libraries
+        run: |
+          set -uo pipefail
+          fail() { echo "::error title=Android static JDK setup::$1"; exit 1; }
+          # GraalVM's regular JDK distribution does not ship the Android
+          # static Java/NIO/Net archives. This is the published Android
+          # static-JDK build used by the mobile Native Image toolchain.
+          JDKLIBS_ARCHIVE="$RUNNER_TEMP/jdklibs-android-aarch64-23.tgz"
+          JDKLIBS_URL='https://download2.gluonhq.com/mobile/jdklibs-android-aarch64-23.tgz'
+          curl --fail --location --retry 5 --retry-all-errors -o "$JDKLIBS_ARCHIVE" "$JDKLIBS_URL" || fail "Android static JDK download failed: $JDKLIBS_URL"
+          mkdir -p "$RUNNER_TEMP/android-jdklibs"
+          tar -xzf "$JDKLIBS_ARCHIVE" -C "$RUNNER_TEMP/android-jdklibs" || fail 'Android static JDK extraction failed'
+          STATIC_ANDROID="$(find "$RUNNER_TEMP/android-jdklibs" -type f -name libjava.a -printf '%h\n' -quit)"
+          test -n "$STATIC_ANDROID" || fail "Android static JDK archive has no libjava.a: $(tar -tzf "$JDKLIBS_ARCHIVE" | head -n 40 | tr '\n' ' ')"
+          GRAALVM_HOME="${JAVA_HOME:-}"
+          if [[ ! -x "$GRAALVM_HOME/bin/java" ]]; then
+            GRAALVM_HOME="$(cd "$(dirname "$(command -v java)")/.." && pwd)"
+          fi
+          test -x "$GRAALVM_HOME/bin/java"
+          mkdir -p "$GRAALVM_HOME/lib/static/android-aarch64/bionic"
+          cp "$STATIC_ANDROID"/*.a "$GRAALVM_HOME/lib/static/android-aarch64/bionic/"
+          # The driver also scans the target C-library directory after
+          # analysis. Keep the same archives there so it can resolve the
+          # static JNI dependency graph for the Android target.
+          CLIBRARY_DIR="$GRAALVM_HOME/lib/svm/clibraries/android-aarch64/bionic"
+          mkdir -p "$CLIBRARY_DIR"
+          cp "$STATIC_ANDROID"/*.a "$CLIBRARY_DIR/"
+          for library in libjava.a libnio.a libnet.a; do
+            test -f "$GRAALVM_HOME/lib/static/android-aarch64/bionic/$library" || fail "Android static JDK is missing $library"
+            test -f "$CLIBRARY_DIR/$library" || fail "Android C-library path is missing $library"
+          done
+          echo "GRAALVM_HOME=$GRAALVM_HOME" >> "$GITHUB_ENV"
+
+      - name: Prepare an ARM GCC driver for the bionic sysroot
+        run: |
+          set -euo pipefail
+          SYSROOT="$RUNNER_TEMP/android-bionic-toolchain/sysroot"
+          if [[ ! -d "$SYSROOT" ]]; then
+            SYSROOT="$(find "$RUNNER_TEMP/android-bionic-toolchain" -type d -name sysroot -print -quit)"
+          fi
+          HOST_CC="$(command -v clang || command -v gcc || command -v cc || true)"
+          HOST_LD="$(command -v ld.lld || command -v ld.lld-18 || command -v ld.lld-17 || true)"
+          CLANG_RESOURCE="$(find "$RUNNER_TEMP/android-bionic-toolchain/clang" -mindepth 1 -maxdepth 1 -type d -print -quit 2>/dev/null || true)"
+          test -n "$SYSROOT"
+          test -d "$SYSROOT/usr/include"
+          test -n "$HOST_CC"
+          echo "Using host compiler $HOST_CC on $(uname -m); host lld: ${HOST_LD:-none}; NDK resource: ${CLANG_RESOURCE:-none}"
+          "$HOST_CC" --version
+          {
+            cat <<EOF
+          #!/usr/bin/env bash
+          set -euo pipefail
+          SYSROOT='$SYSROOT'
+          ANDROID_HOST_CC='$HOST_CC'
+          ANDROID_HOST_LD='$HOST_LD'
+          ANDROID_CLANG_RESOURCE='$CLANG_RESOURCE'
+          EOF
+            cat <<'EOF'
+          API_LIB="$SYSROOT/usr/lib/aarch64-linux-android30"
+          API_LIB_FALLBACK="$SYSROOT/usr/lib/aarch64-linux-android/30"
+          if [[ -d "$API_LIB_FALLBACK" ]]; then
+            API_LIB="$API_LIB_FALLBACK"
+          fi
+          # Native Image executes its small C-ABI query programs during the
+          # build. Android executables require /system/bin/linker64 and cannot
+          # run on the Linux builder, so compile link-and-run queries for the
+          # native Linux host while keeping object files and the final shared
+          # library on the Android bionic toolchain.
+          run_for_android=0
+          for argument in "$@"; do
+            if [[ "$argument" == '-shared' || "$argument" == '-c' ]]; then
+              run_for_android=1
+            fi
+          done
+          if [[ "$run_for_android" -eq 0 ]]; then
+            compiler_args=("$@")
+          else
+            compiler_args=(--sysroot="$SYSROOT" -B"$API_LIB/" -L"$API_LIB")
+            if [[ "$ANDROID_HOST_CC" == *clang ]]; then
+              compiler_args+=(--target=aarch64-linux-android30 -rtlib=compiler-rt)
+              if [[ -n "$ANDROID_CLANG_RESOURCE" ]]; then
+                compiler_args+=(-resource-dir="$ANDROID_CLANG_RESOURCE")
+              fi
+              if [[ -n "$ANDROID_HOST_LD" ]]; then
+                compiler_args+=(-fuse-ld=lld)
+              else
+                compiler_args+=(-fuse-ld=bfd)
+              fi
+            else
+              compiler_args+=(-static-libgcc)
+              compiler_args+=(-fuse-ld=bfd)
+            fi
+            compiler_args+=("$@")
+          fi
+          set +e
+          compiler_output="$("$ANDROID_HOST_CC" "${compiler_args[@]}" 2>&1)"
+          compiler_status=$?
+          set -e
+          if [[ "$compiler_status" -ne 0 ]]; then
+            one_line="${compiler_output//$'\n'/ }"
+            printf '%s\n' "$compiler_output" >&2
+            echo "clang: error: command=$ANDROID_HOST_CC ${compiler_args[*]} status=$compiler_status output=$one_line" >&2
+          else
+            printf '%s\n' "$compiler_output"
+          fi
+          exit "$compiler_status"
+          EOF
+          } > "$RUNNER_TEMP/android-aarch64-gcc"
+          chmod +x "$RUNNER_TEMP/android-aarch64-gcc"
+          echo "ANDROID_BIONIC_SYSROOT=$SYSROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_HOST_CC=$HOST_CC" >> "$GITHUB_ENV"
+          echo "MINECRAFT_NATIVE_COMPILER_PATH=$RUNNER_TEMP/android-aarch64-gcc" >> "$GITHUB_ENV"
+
+      - name: Download extracted-client runtime libraries
+        run: |
+          set -euo pipefail
+          java -version
+          native-image --version
+          python3 tools/fetch_minecraft_libraries.py
+
+      - name: Build the extracted 26.3 client as an Android bionic AArch64 image
+        run: |
+          set -euo pipefail
+          chmod +x godot_extension/build.sh
+          TOOLCHAIN_CHECK_DISABLED=1
+          if [[ "$ANDROID_HOST_CC" == *clang ]]; then
+            # Native Clang identifies the Android target to Graal's compiler
+            # probe; retain the probe so target-specific query sources are
+            # selected correctly. The GCC fallback cannot identify itself.
+            TOOLCHAIN_CHECK_DISABLED=0
+          fi
+          if ! MINECRAFT_NATIVE_TARGET=android-aarch64 \
+            MINECRAFT_NATIVE_COMPILER_PATH="$MINECRAFT_NATIVE_COMPILER_PATH" \
+            MINECRAFT_DISABLE_TOOLCHAIN_CHECK="$TOOLCHAIN_CHECK_DISABLED" \
+            MINECRAFT_SKIP_BRIDGE_BUILD=1 \
+            ./godot_extension/build.sh > "$RUNNER_TEMP/android-native-image.log" 2>&1; then
+            {
+              echo '## Android native-image failure log'
+              echo '```text'
+              tail -n 220 "$RUNNER_TEMP/android-native-image.log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            failure_line="$(tail -n 60 "$RUNNER_TEMP/android-native-image.log" | tr '\n' ' ' | cut -c1-6000)"
+            echo "::error title=Native image compiler failure::$failure_line"
+            tail -n 160 "$RUNNER_TEMP/android-native-image.log"
+            exit 1
+          fi
+          tail -n 80 "$RUNNER_TEMP/android-native-image.log"
+          test -s godot_extension/bin/libminecraft_java.so
+          test -s godot_extension/build/android/generated/minecraft_java.h
+          python3 tools/verify_extracted_native_image.py godot_extension/bin/libminecraft_java.so
+          file godot_extension/bin/libminecraft_java.so | grep -E 'ARM aarch64|AArch64'
+          # A glibc image would install on Linux but is rejected by Android's
+          # linker. The Android target must have no GLIBC symbol versioning.
+          if readelf --version-info godot_extension/bin/libminecraft_java.so | grep -q GLIBC_; then
+            echo 'Android Graal image contains glibc versioned symbols' >&2
+            exit 1
+          fi
+
+      - name: Upload Android native-image build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-android-native-image-log
+          path: ${{ runner.temp }}/android-native-image.log
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Stage Android extracted-client native image artifact
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/android-native-upload"
+          mkdir -p "$RUNNER_TEMP/android-native-upload"
+          cp godot_extension/bin/libminecraft_java.so "$RUNNER_TEMP/android-native-upload/"
+          cp godot_extension/build/android/generated/minecraft_java.h "$RUNNER_TEMP/android-native-upload/"
+
+      - name: Upload Android extracted-client native image
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-godot-android-extracted-java-arm64
+          path: ${{ runner.temp }}/android-native-upload
+          if-no-files-found: error
+          retention-days: 30
+
+  android-java-viewport-apk:
+    name: Package and export Android Java viewport APK
+    needs: android-graal-arm64
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GODOT_VERSION: 4.7.2-stable
+      GODOT_TEMPLATE_VERSION: 4.7.2.stable
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_NDK_VERSION: 29.0.14206865
+      ANDROID_API_LEVEL: '30'
+      LWJGL_ANDROID_SHA256: 35ab39ff5d71370829937b87b12e2c49b3e62dc59b564f7ff282a3dbf133a11f
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the extracted Android Graal image
+        uses: actions/download-artifact@v4
+        with:
+          name: minecraft-godot-android-extracted-java-arm64
+          path: ${{ runner.temp }}/android-native
+
+      - name: Install Android SDK and NDK components
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            mkdir -p "$RUNNER_TEMP/android-cmdline-tools"
+            curl --fail --location --retry 5 --retry-all-errors \
+              -o "$RUNNER_TEMP/cmdline-tools.zip" \
+              'https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip'
+            unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/android-cmdline-tools"
+            mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+            mv "$RUNNER_TEMP/android-cmdline-tools/cmdline-tools"/* "$ANDROID_HOME/cmdline-tools/latest/"
+            SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          fi
           yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
-            'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+            'platform-tools' 'platforms;android-35' 'build-tools;35.0.0' \
+            "ndk;${ANDROID_NDK_VERSION}"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install the Java image and link the Android arm64 bridge
+        run: |
+          set -euo pipefail
+          mkdir -p godot_extension/bin godot_extension/build/android/generated
+          cp "$RUNNER_TEMP/android-native/libminecraft_java.so" godot_extension/bin/libminecraft_java.so
+          cp "$RUNNER_TEMP/android-native/minecraft_java.h" godot_extension/build/android/generated/minecraft_java.h
+          chmod +x godot_extension/build_android_bridge.sh
+          ./godot_extension/build_android_bridge.sh
+
+      - name: Install the mobile LWJGL core native
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/lwjgl-android-arm64.zip"
+          curl --fail --location --retry 8 --retry-all-errors \
+            -o "$archive" \
+            'https://github.com/FlameLaunchers/FlameLauncher-SDL3/releases/download/lwjgl-v3.4.3-1/lwjgl-android-arm64-v8a.zip'
+          echo "$LWJGL_ANDROID_SHA256  $archive" | sha256sum --check --strict
+          mkdir -p godot_extension/bin
+          unzip -j "$archive" '*/liblwjgl.so' -d godot_extension/bin
+          test -s godot_extension/bin/liblwjgl.so
+          file godot_extension/bin/liblwjgl.so | grep -E 'ARM aarch64|AArch64'
+          # The image uses the neutral RenderPearl bridge, so only LWJGL's
+          # core JNI dispatcher is needed. Desktop OpenGL/OpenAL/etc. natives
+          # are intentionally absent from this APK.
+          test "$(find godot_extension/bin -maxdepth 1 -name 'liblwjgl*.so' | wc -l)" -eq 1
+
+      - name: Stage complete Minecraft client resource pack
+        run: python3 tools/stage_minecraft_assets.py
+
+      - name: Verify Godot resource renderer inputs
+        run: python3 tools/verify_minecraft_resource_pack.py
 
       - name: Install Godot editor and Android export templates
         run: |
           set -euo pipefail
-          curl --fail --location --retry 3 \
+          curl --fail --location --retry 5 --retry-all-errors \
             -o "$RUNNER_TEMP/godot.zip" \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
-          curl --fail --location --retry 3 \
+          curl --fail --location --retry 5 --retry-all-errors \
             -o "$RUNNER_TEMP/templates.tpz" \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
           unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
           TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_VERSION}"
           mkdir -p "$TEMPLATE_DIR"
           unzip -q "$RUNNER_TEMP/templates.tpz" -d "$TEMPLATE_DIR"
-          # The .tpz itself contains a templates/ root, whereas Godot expects
-          # android_debug.apk and android_release.apk directly in TEMPLATE_DIR.
           if [ -d "$TEMPLATE_DIR/templates" ]; then
             mv "$TEMPLATE_DIR/templates"/* "$TEMPLATE_DIR/"
             rmdir "$TEMPLATE_DIR/templates"
@@ -86,24 +397,35 @@ jobs:
           chmod +x "$GODOT_BIN"
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
 
-      - name: Export Android arm64 debug APK
+      - name: Export Android arm64 debug APK with the Java GDExtension enabled
         run: |
           set -euo pipefail
           mkdir -p build
-          # The checked-in GDExtension is Linux x86_64 only. Do not let the
-          # Linux desktop library load in the Android export process; Android
-          # uses MobileInputFallback until an arm64 renderer bridge exists.
-          mv godot_extension/minecraft.gdextension "$RUNNER_TEMP/minecraft.gdextension.linux-x86_64"
+          # The packaging host is x86_64 and must not try to load the arm64
+          # entry while exporting. The resulting project descriptor retains
+          # only the Android arm64 entry inside the APK.
+          cp godot_extension/minecraft.gdextension "$RUNNER_TEMP/minecraft.gdextension.full"
+          sed -i '/^linux\./d' godot_extension/minecraft.gdextension
           "$GODOT_BIN" --headless --path godot_extension \
-            --export-debug 'Android Debug' "$PWD/build/MinecraftGodot-debug.apk"
-          test -s build/MinecraftGodot-debug.apk
-          unzip -l build/MinecraftGodot-debug.apk | grep -q 'AndroidManifest.xml'
-          ls -lh build/MinecraftGodot-debug.apk
+            --export-debug 'Android Debug' "$PWD/build/MinecraftGodot-java-viewport-debug.apk"
+          test -s build/MinecraftGodot-java-viewport-debug.apk
+          unzip -l build/MinecraftGodot-java-viewport-debug.apk > "$RUNNER_TEMP/apk-list.txt"
+          for library in libminecraft_java.so libminecraft_godot.so libSDL3.so liblwjgl.so; do
+            grep -q "lib/arm64-v8a/$library" "$RUNNER_TEMP/apk-list.txt" || {
+              echo "APK is missing the Android Java viewport library: $library" >&2
+              exit 1
+            }
+          done
+          if grep -q 'lib/x86\|lib/x86_64\|lib/armeabi' "$RUNNER_TEMP/apk-list.txt"; then
+            echo 'APK contains an unexpected non-arm64 native library' >&2
+            exit 1
+          fi
+          ls -lh build/MinecraftGodot-java-viewport-debug.apk
 
-      - name: Upload Android debug APK
+      - name: Upload verified Android Java viewport APK
         uses: actions/upload-artifact@v4
         with:
-          name: minecraft-godot-android-arm64-debug
-          path: build/MinecraftGodot-debug.apk
+          name: minecraft-godot-android-arm64-java-viewport-debug
+          path: build/MinecraftGodot-java-viewport-debug.apk
           if-no-files-found: error
           retention-days: 30
