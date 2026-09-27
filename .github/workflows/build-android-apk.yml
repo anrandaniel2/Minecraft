@@ -470,7 +470,7 @@ jobs:
           yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
             'platform-tools' 'platforms;android-35' 'build-tools;35.0.0' \
-            "ndk;${ANDROID_NDK_VERSION}"
+            'cmake;3.22.1' "ndk;${ANDROID_NDK_VERSION}"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
 
       - name: Install the Java image and link the Android arm64 bridge

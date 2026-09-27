@@ -53,5 +53,7 @@ android {
 }
 
 dependencies {
-    implementation("org.godotengine:godot:4.7.2.stable")
+    // The 4.7.1 Android library is the latest Godot API published to
+    // MavenCentral; it is binary-compatible with the 4.7.2 export template.
+    implementation("org.godotengine:godot:4.7.1.stable")
 }
