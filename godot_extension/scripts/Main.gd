@@ -67,7 +67,7 @@ func _process(delta: float) -> void:
 	var elapsed := int(_java_gui_wait)
 	var presented := _presented_gui_draws()
 	var presented_world := _presented_world_draws()
-	var categories := _presented_categories()
+	var categories: Dictionary = _presented_categories()
 	var require_world := OS.get_environment("MINECRAFT_REQUIRE_WORLD") == "1"
 	if elapsed > 0 and elapsed % 10 == 0 and int(_java_gui_wait - delta) != elapsed:
 		print("JAVA_GUI_WAIT native %s passes %d draws %d gui %d text %d world %d presented %d world_presented %d" % [str(native), passes, draws, gui_draws, text_draws, world_draws, presented, presented_world])
@@ -76,7 +76,7 @@ func _process(delta: float) -> void:
 	# A world proof needs presented terrain, an entity, a fluid, particles, and
 	# the OIT/post composite. The first sky or terrain frame is not enough.
 	var menu_ready := text_draws > 0 and presented > 0
-	var world_ready := presented_world > 0 and categories.terrain > 0 and categories.entity > 0 and categories.particle > 0 and categories.fluid > 0 and categories.post > 0
+	var world_ready: bool = presented_world > 0 and int(categories.get("terrain", 0)) > 0 and int(categories.get("entity", 0)) > 0 and int(categories.get("particle", 0)) > 0 and int(categories.get("fluid", 0)) > 0 and int(categories.get("post", 0)) > 0
 	if (require_world and world_ready) or (not require_world and menu_ready):
 		_java_gui_reported = true
 		print("JAVA_GUI_COMMANDS %d presented %d text %d world %d" % [gui_draws, presented, text_draws, world_draws])

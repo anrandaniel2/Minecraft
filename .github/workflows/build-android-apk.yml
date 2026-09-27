@@ -146,6 +146,28 @@ jobs:
             test -f "$GRAALVM_HOME/lib/static/android-aarch64/bionic/$library" || fail "Android static JDK is missing $library"
             test -f "$CLIBRARY_DIR/$library" || fail "Android C-library path is missing $library"
           done
+          # The published Java 23 Android archives leave one HotSpot JNI
+          # compatibility entry point unresolved when consumed by the JDK 25
+          # Native Image runtime. Add it to the JDK's static libjvm archive so
+          # Android's loader never has to resolve it from a desktop JVM.
+          SYSROOT="$RUNNER_TEMP/android-bionic-toolchain/sysroot"
+          CLANG_RESOURCE="$(find "$RUNNER_TEMP/android-bionic-toolchain/clang" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          HOST_CLANG="$(command -v clang)"
+          cat > "$RUNNER_TEMP/jvm_android_shim.c" <<'EOF'
+          #include <unistd.h>
+          int JVM_ActiveProcessorCount(void) {
+              long count = sysconf(_SC_NPROCESSORS_ONLN);
+              return count > 0 ? (int) count : 1;
+          }
+          EOF
+          "$HOST_CLANG" --target=aarch64-linux-android30 \
+            --sysroot="$SYSROOT" -resource-dir="$CLANG_RESOURCE" \
+            -rtlib=compiler-rt -fPIC -c "$RUNNER_TEMP/jvm_android_shim.c" \
+            -o "$RUNNER_TEMP/jvm_android_shim.o"
+          for archive_dir in "$GRAALVM_HOME/lib/static/android-aarch64/bionic" "$CLIBRARY_DIR"; do
+            ar rcs "$archive_dir/libjvm.a" "$RUNNER_TEMP/jvm_android_shim.o"
+            nm -A "$archive_dir/libjvm.a" | grep 'JVM_ActiveProcessorCount' >/dev/null
+          done
           echo "GRAALVM_HOME=$GRAALVM_HOME" >> "$GITHUB_ENV"
 
       - name: Prepare an ARM GCC driver for the bionic sysroot
@@ -271,6 +293,10 @@ jobs:
           # linker. The Android target must have no GLIBC symbol versioning.
           if readelf --version-info godot_extension/bin/libminecraft_java.so | grep -q GLIBC_; then
             echo 'Android Graal image contains glibc versioned symbols' >&2
+            exit 1
+          fi
+          if readelf --dyn-syms --wide godot_extension/bin/libminecraft_java.so | grep -E ' UND +JVM_' ; then
+            echo 'Android Graal image still has unresolved JVM entry points' >&2
             exit 1
           fi
 
