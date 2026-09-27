@@ -148,8 +148,9 @@ jobs:
           done
           # The published Java 23 Android archives leave one HotSpot JNI
           # compatibility entry point unresolved when consumed by the JDK 25
-          # Native Image runtime. Add it to the JDK's static libjvm archive so
-          # Android's loader never has to resolve it from a desktop JVM.
+          # Native Image runtime. Add the implementation to libjava.a, which
+          # is one of the Android static archives Native Image links. Android's
+          # loader must never resolve it from a desktop JVM.
           SYSROOT="$RUNNER_TEMP/android-bionic-toolchain/sysroot"
           CLANG_RESOURCE="$(find "$RUNNER_TEMP/android-bionic-toolchain/clang" -mindepth 1 -maxdepth 1 -type d -print -quit)"
           HOST_CLANG="$(command -v clang)"
@@ -165,8 +166,8 @@ jobs:
             -rtlib=compiler-rt -fPIC -c "$RUNNER_TEMP/jvm_android_shim.c" \
             -o "$RUNNER_TEMP/jvm_android_shim.o"
           for archive_dir in "$GRAALVM_HOME/lib/static/android-aarch64/bionic" "$CLIBRARY_DIR"; do
-            ar rcs "$archive_dir/libjvm.a" "$RUNNER_TEMP/jvm_android_shim.o"
-            nm -A "$archive_dir/libjvm.a" | grep 'JVM_ActiveProcessorCount' >/dev/null
+            ar rcs "$archive_dir/libjava.a" "$RUNNER_TEMP/jvm_android_shim.o"
+            nm -A "$archive_dir/libjava.a" | grep -E '[[:space:]]T[[:space:]]+JVM_ActiveProcessorCount$' >/dev/null
           done
           echo "GRAALVM_HOME=$GRAALVM_HOME" >> "$GITHUB_ENV"
 
@@ -295,8 +296,11 @@ jobs:
             echo 'Android Graal image contains glibc versioned symbols' >&2
             exit 1
           fi
-          if readelf --dyn-syms --wide godot_extension/bin/libminecraft_java.so | grep -E ' UND +JVM_' ; then
-            echo 'Android Graal image still has unresolved JVM entry points' >&2
+          unresolved_jvm="$(readelf --dyn-syms --wide godot_extension/bin/libminecraft_java.so | awk '$0 ~ / UND +JVM_/ {print $NF}' | sort -u)"
+          if [[ -n "$unresolved_jvm" ]]; then
+            echo "Android Graal image still has unresolved JVM entry points: $unresolved_jvm" >&2
+            echo "::error title=Unresolved Android JVM symbols::$unresolved_jvm"
+            echo "Unresolved Android JVM symbols: $unresolved_jvm" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
