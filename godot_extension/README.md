@@ -47,6 +47,35 @@ The mask uses these bits: `FORWARD=1`, `BACKWARD=2`, `LEFT=4`, `RIGHT=8`,
 
 `MinecraftTouch` exposes the equivalent snake-case methods to Godot. The full-screen demo scene uses Godot 4.7's built-in `VirtualJoystick` for movement and `TouchScreenButton` nodes for independent multi-touch jump and sneak actions. Dragging any non-button region on the right half of the screen emits relative camera-look input. `TouchControls.gd` forwards generic action bits and look deltas to the Java bridge, so Java remains Godot-free.
 
+## Android VulkanMod overlay (optional)
+
+The repository also contains a small Kotlin Android plugin at
+`android_plugin/`. It adds a `SurfaceView` above the Godot activity and passes
+its `ANativeWindow` to an optional VulkanMod/Fabric client bridge. That makes
+Minecraft's normal Vulkan swapchain a separate Android surface instead of
+requiring the Minecraft renderer to be translated into Godot's
+`RenderingDevice`.
+
+Build it with the Android SDK/Gradle and copy the two AARs into the addon
+paths, or let `build-android-apk.yml` do that automatically:
+
+```bash
+gradle --no-daemon -p android_plugin :plugin:assembleDebug :plugin:assembleRelease
+mkdir -p addons/minecraft_vulkan_overlay/bin/{debug,release}
+cp android_plugin/plugin/build/outputs/aar/MinecraftVulkanOverlay-debug.aar \\
+  addons/minecraft_vulkan_overlay/bin/debug/
+cp android_plugin/plugin/build/outputs/aar/MinecraftVulkanOverlay-release.aar \\
+  addons/minecraft_vulkan_overlay/bin/release/
+```
+
+From GDScript, call `MinecraftVulkanOverlay.new().show_client()` after a
+VulkanMod-compatible client profile has been started. The plugin does not
+bundle or fake VulkanMod: the Fabric/VulkanMod runtime must provide the
+optional `minecraft_vulkanmod_surface_available` and
+`minecraft_vulkanmod_surface_destroyed` callbacks. Without that runtime the
+plugin reports `surface_ready_client_bridge_missing` rather than silently
+claiming that the extracted client is rendering.
+
 ## Godot viewport resource renderer
 
 `MinecraftGodotRenderer.gd` renders inside Godot's fullscreen main viewport. It

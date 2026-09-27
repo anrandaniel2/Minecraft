@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(minecraft_vulkanmod_bridge)
+
+add_library(minecraft_vulkanmod_bridge SHARED minecraft_vulkanmod_bridge.cpp)
+
+target_compile_features(minecraft_vulkanmod_bridge PRIVATE cxx_std_17)
+target_link_libraries(minecraft_vulkanmod_bridge PRIVATE android log)

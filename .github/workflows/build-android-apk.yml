@@ -529,6 +529,28 @@ jobs:
       - name: Verify Godot resource renderer inputs
         run: python3 tools/verify_minecraft_resource_pack.py
 
+      - name: Build the Kotlin VulkanMod overlay plugin
+        run: |
+          set -euo pipefail
+          if ! command -v gradle >/dev/null 2>&1; then
+            curl --fail --location --retry 5 --retry-all-errors \
+              -o "$RUNNER_TEMP/gradle.zip" \
+              'https://services.gradle.org/distributions/gradle-8.11.1-bin.zip'
+            unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP/gradle"
+            export PATH="$RUNNER_TEMP/gradle/gradle-8.11.1/bin:$PATH"
+          fi
+          gradle --no-daemon --stacktrace -p godot_extension/android_plugin \
+            :plugin:assembleDebug :plugin:assembleRelease
+          mkdir -p \\
+            godot_extension/addons/minecraft_vulkan_overlay/bin/debug \\
+            godot_extension/addons/minecraft_vulkan_overlay/bin/release
+          cp godot_extension/android_plugin/plugin/build/outputs/aar/MinecraftVulkanOverlay-debug.aar \\
+            godot_extension/addons/minecraft_vulkan_overlay/bin/debug/
+          cp godot_extension/android_plugin/plugin/build/outputs/aar/MinecraftVulkanOverlay-release.aar \\
+            godot_extension/addons/minecraft_vulkan_overlay/bin/release/
+          unzip -l godot_extension/addons/minecraft_vulkan_overlay/bin/debug/MinecraftVulkanOverlay-debug.aar \\
+            | grep -q 'classes.jar'
+
       - name: Install Godot editor and Android export templates
         run: |
           set -euo pipefail

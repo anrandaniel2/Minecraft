@@ -24,6 +24,9 @@ out/
 godot_extension/build/
 godot_extension/.godot/
 godot_extension/native-image/libraries/
+godot_extension/android_plugin/.gradle/
+godot_extension/android_plugin/plugin/build/
+godot_extension/addons/minecraft_vulkan_overlay/bin/
 godot_extension/run/
 minecraft-godot-run/
 __pycache__/

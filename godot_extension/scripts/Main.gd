@@ -6,6 +6,7 @@ extends Node
 @onready var controls = $TouchControls
 
 var _renderpearl_display: TextureRect
+var _vulkan_overlay: Node
 var _java_gui_wait := 0.0
 var _java_gui_reported := false
 var _logged_main_process := false
@@ -15,6 +16,7 @@ var _logged_sync_process := false
 func _ready() -> void:
 	print("MINECRAFT_GD_MAIN_READY")
 	printerr("MINECRAFT_GD_WORLD main-ready")
+	_setup_vulkan_overlay()
 	_renderpearl_display = TextureRect.new()
 	_renderpearl_display.name = "RenderPearlDisplay"
 	_renderpearl_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -192,3 +194,19 @@ func _sync_renderpearl_resources(native_bridge: Object) -> void:
 		_logged_sync_process = true
 		printerr("MINECRAFT_GD_WORLD sync-process")
 	resource_executor.synchronize(native_bridge)
+
+
+func _setup_vulkan_overlay() -> void:
+	if OS.get_name() != "Android" or not bool(ProjectSettings.get_setting("minecraft/vulkan_overlay/enabled", false)):
+		return
+	var overlay_script = load("res://scripts/MinecraftVulkanOverlay.gd")
+	if overlay_script == null:
+		printerr("MINECRAFT_VULKAN_OVERLAY missing GDScript adapter")
+		return
+	_vulkan_overlay = overlay_script.new()
+	add_child(_vulkan_overlay)
+	_vulkan_overlay.enable_vulkanmod(true)
+	if not _vulkan_overlay.show_client():
+		printerr("MINECRAFT_VULKAN_OVERLAY plugin unavailable")
+	else:
+		print("MINECRAFT_VULKAN_OVERLAY status ", _vulkan_overlay.status())

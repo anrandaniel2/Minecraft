@@ -33,6 +33,10 @@ minecraft_sneak={
 "events": []
 }
 
+[minecraft]
+
+vulkan_overlay/enabled=false
+
 [display/window]
 size/viewport_width=1280
 size/viewport_height=720
@@ -42,6 +46,10 @@ size/mode=3
 handheld/orientation=0
 stretch/mode="canvas_items"
 stretch/aspect="expand"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/minecraft_vulkan_overlay/plugin.cfg")
 
 [rendering]
 ; RenderingDevice is required for the RenderPearl viewport executor. Desktop
