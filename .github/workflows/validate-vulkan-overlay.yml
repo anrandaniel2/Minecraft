@@ -50,7 +50,7 @@ jobs:
           if ! "${gradle_cmd[@]}" --no-daemon --stacktrace --console=plain \
             -p godot_extension/android_plugin \
             :plugin:assembleDebug :plugin:assembleRelease >"$log" 2>&1; then
-            diagnostic="$( { head -n 100 "$log"; tail -n 100 "$log"; } | awk '!seen[$0]++' | tr '\n' ' ' | cut -c1-6000)"
+            diagnostic="$(tail -n 60 "$log" | tr '\n' ' ' | cut -c1-6000)"
             echo "::error title=Kotlin VulkanMod overlay build failure::$diagnostic"
             cat "$log"
             exit 1
