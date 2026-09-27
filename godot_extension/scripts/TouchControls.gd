@@ -30,11 +30,15 @@ const MobileInputFallback := preload("res://scripts/MobileInputFallback.gd")
 @onready var status_label: Label = $CanvasLayer/HUD/Status
 
 var minecraft_touch: Object
+var resource_executor: Node
 var using_native_bridge := false
 var look_touch_id := -1
 var _logged_mailbox_execution := false
+var _proof_wait := 0.0
+var _proof_reported := false
 
 func _ready() -> void:
+	resource_executor = get_parent().get_node_or_null("RenderPearlRenderingDeviceExecutor")
 	_ensure_input_actions()
 	# Do not statically reference MinecraftTouch. Desktop has the Linux
 	# GDExtension; Android starts with the Godot-only fallback until an arm64
@@ -90,7 +94,7 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and look_touch_id == -2:
 		_apply_camera_drag((event as InputEventMouseMotion).relative)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if minecraft_touch == null:
 		return
 
@@ -106,13 +110,18 @@ func _process(_delta: float) -> void:
 	# The client thread submits frames; this side only drains the mailbox.
 	if using_native_bridge and OS.get_environment("MINECRAFT_REQUIRE_JAVA_GUI") == "1":
 		var proof_packets: int = minecraft_touch.call(&"execute_render_mailbox")
+		if proof_packets > 0 and not _logged_mailbox_execution:
+			_logged_mailbox_execution = true
+			printerr("MINECRAFT_GD_WORLD mailbox-executed %d" % proof_packets)
 		if proof_packets > 0:
-			if not _logged_mailbox_execution:
-				_logged_mailbox_execution = true
-				printerr("MINECRAFT_GD_WORLD mailbox-executed %d" % proof_packets)
 			render_mailbox_executed.emit(minecraft_touch)
 		elif proof_packets != -7:
 			print("MINECRAFT_GD_SUBMIT_FAIL mailbox %d" % proof_packets)
+		# TouchControls runs before Main. Synchronize here as a fallback for a
+		# root script that is not processing while the extracted client is alive.
+		if resource_executor != null:
+			resource_executor.synchronize(minecraft_touch)
+		_check_java_gui_proof(delta)
 		return
 
 	minecraft_touch.call(&"set_virtual_joystick_mask", action_mask)
@@ -125,6 +134,58 @@ func _process(_delta: float) -> void:
 	var mask: int = minecraft_touch.call(&"get_touch_mask")
 	var bridge_name := "Native Java bridge" if using_native_bridge else "Android input fallback"
 	status_label.text = "%s — input mask: %d" % [bridge_name, mask]
+
+func _check_java_gui_proof(delta: float) -> void:
+	if _proof_reported or resource_executor == null:
+		return
+	_proof_wait += delta
+	var draws := int(minecraft_touch.call(&"get_render_draw_count"))
+	var gui_draws := 0
+	var text_draws := 0
+	var world_draws := 0
+	for index in range(draws):
+		var family := int(minecraft_touch.call(&"get_render_draw_attribute", index, 2))
+		if family >= 1 and family <= 3:
+			gui_draws += 1
+		if family == 3:
+			text_draws += 1
+		if family >= 4 and family <= 8:
+			world_draws += 1
+	var families: PackedInt32Array = resource_executor.get("java_presented_families")
+	var fluid := int(resource_executor.get("java_presented_fluid"))
+	var presented := int(resource_executor.get("java_gui_draw_count"))
+	var presented_world := int(resource_executor.get("java_world_draw_count"))
+	var terrain := _proof_family(families, 4)
+	var entity := _proof_family(families, 5)
+	var sky := _proof_family(families, 6)
+	var particle := _proof_family(families, 7)
+	var post := _proof_family(families, 8)
+	var world_ready := presented_world > 0 and terrain > 0 and entity > 0 and particle > 0 and fluid > 0 and post > 0
+	if world_ready:
+		_proof_reported = true
+		print("JAVA_GUI_COMMANDS %d presented %d text %d world %d" % [gui_draws, presented, text_draws, world_draws])
+		print("JAVA_GUI_FAMILIES terrain %d entity %d sky %d particle %d fluid %d post %d" % [terrain, entity, sky, particle, fluid, post])
+		print("MINECRAFT_GD_WORLD families terrain %d entity %d sky %d particle %d fluid %d post %d" % [terrain, entity, sky, particle, fluid, post])
+		_exit_java_gui_proof(0)
+		return
+	if _proof_wait >= 800.0:
+		_proof_reported = true
+		print("JAVA_GUI_MISSING native true passes %d draws %d gui %d text %d world %d presented %d world_presented %d" % [
+			int(minecraft_touch.call(&"get_render_frame_pass_count")), draws, gui_draws, text_draws, world_draws, presented, presented_world
+		])
+		print("MINECRAFT_GD_WORLD families terrain %d entity %d sky %d particle %d fluid %d post %d" % [terrain, entity, sky, particle, fluid, post])
+		_exit_java_gui_proof(2)
+
+
+func _proof_family(families: PackedInt32Array, index: int) -> int:
+	return int(families[index]) if families.size() > index else 0
+
+
+func _exit_java_gui_proof(code: int) -> void:
+	if minecraft_touch != null and minecraft_touch.has_method(&"exit_process"):
+		minecraft_touch.call(&"exit_process", code)
+	get_tree().quit(code)
+
 
 func _apply_camera_drag(relative_pixels: Vector2) -> void:
 	if relative_pixels == Vector2.ZERO:
