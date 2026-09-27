@@ -208,11 +208,6 @@ jobs:
               (void) cls;
               return 0;
           }
-          int Java_sun_nio_ch_Net_shouldSetBothIPv4AndIPv6Options0(void *env, void *cls) {
-              (void) env;
-              (void) cls;
-              return 1;
-          }
           EOF
           "$HOST_CLANG" --target=aarch64-linux-android30 \
             --sysroot="$SYSROOT" -resource-dir="$CLANG_RESOURCE" \
