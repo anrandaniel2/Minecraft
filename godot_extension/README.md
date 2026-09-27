@@ -2,9 +2,11 @@
 
 **Godot requirement:** This project uses Godot 4.7.2’s built-in `VirtualJoystick`, so it requires Godot 4.7.2 or newer.
 
-This is a **Linux x86_64** GDExtension project which compiles the usable Java
-surface in `decompiled_sample/net/minecraft/client/Minecraft.java` into a GraalVM
-Native Image shared library and loads it from Godot.
+This is a cross-platform GDExtension project. The desktop build is Linux
+x86_64; the Android workflow builds a separate `arm64-v8a` bionic image. Both
+builds compile the extracted Minecraft 26.3 client in `extracted/` into a
+GraalVM Native Image. The old `decompiled_sample/` tree is not an input to the
+shipped library.
 
 It is intentionally split into two shared objects:
 
@@ -17,10 +19,10 @@ This split is important: Java stays Godot-free, while the adapter handles the
 Godot C ABI. `libminecraft_godot.so` uses an `$ORIGIN` rpath, so it finds the
 Java library next to itself after export.
 
-> The repository has only a decompiled **sample** of Minecraft. This builds the
-> sample integration/input surface, not the full Mojang client. Compiling the
-> complete client would require its full source graph, runtime dependencies,
-> resources, and a replacement for its LWJGL rendering platform.
+> The Android artifact is an experimental viewport build, not a complete
+> polished Minecraft release. It contains the extracted 26.3 Java client,
+> RenderPearl/Godot bridge, and Android-safe LWJGL/SDL boundary; it does not
+> claim that every desktop renderer subsystem is production-ready.
 
 ## Touch API
 
@@ -67,9 +69,10 @@ The bootstrap terrain is a deterministic renderer smoke test, but it is built
 from real client block IDs/models/textures rather than colored demo cubes. It
 is replaced when a Java chunk/world adapter submits an authoritative snapshot.
 This is substantial Godot-side resource rendering, **not yet a completed port
-of every Blaze3D subsystem**: chunk extraction from the complete client,
-section mesh batching, fluids, entities, UI, post-processing, and an Android
-arm64 Java bridge remain separate work.
+of every Blaze3D subsystem**. The Linux proof and the Android packaging path
+now include the extracted-client RenderPearl bridge; chunk extraction,
+section mesh batching, and production-level renderer coverage remain
+experimental.
 
 ### Stage the complete client assets
 
@@ -158,12 +161,15 @@ platform and add the matching `macos.*` or `windows.*` library entry to
 
 ### Android APK workflow
 
-`.github/workflows/build-android-apk.yml` exports a Godot **4.7.2 Android
-arm64 debug APK** and uploads it as `minecraft-godot-android-arm64-debug`.
-It includes the Godot 4.7 built-in VirtualJoystick, movement actions, and the
-jump/sneak controls.
+`.github/workflows/build-android-apk.yml` has two jobs. An AArch64 runner
+builds the extracted 26.3 classes with GraalVM Native Image using
+`--target=android-aarch64 --libc=bionic`; an x86_64 packaging runner links the
+Android NDK bridge, mobile LWJGL core, and SDL viewport stub before exporting
+Godot **4.7.2 Android arm64**. The final artifact is
+`minecraft-godot-android-arm64-java-viewport-debug`.
 
-The current GraalVM libraries are Linux x86_64 only, so Android intentionally
-uses `MobileInputFallback.gd`; it does not pretend to run the desktop Java
-client. The full viewport-port milestone must provide a separately built
-Android arm64 GDExtension before `MinecraftTouch` can be enabled on Android.
+The workflow rejects an APK unless it contains all four arm64 libraries:
+`libminecraft_java.so`, `libminecraft_godot.so`, `liblwjgl.so`, and
+`libSDL3.so`. This is the extracted-client Java viewport path, not the former
+fallback-only APK. The build remains an experimental viewport rather than a
+polished complete Minecraft release.
