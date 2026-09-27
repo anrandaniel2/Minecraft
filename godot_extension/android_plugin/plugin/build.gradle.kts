@@ -18,7 +18,6 @@ android {
         manifestPlaceholders["godotPluginName"] = pluginName
         manifestPlaceholders["godotPluginPackageName"] = pluginPackageName
         buildConfigField("String", "GODOT_PLUGIN_NAME", "\"$pluginName\"")
-        setProperty("archivesBaseName", pluginName)
 
         externalNativeBuild {
             cmake {
@@ -50,6 +49,10 @@ android {
             jvmTarget.set(JvmTarget.JVM_17)
         }
     }
+}
+
+base {
+    archivesName.set(pluginName)
 }
 
 dependencies {
