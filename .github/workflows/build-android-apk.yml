@@ -186,6 +186,14 @@ jobs:
           void JVM_Halt(int code) {
               _exit(code);
           }
+          // Graal's AArch64 CPU-feature guard is supplied by its native
+          // libchelper on desktop builds. The Android static archive leaves
+          // the guard unresolved; the Android image is already compiled for
+          // the device ABI, so accept the device feature set here.
+          int checkCPUFeatures(const unsigned char *buildtime_features) {
+              (void) buildtime_features;
+              return 0;
+          }
           // Native Image's POSIX time-zone substitution calls this helper even
           // though the Java 23 Android archive does not provide it. Android's
           // app process has no desktop tzmappings file; prefer TZ when set and
@@ -387,7 +395,7 @@ jobs:
             echo 'Android Graal image contains glibc versioned symbols' >&2
             exit 1
           fi
-          unresolved_android_runtime="$(readelf --dyn-syms --wide godot_extension/bin/libminecraft_java.so | awk '$0 ~ / UND +(JVM_|Java_|SVM_)/ {print $NF}' | sort -u)"
+          unresolved_android_runtime="$(readelf --dyn-syms --wide godot_extension/bin/libminecraft_java.so | awk '$0 ~ / UND +(JVM_|Java_|SVM_|checkCPUFeatures)/ {print $NF}' | sort -u)"
           if [[ -n "$unresolved_android_runtime" ]]; then
             echo "Android Graal image still has unresolved runtime entry points: $unresolved_android_runtime" >&2
             echo "::error title=Unresolved Android runtime symbols::$unresolved_android_runtime"
