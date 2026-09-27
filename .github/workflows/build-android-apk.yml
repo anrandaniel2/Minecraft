@@ -164,6 +164,9 @@ jobs:
           void *JVM_FindLibraryEntry(void *handle, const char *name) {
               return dlsym(handle, name);
           }
+          void JVM_Halt(int code) {
+              _exit(code);
+          }
           EOF
           "$HOST_CLANG" --target=aarch64-linux-android30 \
             --sysroot="$SYSROOT" -resource-dir="$CLANG_RESOURCE" \
