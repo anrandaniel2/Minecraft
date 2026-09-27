@@ -199,6 +199,10 @@ jobs:
               (void) fdo;
               return 1;
           }
+          void Java_java_nio_MappedMemoryUtils_registerNatives(void *env, void *cls) {
+              (void) env;
+              (void) cls;
+          }
           EOF
           "$HOST_CLANG" --target=aarch64-linux-android30 \
             --sysroot="$SYSROOT" -resource-dir="$CLANG_RESOURCE" \
