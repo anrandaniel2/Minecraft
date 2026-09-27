@@ -146,7 +146,7 @@ jobs:
             test -f "$GRAALVM_HOME/lib/static/android-aarch64/bionic/$library" || fail "Android static JDK is missing $library"
             test -f "$CLIBRARY_DIR/$library" || fail "Android C-library path is missing $library"
           done
-          # The published Java 23 Android archives leave one HotSpot JNI
+          # The published Java 23 Android archives leave HotSpot JNI
           # compatibility entry point unresolved when consumed by the JDK 25
           # Native Image runtime. Add the implementation to libjava.a, which
           # is one of the Android static archives Native Image links. Android's
@@ -155,10 +155,14 @@ jobs:
           CLANG_RESOURCE="$(find "$RUNNER_TEMP/android-bionic-toolchain/clang" -mindepth 1 -maxdepth 1 -type d -print -quit)"
           HOST_CLANG="$(command -v clang)"
           cat > "$RUNNER_TEMP/jvm_android_shim.c" <<'EOF'
+          #include <dlfcn.h>
           #include <unistd.h>
           int JVM_ActiveProcessorCount(void) {
               long count = sysconf(_SC_NPROCESSORS_ONLN);
               return count > 0 ? (int) count : 1;
+          }
+          void *JVM_FindLibraryEntry(void *handle, const char *name) {
+              return dlsym(handle, name);
           }
           EOF
           "$HOST_CLANG" --target=aarch64-linux-android30 \
