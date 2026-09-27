@@ -9,8 +9,8 @@
 #define MINECRAFT_RENDER_RGBA8_UNORM 6u
 #define MINECRAFT_RENDER_RGBA8_BYTES_PER_PIXEL 4u
 /* Keep enough of each family for the viewport proof, not every section. */
-#define MINECRAFT_RENDER_RETAIN_PER_FAMILY 48u
-#define MINECRAFT_RENDER_RETAIN_FLUID 16u
+#define MINECRAFT_RENDER_RETAIN_PER_FAMILY 8u
+#define MINECRAFT_RENDER_RETAIN_FLUID 8u
 #define MINECRAFT_RENDER_BLEND_OPAQUE 2u
 
 static uint32_t next_revision(uint32_t revision) {

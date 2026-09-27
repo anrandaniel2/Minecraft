@@ -44,6 +44,11 @@ const PASS_DRAW_START := 8
 # GDExtension transfer requests are capped in native code too. Keeping chunks
 # bounded avoids one untrusted mailbox packet allocating an unbounded Variant.
 const MAX_TRANSFER_CHUNK_BYTES := 4 * 1024 * 1024
+# A retained draw can still reference a shared chunk/atlas allocation. Keep
+# one mailbox collection bounded even when that allocation is larger than the
+# viewport needs; later frames can retry after the client rotates resources.
+const MAX_FRAME_BUFFER_UPLOAD_BYTES := 64 * 1024 * 1024
+const MAX_FRAME_TEXTURE_UPLOAD_BYTES := 64 * 1024 * 1024
 
 # RenderPearl's extracted 26.3 enum ordinal for GpuFormat.RGBA8_UNORM.
 const RENDERPEARL_RGBA8_UNORM := 6
@@ -69,6 +74,9 @@ var _gpu_framebuffers: Dictionary = {}
 var _submitted_pass_revision := 0
 var _snapshot_pending := false
 var _logged_first_gpu_result := false
+var _logged_sync_unavailable := false
+var _logged_sync_start := false
+var _logged_upload_budget := false
 var _presented_texture: Texture2DRD
 var _presented_rid := RID()
 
@@ -83,6 +91,12 @@ func _ready() -> void:
 
 func synchronize(native_bridge: Object) -> bool:
 	if not _rendering_device_available or native_bridge == null:
+		if not _logged_sync_unavailable:
+			_logged_sync_unavailable = true
+			printerr("MINECRAFT_GD_WORLD sync-unavailable rd %s bridge %s" % [
+				str(_rendering_device_available),
+				str(native_bridge != null),
+			])
 		return false
 	# Do not queue one render-thread callback per client frame. In particular,
 	# force_sync() here can block Godot's main thread while lavapipe is compiling
@@ -91,9 +105,18 @@ func synchronize(native_bridge: Object) -> bool:
 	# once this callback has returned.
 	if _snapshot_pending:
 		return true
+	if not _logged_sync_start:
+		_logged_sync_start = true
+		printerr("MINECRAFT_GD_WORLD sync-start")
 	var snapshot := _collect_snapshot(native_bridge)
 	if snapshot.is_empty():
+		printerr("MINECRAFT_GD_WORLD sync-empty")
 		return true
+	printerr("MINECRAFT_GD_WORLD sync-snapshot draws %d buffers %d textures %d" % [
+		snapshot.get("draws", []).size(),
+		snapshot.get("buffers", []).size(),
+		snapshot.get("textures", []).size(),
+	])
 	_snapshot_pending = true
 	RenderingServer.call_on_render_thread(_apply_snapshot.bind(snapshot))
 	return true
@@ -161,6 +184,7 @@ func _needed_resource_ids(draws: Array, passes: Array, render_pass: Dictionary) 
 
 func _collect_buffers(native_bridge: Object, needed: Dictionary, restrict_uploads: bool) -> Array:
 	var uploads: Array = []
+	var uploaded_bytes := 0
 	var count: int = native_bridge.call(&"get_render_buffer_count")
 	for index in range(count):
 		var resource_id: int = native_bridge.call(&"get_render_buffer_attribute", index, BUFFER_ID)
@@ -176,6 +200,11 @@ func _collect_buffers(native_bridge: Object, needed: Dictionary, restrict_upload
 				and _submitted_buffer_revisions.get(resource_id, -1) == revision \
 				and _submitted_buffer_usages.get(resource_id, -1) == usage:
 			continue
+		if restrict_uploads and uploaded_bytes + size_bytes > MAX_FRAME_BUFFER_UPLOAD_BYTES:
+			if not _logged_upload_budget:
+				_logged_upload_budget = true
+				printerr("MINECRAFT_GD_WORLD upload-budget buffers %d" % uploaded_bytes)
+			continue
 		var bytes := _read_buffer_bytes(native_bridge, resource_id, size_bytes)
 		if bytes.size() != size_bytes:
 			push_warning("RenderPearl buffer %d byte transfer was incomplete" % resource_id)
@@ -183,6 +212,7 @@ func _collect_buffers(native_bridge: Object, needed: Dictionary, restrict_upload
 		_submitted_buffer_sizes[resource_id] = size_bytes
 		_submitted_buffer_revisions[resource_id] = revision
 		_submitted_buffer_usages[resource_id] = usage
+		uploaded_bytes += size_bytes
 		uploads.append({
 			"id": resource_id,
 			"size": size_bytes,
@@ -194,6 +224,7 @@ func _collect_buffers(native_bridge: Object, needed: Dictionary, restrict_upload
 
 func _collect_textures(native_bridge: Object, needed: Dictionary, restrict_uploads: bool) -> Array:
 	var uploads: Array = []
+	var uploaded_bytes := 0
 	var count: int = native_bridge.call(&"get_render_texture_count")
 	for index in range(count):
 		var resource_id: int = native_bridge.call(&"get_render_texture_attribute", index, TEXTURE_ID)
@@ -218,12 +249,19 @@ func _collect_textures(native_bridge: Object, needed: Dictionary, restrict_uploa
 		if _submitted_texture_signatures.get(resource_id) == signature \
 				and _submitted_texture_revisions.get(resource_id, -1) == revision:
 			continue
+		var estimated_bytes := width * height * depth_or_layers * 4
+		if restrict_uploads and uploaded_bytes + estimated_bytes > MAX_FRAME_TEXTURE_UPLOAD_BYTES:
+			if not _logged_upload_budget:
+				_logged_upload_budget = true
+				printerr("MINECRAFT_GD_WORLD upload-budget textures %d" % uploaded_bytes)
+			continue
 		var layers := _read_texture_layers(native_bridge, resource_id, depth_or_layers, mip_levels)
 		if layers.is_empty():
 			push_warning("RenderPearl texture %d byte transfer was incomplete" % resource_id)
 			continue
 		_submitted_texture_signatures[resource_id] = signature
 		_submitted_texture_revisions[resource_id] = revision
+		uploaded_bytes += estimated_bytes
 		uploads.append({
 			"id": resource_id,
 			"format": format,
