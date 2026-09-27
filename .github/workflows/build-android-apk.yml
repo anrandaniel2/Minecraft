@@ -190,6 +190,15 @@ jobs:
               (void) cls;
               return 0;
           }
+          // The extracted client only opens regular resource files. The
+          // descriptor-specific JNI plumbing is not available in this small
+          // compatibility archive, so report opened descriptors as regular.
+          int Java_java_io_FileInputStream_isRegularFile0(void *env, void *self, void *fdo) {
+              (void) env;
+              (void) self;
+              (void) fdo;
+              return 1;
+          }
           EOF
           "$HOST_CLANG" --target=aarch64-linux-android30 \
             --sysroot="$SYSROOT" -resource-dir="$CLANG_RESOURCE" \
