@@ -123,6 +123,8 @@ jobs:
           # static Java/NIO/Net archives. This is the published Android
           # static-JDK build used by the mobile Native Image toolchain.
           JDKLIBS_ARCHIVE="$RUNNER_TEMP/jdklibs-android-aarch64-23.tgz"
+          # This archive is retried because the external mobile mirror can
+          # occasionally reset a large download on the first request.
           JDKLIBS_URL='https://download2.gluonhq.com/mobile/jdklibs-android-aarch64-23.tgz'
           curl --fail --location --retry 5 --retry-all-errors -o "$JDKLIBS_ARCHIVE" "$JDKLIBS_URL" || fail "Android static JDK download failed: $JDKLIBS_URL"
           mkdir -p "$RUNNER_TEMP/android-jdklibs"
