@@ -109,6 +109,8 @@ jobs:
           java-version: '25'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Artifact downloads can occasionally fail transiently on GitHub's
+      # results service; a fresh workflow run retries this dependency.
       - name: Download the Android bionic sysroot
         uses: actions/download-artifact@v4
         with:
