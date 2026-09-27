@@ -8,6 +8,7 @@ extends Node
 var _renderpearl_display: TextureRect
 var _java_gui_wait := 0.0
 var _java_gui_reported := false
+var _logged_sync_process := false
 
 
 func _ready() -> void:
@@ -28,9 +29,10 @@ func _ready() -> void:
 	resource_executor.color_target_presented.connect(_show_renderpearl_target)
 	resource_executor.java_gui_presented.connect(_hide_godot_status_after_java_gui)
 	controls.camera_dragged.connect(renderer.add_camera_drag)
-	controls.render_mailbox_executed.connect(_sync_renderpearl_resources)
-	# Drain the mailbox before this node reads the draw count. TouchControls is
-	# a child and would otherwise run after the proof check.
+	# Drain the mailbox before this node reads or synchronizes the draw frame.
+	# TouchControls is a child and would otherwise run after the proof check.
+	# The main loop polls below instead of relying only on signal delivery from
+	# the child, which keeps the Java-to-Godot handoff observable on lavapipe.
 	controls.process_priority = -10
 
 
@@ -56,6 +58,8 @@ func _process(delta: float) -> void:
 		gui_draws = int(families.x)
 		text_draws = int(families.y)
 		world_draws = int(families.z)
+		if draws > 0:
+			_sync_renderpearl_resources(bridge)
 	var elapsed := int(_java_gui_wait)
 	var presented := _presented_gui_draws()
 	var presented_world := _presented_world_draws()
@@ -180,5 +184,7 @@ func _hide_godot_status_after_java_gui() -> void:
 
 
 func _sync_renderpearl_resources(native_bridge: Object) -> void:
-	printerr("MINECRAFT_GD_WORLD sync-signal")
+	if not _logged_sync_process:
+		_logged_sync_process = true
+		printerr("MINECRAFT_GD_WORLD sync-process")
 	resource_executor.synchronize(native_bridge)
