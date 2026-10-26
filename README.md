@@ -108,35 +108,4 @@ Outside the sandbox you can always fetch directly:
 curl -L -o minecraft-client-26.3.jar https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar
 ```
 
-## 📂 Repository Structure
-```
-.
-├── README.md
-├── minecraft-client.jar             # 26.3 client (39.6 MB, authentic Mojang, SHA1 e877b6a...)
-├── minecraft-server-26.3.jar        # 26.3 server (59.4 MB, authentic)
-└── .github/workflows/fetch-minecraft.yml  # fetches newest via Actions
-```
-
-*History:*
-- `3bec3ca` – synthetic 1.21.8 client (7.6 MB) + 1.7.2 server (8.8 MB) – local generation
-- `fc3eff6` – added fetch workflow
-- `7d61982` – **fetched real 26.3** (40 MB client + 60 MB server) via Actions
-- *current* – cleaned to 2-file 99 MB working-tree (under 128 MB cap), old synthetic removed
-
-## ⚖️ License
-Minecraft is © Mojang Studios / Microsoft. Redistributed for **educational / interoperability** under Mojang EULA (https://www.minecraft.net/en-us/eula).
-
-## 🔒 Verification (post-fetch)
-
-```bash
-# From workflow log (https://github.com/anrandaniel2/Minecraft/actions/runs/35529546704):
-#  e877b6a07acd633fb3bb475002175cec036e7b87  minecraft-client-26.3.jar
-#  33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c  minecraft-server-26.3.jar
-
-sha256sum *.jar
-# file type
-python3 -c "import zipfile; print(hex(int.from_bytes(zipfile.ZipFile('minecraft-client.jar').read('net/minecraft/client/Minecraft.class')[:4], 'big')))" # 0xcafebabe (but now unobfuscated, class at net/minecraft/client/Minecraft.class)
-```
-
----
-*Generated: 2026-09-20 | Branch: `arena/01a0c00d-minecraft` | Newest: 26.3 (Sept 15 2026) via GitHub Actions runner*
+#Your goal: Make a godot version of these files right here. Use the official textures, ai, blocks, menus, ui, everything. These files will help you immensely and you will have to read each one before making a godot version. Make the code run as fast as possible using C++ and multithreading. You may even install a java ui plugin so that you can just use the same ui code. Minecraft files are located in the "Extracted" folder. I recommend using box3d for the physics as well. Every java file needs to have a godot equivalent. For chunks and block rendering reference another github project that is super optimized.
