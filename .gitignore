@@ -1,0 +1,20 @@
+# Minecraft extracted / decompiled (32k files, 300MB) – extracted/ is now committed as whole jar
+# But keep decompiled/ etc ignored for local builds
+deobfuscated/
+decompiled/
+decompiled_*/
+*.log
+vineflower.jar
+# Keep JARs and tarballs for whole jar (required)
+!minecraft-client.jar
+!minecraft-server*.jar
+!minecraft-client-*.tar.gz
+!minecraft-client-*.jar
+!*.tar.gz
+
+# Gradle / IDE
+.gradle/
+build/
+out/
+.idea/
+*.iml
